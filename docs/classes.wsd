@@ -1,0 +1,47 @@
+@startuml
+
+interface Asset {
+    +Execute(input map[string]interface{}) (interface{}, error)
+	+GetUpstreams() []string
+	+GetDownstreams() []string
+	+GetName() string
+}
+
+Class SQLModelAsset
+Interface DBEngine {
+    +Begin() error
+	+Commit() error
+	+Close() error
+	+Exec(sql string) (interface{}, error)
+	+GetListOfFields(tableName string) ([]string, error)
+	+CheckTableExists(tableName string) (bool, error)
+}
+
+Class DuckDB
+Class PossgreSQL
+Class ClickHouse
+Class MySQL
+Class SQLModelDescriptor
+Interface DAG {
+    +Run() *sync.WaitGroup
+	+Push(workflowInstanceName string)
+	+Stop()
+}
+
+class Routine
+
+SQLModelAsset .up.|> Asset
+GOAsset .up.|> Asset
+SeedAsset .up.|> Asset
+SQLModelAsset o-right-> DBEngine
+SQLModelAsset o--> SQLModelDescriptor
+SeedAsset o--> DBEngine
+DuckDB .up.|> DBEngine
+PossgreSQL .up.|> DBEngine
+ClickHouse .up.|> DBEngine
+MySQL .up.|> DBEngine
+
+ChannelDAG .up.|> DAG 
+ChannelDAG *-left->Routine 
+Routine o-left->Asset
+@enduml

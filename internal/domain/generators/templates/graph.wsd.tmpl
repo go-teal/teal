@@ -1,0 +1,23 @@
+{{ $assets := .Assets }}
+@startuml {{ .ProjectName }}
+left to right direction
+
+{{- range $s := .Stages }}
+state {{ $s }} {
+    {{- range $asset := $assets }}
+        {{- if eq $asset.Stage $s}}
+            state {{ $asset.ModelName  }}: {{ $asset.ModelProfile.Materialization }}            
+        {{- end }} 
+    {{- end}}
+}
+{{- end }}
+
+
+{{- range $asset := $assets }}
+    {{- range $ds := $asset.Downstreams }}
+{{ $asset.ModelName }}-->{{ $ds }}
+    {{- end}}
+{{- end}}
+
+
+@enduml

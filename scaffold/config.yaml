@@ -1,0 +1,13 @@
+version: '1.0.0'
+module: github.com/you_git_user/your_project
+connections:
+  - name: default
+    type: duckdb
+    config:
+      path: ./store/test.duckdb            
+      extensions:
+        - postgres
+        - httpfs         
+      # extraParams: 
+      #   - name: "name"
+      #     value: "value"

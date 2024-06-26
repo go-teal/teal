@@ -1,0 +1,9 @@
+version: '1.0.0'
+name: 'hello-world'
+connection: 'default'
+models: 
+  stages:
+    - name: staging
+    - name: dds  
+    - name: mart
+    

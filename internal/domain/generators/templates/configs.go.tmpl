@@ -1,0 +1,20 @@
+{{ $config := .Config}}
+package assets
+
+import "github.com/go-teal/teal/pkg/processing"
+
+var PorjectAssets = map[string] processing.Asset{
+	{{- range $asset := .Assets }}
+	"{{ $asset.ModelName }}":{{$asset.GoName}}Asset,
+	{{- end }}
+}
+
+var DAG = [][]string{
+	{{- range $group := .PriorityGroups }}
+	{
+		{{- range $modelName := $group }}
+		"{{ $modelName }}",
+		{{- end }}			
+	},
+	{{- end }}
+}

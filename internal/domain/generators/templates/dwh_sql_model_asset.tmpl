@@ -1,0 +1,56 @@
+package assets
+
+import (	
+	"github.com/go-teal/teal/pkg/models"
+	"github.com/go-teal/teal/pkg/configs"
+	"github.com/go-teal/teal/pkg/processing"
+)
+const SQL_{{ .NameUpperCase }}_CREATE_TABLE = `
+create table {{ .ModelName }} as ({{ .SqlByteBuffer }})
+`
+
+const SQL_{{ .NameUpperCase }}_CREATE_VIEW = `
+create view {{ .ModelName }} as ({{ .SqlByteBuffer }})
+`
+
+const SQL_{{ .NameUpperCase }}_RUN = `
+insert into {{ .ModelName }} ({{ .ModelFieldsFunc }}) ({{ .SqlByteBuffer }})
+`
+
+const SQL_{{ .NameUpperCase }}_DROP_TABLE = `
+drop table {{ .ModelName }}
+`
+
+const SQL_{{ .NameUpperCase }}_DROP_VIEW = `
+drop view {{ .ModelName }}
+`
+const SQL_{{ .NameUpperCase }}_TRUNCATE = `
+truncate table {{ .ModelName }}
+`
+
+
+var {{ .GoName }}ModelDescriptor = &models.SQLModelDescriptor{
+	Name: "{{ .ModelName }}",
+	CreateTableSQL: 	SQL_{{ .NameUpperCase }}_CREATE_TABLE,
+	CreateViewSQL: 		SQL_{{ .NameUpperCase }}_CREATE_VIEW,
+	RunSQL: 			SQL_{{ .NameUpperCase }}_RUN,
+	DropTableSQL: 		SQL_{{ .NameUpperCase }}_DROP_TABLE,
+	DropViewSQL: 		SQL_{{ .NameUpperCase }}_DROP_VIEW,
+	TruncateTableSQL: 	SQL_{{ .NameUpperCase }}_TRUNCATE,
+	Upstreams: []string {
+{{- range .Upstreams}}
+		"{{ . }}",
+{{- end }}
+	},
+	Downstreams: []string {
+{{- range .Downstreams}}
+		"{{ . }}",
+{{- end }}
+	},
+	ModelProfile:  &configs.ModelProfile{
+		Connection: 		"{{ .ModelProfile.Connection }}",
+		Materialization: 	"{{ .ModelProfile.Materialization }}",
+	},
+}
+
+var {{ .GoName }}Asset processing.Asset = processing.InitSQLModelAsset({{ .GoName }}ModelDescriptor)
