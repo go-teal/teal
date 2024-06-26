@@ -27,7 +27,7 @@ mkdir my_test_project
 cd my_test_project
 ```
 
-### Init you project from scratch
+### Init your project from scratch
 
 ```bash
 teal init
