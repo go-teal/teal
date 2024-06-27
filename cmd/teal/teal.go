@@ -22,7 +22,8 @@ Usage:
 	teal [command]
 
 Commands:
-	gen
+	init 	creates basic teal project structure
+	gen		generates GO code from asset model files
 		`
 		return errors.New(message)
 	}
