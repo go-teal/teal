@@ -1,16 +1,14 @@
 # Teal
 
-Introducing Teal: ETL with Power and Simplicity
-In the ever-evolving landscape of data engineering, the need for robust, scalable, and user-friendly tools is paramount. Today, we are thrilled to introduce Teal, a groundbreaking open-source ETL tool designed to redefine your data transformation and orchestration experience.
+In the changing field of data engineering, having strong, scalable, and user-friendly tools is essential. We introduce Teal, a new open-source ETL tool designed to improve your data transformation and orchestration.
 
-Teal combines the best elements of industry-leading tools like dbt, Dagster, and Airflow, while addressing the common challenges and limitations associated with traditional Python-based solutions. Our mission is to empower data engineers and analysts with a powerful yet intuitive platform that streamlines complex workflows and enhances productivity.
+Teal combines the best features of tools like dbt, Dagster, and Airflow, while solving common problems found in traditional Python-based solutions. Our goal is to provide data engineers and analysts with a powerful, easy-to-use platform that simplifies complex workflows and increases productivity.
 
-Why Teal?
-
-- **Scalable Architecture:** Seamlessly scale your data pipelines to handle datasets of any size, ensuring performance and reliability for your growing needs.
-Flexible Integration: Effortlessly integrate with a wide range of data sources and destinations, providing unparalleled flexibility and connectivity.
-- **Optimized Performance with Go:** TEAL leverages the power of Go's concurrency model, utilizing goroutines and channels to maximize performance and efficiency. This ensures that your data pipelines run swiftly and reliably, making the most of your system's resources.
-- **Go Stack Advantage:** Built on the robust and efficient Go stack, TEAL offers high performance, low latency, and excellent scalability. The simplicity and power of Go provide a solid foundation for creating and managing complex ETL workflows.
+Why Choose Teal?
+- **Scalable Architecture:** Easily scale your data pipelines to handle datasets of any size, ensuring high performance and reliability.
+- **Flexible Integration:** Integrate smoothly with various data sources and destinations, offering great flexibility and connectivity.
+- **Optimized Performance with Go:** Teal uses Go's concurrency model with goroutines and channels to maximize performance and efficiency. This ensures your data pipelines run quickly and reliably, making the best use of your system's resources.
+- **Go Stack Advantage:** Built on the efficient Go stack, Teal offers high performance, low latency, and excellent scalability. The simplicity and power of Go provide a solid foundation for managing complex ETL workflows.
 
 ## QuickStart
 
@@ -245,7 +243,7 @@ models:
 |Param|Type|Description|
 |-----|----|-----------|
 |version|String constant|1.0.0|
-|name|String|Generated folder name for main.go file|
+|name|String|Generated folder name for main.go|
 |connection|String|Connection from `config.yaml` by default|
 |models.stages:|Array of stages|list of stages for models. For each stage a folder `assets/models`/`<stage name>` must be created in advance|
 
@@ -255,7 +253,7 @@ models:
 
 ### DuckDB
 
-1. To enable DuckDB support, the following line ```_ "github.com/marcboeker/go-duckdb"``` must be added to the ```main.go``` file
+1. To enable DuckDB support, the following line `_ "github.com/marcboeker/go-duckdb"` must be added to `main.go`
 2. Specific config params:
 
 |Param|Type|Description|
