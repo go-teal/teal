@@ -216,7 +216,7 @@ connections:
 ```
 
 1. Teal supports multiple connections.
-2. The following databases are supported at the moment (v0.1.0):
+2. The following databases are supported at the moment (v0.1.1):
     - [DuckDB](#duckdb), see the specific config params
 
 |Param|Type|Description|
@@ -259,6 +259,10 @@ models:
 |Param|Type|Description|
 |-----|----|-----------|
 |extensions|Array of strings|List of [DuckDB extenstions](https://duckdb.org/docs/extensions/overview.html). Extenstions will be install during the creation of database and loaded befor the asset execution|
+
+## General Architecture
+
+![Classes](docs/out/docs/classes/classes.svg)
 
 ## Road Map
 

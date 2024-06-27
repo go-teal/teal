@@ -8,7 +8,7 @@ make:
 	if [ -f scaffold/docs/graph.wsd ]; then rm scaffold/docs/graph.wsd; fi;
 	if [ -f internal/application/templates/scaffold.tar.gz ]; then rm internal/application/templates/scaffold.tar.gz; fi;
 
-	tar -zcvf scaffold.tar.gz -C scaffold .
+	tar --exclude='._*' -zcvf scaffold.tar.gz -C scaffold .
 	mv scaffold.tar.gz ./internal/application/templates/scaffold.tar.gz
 	go build -o bin/teal ./cmd/teal
 
