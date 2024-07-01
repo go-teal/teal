@@ -236,6 +236,9 @@ connection: 'default'
 models: 
   stages:
     - name: staging
+      models:
+        - name: model1
+        # see models pfofiles
     - name: dds  
     - name: mart
 ```
@@ -246,6 +249,18 @@ models:
 |name|String|Generated folder name for main.go|
 |connection|String|Connection from `config.yaml` by default|
 |models.stages:|Array of stages|list of stages for models. For each stage a folder `assets/models`/`<stage name>` must be created in advance|
+|models.stages|See: [Model Profile](#model_profile)||
+
+<a name="model_profile"></a>
+
+#### Model Profile
+
+|Param|Type|Description|
+|-----|----|-----------|
+|Name|||
+|Connection|||
+|Materialization|||
+|IsDataFramed|||
 
 ## Databases
 

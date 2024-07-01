@@ -1,3 +1,9 @@
+{{ define "profile.yaml" }}
+    connection: 'default'
+    materialization: 'table'  
+    is_data_framed: false
+{{ end }}
+
 select
       id,    
       name,

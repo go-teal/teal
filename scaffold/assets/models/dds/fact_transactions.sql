@@ -1,6 +1,6 @@
 {{ define "profile.yaml" }}
     connection: 'default'
-    materialization: 'incremental'
+    materialization: 'incremental'  
 {{ end }}
 
 with source as (

@@ -6,7 +6,8 @@ type SQLModelDescriptor struct {
 	Name             string
 	CreateTableSQL   string
 	CreateViewSQL    string
-	RunSQL           string
+	InsertSQL        string
+	RawSQL           string
 	DropTableSQL     string
 	DropViewSQL      string
 	TruncateTableSQL string

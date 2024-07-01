@@ -55,9 +55,9 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	for _, g := range generatorsList {
 		err := g.RenderToFile()
 		if err != nil {
-			fmt.Printf("\033[39m%s %s \033[91m[FAIL]\n%v\n", g.GetFullPath(), strings.Repeat(".", 100-len(g.GetFullPath())), err)
+			fmt.Printf("\033[39m%s %s \033[91m[FAIL]\n%v\n", g.GetFullPath(), strings.Repeat(".", 70-len(g.GetFullPath())), err)
 		} else {
-			fmt.Printf("\033[39m%s %s \033[92m[OK]\n", g.GetFullPath(), strings.Repeat(".", 100-len(g.GetFullPath())))
+			fmt.Printf("\033[39m%s %s \033[92m[OK]\n", g.GetFullPath(), strings.Repeat(".", 70-len(g.GetFullPath())))
 		}
 	}
 

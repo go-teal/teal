@@ -12,8 +12,6 @@ import (
 //go:embed templates/main.go.tmpl
 var mainTemplate string
 
-const MAIN_FILE_NAME = "main._go"
-
 type GenMain struct {
 	config  *configs.Config
 	profile *configs.Profile
@@ -21,12 +19,12 @@ type GenMain struct {
 
 // GetFileName implements Generator.
 func (g *GenMain) GetFileName() string {
-	return MAIN_FILE_NAME
+	return g.profile.Name + "._go"
 }
 
 // GetFullPath implements Generator.
 func (g *GenMain) GetFullPath() string {
-	return g.config.ProjectPath + "/cmd/" + g.profile.Name + "/" + MAIN_FILE_NAME
+	return g.config.ProjectPath + "/cmd/" + g.profile.Name + "/" + g.GetFileName()
 }
 
 func InitGenMain(config *configs.Config, profile *configs.Profile) Generator {
@@ -44,7 +42,7 @@ func (g *GenMain) RenderToFile() error {
 	}
 	utils.CreateDir(mainDirName)
 
-	templ, err := template.New(MAIN_FILE_NAME).Parse(mainTemplate)
+	templ, err := template.New(g.GetFileName()).Parse(mainTemplate)
 	if err != nil {
 		panic(err)
 	}
