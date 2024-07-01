@@ -1,3 +1,9 @@
+{{ define "profile.yaml" }}
+    connection: 'default'
+    materialization: 'table'  
+    is_data_framed: true
+{{ end }}
+
 select
     id,
     wallet_id,

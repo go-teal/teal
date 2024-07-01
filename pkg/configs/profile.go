@@ -6,11 +6,7 @@ const (
 	MAT_TABLE       MatType = "table"
 	MAT_VIEW        MatType = "view"
 	MAT_INCREMENTAL MatType = "incremental"
-	// From DataFrame to DB
-	MAT_UPSTREAM MatType = "upstream"
-	// From DB to DataFrame
-	MAT_DOWNSTREAM MatType = "downstream"
-	MAT_CUSTOM     MatType = "custom"
+	MAT_CUSTOM      MatType = "custom"
 )
 
 type Profile struct {
@@ -30,7 +26,7 @@ type SourceProfile struct {
 	Name       string   `yaml:"name"`
 	Connection string   `yaml:"connection"`
 	Type       string   `yaml:"type"`
-	ReadOnly   bool     `yaml:"readOnly"`
+	ReadOnly   bool     `yaml:"read_only"`
 	Tables     []string `yaml:"tables"`
 	Params     []struct {
 		Name  string `yaml:"name"`
@@ -42,6 +38,7 @@ type ModelProfile struct {
 	Name            string  `yaml:"name"`
 	Connection      string  `yaml:"connection"`
 	Materialization MatType `yaml:"materialization"`
+	IsDataFramed    bool    `yaml:"is_data_framed"`
 }
 
 func (p Profile) GetModelProfile(stage string, name string) ModelProfile {

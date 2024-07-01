@@ -5,6 +5,11 @@ import (
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/go-teal/teal/pkg/processing"
 )
+
+const RAW_SQL_{{ .NameUpperCase }} = `
+{{ .SqlByteBuffer }}
+`
+
 const SQL_{{ .NameUpperCase }}_CREATE_TABLE = `
 create table {{ .ModelName }} as ({{ .SqlByteBuffer }})
 `
@@ -13,7 +18,7 @@ const SQL_{{ .NameUpperCase }}_CREATE_VIEW = `
 create view {{ .ModelName }} as ({{ .SqlByteBuffer }})
 `
 
-const SQL_{{ .NameUpperCase }}_RUN = `
+const SQL_{{ .NameUpperCase }}_INSERT = `
 insert into {{ .ModelName }} ({{ .ModelFieldsFunc }}) ({{ .SqlByteBuffer }})
 `
 
@@ -30,10 +35,11 @@ truncate table {{ .ModelName }}
 
 
 var {{ .GoName }}ModelDescriptor = &models.SQLModelDescriptor{
-	Name: "{{ .ModelName }}",
+	Name: 				"{{ .ModelName }}",
+	RawSQL: 			RAW_SQL_{{ .NameUpperCase }},
 	CreateTableSQL: 	SQL_{{ .NameUpperCase }}_CREATE_TABLE,
 	CreateViewSQL: 		SQL_{{ .NameUpperCase }}_CREATE_VIEW,
-	RunSQL: 			SQL_{{ .NameUpperCase }}_RUN,
+	InsertSQL: 			SQL_{{ .NameUpperCase }}_INSERT,
 	DropTableSQL: 		SQL_{{ .NameUpperCase }}_DROP_TABLE,
 	DropViewSQL: 		SQL_{{ .NameUpperCase }}_DROP_VIEW,
 	TruncateTableSQL: 	SQL_{{ .NameUpperCase }}_TRUNCATE,
@@ -50,6 +56,7 @@ var {{ .GoName }}ModelDescriptor = &models.SQLModelDescriptor{
 	ModelProfile:  &configs.ModelProfile{
 		Connection: 		"{{ .ModelProfile.Connection }}",
 		Materialization: 	"{{ .ModelProfile.Materialization }}",
+		IsDataFramed: 		{{ .ModelProfile.IsDataFramed }},
 	},
 }
 
