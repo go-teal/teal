@@ -21,7 +21,7 @@ type ModelConfig struct {
 	NameUpperCase   string
 	SqlByteBuffer   bytes.Buffer
 	Config          *configs.Config
-	Profile         *configs.Profile
+	Profile         *configs.ProjectProfile
 	Upstreams       []string
 	Downstreams     []string
 	Priority        int

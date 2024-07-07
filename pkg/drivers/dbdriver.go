@@ -13,6 +13,7 @@ type DBDriver interface {
 	Close() error
 	Exec(tx interface{}, sql string) error
 	ToDataFrame(sql string) (*dataframe.DataFrame, error)
+	PersistDataFrame(tx interface{}, name string, df *dataframe.DataFrame) error
 	GetListOfFields(tx interface{}, tableName string) []string
 	CheckTableExists(tx interface{}, tableName string) bool
 	CheckSchemaExists(tx interface{}, schemaName string) bool

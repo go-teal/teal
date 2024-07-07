@@ -14,7 +14,7 @@ var mainTemplate string
 
 type GenMain struct {
 	config  *configs.Config
-	profile *configs.Profile
+	profile *configs.ProjectProfile
 }
 
 // GetFileName implements Generator.
@@ -27,7 +27,7 @@ func (g *GenMain) GetFullPath() string {
 	return g.config.ProjectPath + "/cmd/" + g.profile.Name + "/" + g.GetFileName()
 }
 
-func InitGenMain(config *configs.Config, profile *configs.Profile) Generator {
+func InitGenMain(config *configs.Config, profile *configs.ProjectProfile) Generator {
 	return &GenMain{
 		config:  config,
 		profile: profile,
@@ -62,7 +62,7 @@ func (g *GenMain) RenderToFile() error {
 	defer file.Close()
 
 	data := struct {
-		Profile *configs.Profile
+		Profile *configs.ProjectProfile
 		Config  *configs.Config
 	}{
 		Profile: g.profile,

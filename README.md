@@ -255,12 +255,19 @@ models:
 
 #### Model Profile
 
-|Param|Type|Description|
-|-----|----|-----------|
-|Name|||
-|Connection|||
-|Materialization|||
-|IsDataFramed|||
+|Param|Type|Default value|Description|
+|-----|----|-------------|-----------|
+|name|String|filename|Model name must match the file name without taking into account the extension|
+|connection|String|profile.connection|Connection name from config.yaml|
+|materialization|String|table|See [materializations](#materializations)|
+|is_data_framed|boolean|false|See cross database models|
+|persist_inputs|boolean|false|See cross database models|
+
+<a name="materializations"></a>
+
+## Materializations
+
+TODO
 
 ## Databases
 

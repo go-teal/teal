@@ -50,7 +50,7 @@ func (cleanCommand *CleanCommand) Run() error {
 	// 	panic(err)
 	// }
 
-	profile, err := cleanCommand.app.GetConfigService().GetProfile(cleanCommand.projectPath)
+	profile, err := cleanCommand.app.GetConfigService().GetProfileProfile(cleanCommand.projectPath)
 	if err != nil {
 		panic(err)
 	}

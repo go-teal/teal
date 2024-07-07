@@ -46,12 +46,11 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	var data *dataframe.DataFrame
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
-	fmt.Printf("Executing: %s on %s \n", s.descriptor.Name, s.descriptor.ModelProfile.Connection)
 	log.Debug().
 		Str("s.descriptor.Name", s.descriptor.Name).
 		Str("s.descriptor.ModelProfile.Connection", s.descriptor.ModelProfile.Connection).
 		Msg("Executing asset")
-	log.Debug().Msgf("input params: %v", input)
+	log.Debug().Str("s.descriptor.Name", s.descriptor.Name).Msgf("input params: %v", input)
 
 	if !dbConnection.IsPermanent() {
 		err := dbConnection.Connect()
@@ -78,7 +77,6 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	if !isSchemaExists {
 		splitted := strings.Split(s.descriptor.Name, ".")
-		fmt.Printf("Schema %s does not exist \n", splitted[0])
 		log.Info().Msgf("Schema %s does not exist", splitted[0])
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
@@ -87,6 +85,17 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 				Err(err).
 				Msg("Failed to create schema")
 
+			return nil, err
+		}
+	}
+
+	if s.descriptor.ModelProfile.PersistInputs {
+		err := s.persistInputs(tx, input)
+		if err != nil {
+			defer dbConnection.Rallback(tx)
+			log.Error().
+				Err(err).
+				Msg("Failed to persist inputs")
 			return nil, err
 		}
 	}
@@ -278,4 +287,28 @@ func (s *SQLModelAsset) GetDataFrame() (*dataframe.DataFrame, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+func (s *SQLModelAsset) persistInputs(tx interface{}, inputs map[string]interface{}) error {
+	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+	for sourceModelName, inputValue := range inputs {
+		switch df := inputValue.(type) {
+		case *dataframe.DataFrame:
+			// log.Debug().Str("sourceModelName", sourceModelName).Msgf("persisting %v", df)
+			tempName := "tmp_" + strings.ReplaceAll(sourceModelName, ".", "_")
+			err := dbConnection.PersistDataFrame(tx, tempName, df)
+			if err != nil {
+				defer dbConnection.Rallback(tx)
+				log.Error().Stack().
+					Err(err).
+					Str("model", s.descriptor.Name).
+					Str("connection", s.descriptor.ModelProfile.Connection).
+					Msg("Failed to persist inputs")
+				return err
+			}
+		default:
+			log.Warn().Str("sourceModelName", sourceModelName).Msg("Input is not a *dataframe")
+		}
+	}
+	return nil
 }

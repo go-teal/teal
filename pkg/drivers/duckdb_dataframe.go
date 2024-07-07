@@ -2,6 +2,8 @@ package drivers
 
 import (
 	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/gota/series"
@@ -172,4 +174,50 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 	df := dataframe.New(dFseries...)
 	// log.Debug().Msg(df.String())
 	return &df, nil
+}
+
+func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *dataframe.DataFrame) error {
+	query := fmt.Sprintf("create temp table %s (\n", name)
+	colTypes := df.Types()
+	colNames := df.Names()
+	for colIdx, colName := range colNames {
+		colType := colTypes[colIdx]
+		query += fmt.Sprintf("%s %s,\n", colName, colType)
+	}
+
+	query += ");\n"
+	nRows, _ := df.Dims()
+	for rowIdx := 0; rowIdx < nRows; rowIdx++ {
+		vals := make([]string, len(colTypes))
+		for colIdx, colType := range colTypes {
+			switch colType {
+			case series.String:
+				val := df.Elem(rowIdx, colIdx).String()
+				vals[colIdx] = fmt.Sprintf("'%s'", val)
+			case series.Float:
+				val := df.Elem(rowIdx, colIdx).Float()
+				vals[colIdx] = fmt.Sprintf("%f", val)
+			case series.Int:
+				val, err := df.Elem(rowIdx, colIdx).Int()
+				if err != nil {
+					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
+					return err
+				}
+				vals[colIdx] = fmt.Sprintf("%d", val)
+			case series.Bool:
+				val, err := df.Elem(rowIdx, colIdx).Bool()
+				if err != nil {
+					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
+					return err
+				}
+				vals[colIdx] = fmt.Sprintf("%t, ", val)
+			default:
+				return fmt.Errorf("type %s not implemented", colType)
+			}
+		}
+		query += fmt.Sprintf("insert into %s(%s) values(%s);\n", name, strings.Join(colNames, ", "), strings.Join(vals, ", "))
+	}
+	// log.Debug().Msg(query)
+	_, err := tx.(*sql.Tx).Exec(query)
+	return err
 }

@@ -16,14 +16,14 @@ func InitConfigService() *ConfigService {
 	return &ConfigService{}
 }
 
-func (configService *ConfigService) GetProfile(projectPath string) (*Profile, error) {
+func (configService *ConfigService) GetProfileProfile(projectPath string) (*ProjectProfile, error) {
 	data, err := os.ReadFile(projectPath + "/profile.yaml")
 	if err != nil {
 		panic(err)
 	}
 
 	// Parse the YAML file
-	var profile Profile
+	var profile ProjectProfile
 	err = yaml.Unmarshal(data, &profile)
 	if err != nil {
 		panic(err)

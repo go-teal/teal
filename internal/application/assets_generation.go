@@ -19,17 +19,18 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	if err != nil {
 		return err
 	}
-	profile, err := app.configService.GetProfile(pojectPath)
+	projectProfile, err := app.configService.GetProfileProfile(pojectPath)
 	if err != nil {
 		return err
 	}
 
 	var generatorsList []generators.Generator = []generators.Generator{
-		generators.InitGenMain(config, profile),
-		generators.InitGenGoMod(config, profile),
+		generators.InitGenMain(config, projectProfile),
+		generators.InitGenGoMod(config, projectProfile),
 	}
 
-	modelConfigs, err := services.InitSQLModelConfigs(config, profile)
+	services.CombineProfiles(config, projectProfile)
+	modelConfigs, err := services.InitSQLModelConfigs(config, projectProfile)
 	if err != nil {
 		fmt.Printf("can not create a configuration for models %v\n", err)
 		return err
@@ -37,7 +38,7 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 
 	for _, modelConfig := range modelConfigs {
 		fmt.Printf("%s <- %v\n", modelConfig.ModelName, modelConfig.Upstreams)
-		generatorsList = append(generatorsList, generators.InitGenModelAsset(config, profile, modelConfig))
+		generatorsList = append(generatorsList, generators.InitGenModelAsset(config, projectProfile, modelConfig))
 	}
 	priorityGroups := app.dependnacyGraph.Build(modelConfigs)
 	fmt.Println(priorityGroups)
@@ -47,8 +48,8 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 		// generatorsList = append(generatorsList, generators.InitGenModelAsset(config, profile, modelConfig))
 	}
 
-	generatorsList = append(generatorsList, generators.InitGenAssetsConfig(config, profile, modelConfigs, priorityGroups))
-	generatorsList = append(generatorsList, generators.InitGenGraph(config, profile, modelConfigs))
+	generatorsList = append(generatorsList, generators.InitGenAssetsConfig(config, projectProfile, modelConfigs, priorityGroups))
+	generatorsList = append(generatorsList, generators.InitGenGraph(config, projectProfile, modelConfigs))
 
 	fmt.Printf("Files %d\n", len(generatorsList))
 

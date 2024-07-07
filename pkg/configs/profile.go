@@ -9,14 +9,14 @@ const (
 	MAT_CUSTOM      MatType = "custom"
 )
 
-type Profile struct {
+type ProjectProfile struct {
 	Version    string `yaml:"version"`
 	Name       string `yaml:"name"`
 	Connection string `yaml:"connection"`
 	Models     struct {
-		Stages []struct {
+		Stages []*struct {
 			Name   string `yaml:"name"`
-			Models []ModelProfile
+			Models []*ModelProfile
 		} `yaml:"stages"`
 	} `yaml:"models"`
 	Sources []SourceProfile `yaml:"sources"`
@@ -39,19 +39,38 @@ type ModelProfile struct {
 	Connection      string  `yaml:"connection"`
 	Materialization MatType `yaml:"materialization"`
 	IsDataFramed    bool    `yaml:"is_data_framed"`
+	PersistInputs   bool    `yaml:"persist_inputs"`
+	Stage           string
 }
 
-func (p Profile) GetModelProfile(stage string, name string) ModelProfile {
+func (mp *ModelProfile) GetTempName() string {
+	return "tmp_" + mp.Stage + "_" + mp.Name
+}
+
+func (p ProjectProfile) ToMap() map[string]*ModelProfile {
+	profilesMap := make(map[string]*ModelProfile)
+	for _, s := range p.Models.Stages {
+		for _, m := range s.Models {
+			profilesMap[s.Name+"."+m.Name] = m
+		}
+	}
+	return profilesMap
+}
+
+func (p ProjectProfile) GetModelProfile(stage string, name string) *ModelProfile {
 	for _, s := range p.Models.Stages {
 		if s.Name == stage {
 			for _, m := range s.Models {
 				if m.Name == name {
+					m.Stage = stage
 					return m
 				}
 			}
 		}
 	}
-	return ModelProfile{
+	return &ModelProfile{
+		Name:            name,
+		Stage:           stage,
 		Connection:      p.Connection,
 		Materialization: MAT_TABLE,
 	}
