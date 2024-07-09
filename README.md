@@ -54,12 +54,12 @@ teal init
 ```bash
 ❯ ls -al
 total 16
-drwxr-xr-x@ 6 wwtlf  staff  192 24 Jun 21:23 .
-drwxr-xr-x  5 wwtlf  staff  160 24 Jun 21:21 ..
-drwxr-xr-x@ 3 wwtlf  staff   96 24 Jun 07:46 assets
--rw-r--r--@ 1 wwtlf  staff  302 24 Jun 07:51 config.yaml
-drwxr-xr-x@ 2 wwtlf  staff   64 24 Jun 20:03 docs
--rw-r--r--@ 1 wwtlf  staff  137 24 Jun 07:46 profile.yaml
+drwxr-xr-x@ 6 wwtlf  wwtlf  192 24 Jun 21:23 .
+drwxr-xr-x  5 wwtlf  wwtlf  160 24 Jun 21:21 ..
+drwxr-xr-x@ 3 wwtlf  wwtlf   96 24 Jun 07:46 assets
+-rw-r--r--@ 1 wwtlf  wwtlf  302 24 Jun 07:51 config.yaml
+drwxr-xr-x@ 2 wwtlf  wwtlf   64 24 Jun 20:03 docs
+-rw-r--r--@ 1 wwtlf  wwtlf  137 24 Jun 07:46 profile.yaml
 ```
 
 ### Update **config.yaml** <!-- omit from toc -->
