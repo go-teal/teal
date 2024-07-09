@@ -11,7 +11,7 @@ import (
 type Core struct {
 	dbConnections map[string]drivers.DBDriver
 	Config        *configs.Config
-	Profile       *configs.Profile
+	Profile       *configs.ProjectProfile
 }
 
 var core *Core
@@ -33,7 +33,7 @@ func (c *Core) Init(configFileName string, projectPath string) {
 	if err != nil {
 		panic(err)
 	}
-	profile, err := cs.GetProfile(projectPath)
+	profile, err := cs.GetProfileProfile(projectPath)
 	if err != nil {
 		panic(err)
 	}

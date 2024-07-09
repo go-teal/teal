@@ -5,38 +5,48 @@ import (
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/go-teal/teal/pkg/processing"
 )
+
+const RAW_SQL_{{ .NameUpperCase }} = `
+{{ .SqlByteBuffer }}
+`
+
+{{- if or (eq .ModelProfile.Materialization "table") (eq .ModelProfile.Materialization "incremental") }}
 const SQL_{{ .NameUpperCase }}_CREATE_TABLE = `
 create table {{ .ModelName }} as ({{ .SqlByteBuffer }})
 `
-
-const SQL_{{ .NameUpperCase }}_CREATE_VIEW = `
-create view {{ .ModelName }} as ({{ .SqlByteBuffer }})
-`
-
-const SQL_{{ .NameUpperCase }}_RUN = `
+const SQL_{{ .NameUpperCase }}_INSERT = `
 insert into {{ .ModelName }} ({{ .ModelFieldsFunc }}) ({{ .SqlByteBuffer }})
 `
-
 const SQL_{{ .NameUpperCase }}_DROP_TABLE = `
 drop table {{ .ModelName }}
-`
-
-const SQL_{{ .NameUpperCase }}_DROP_VIEW = `
-drop view {{ .ModelName }}
 `
 const SQL_{{ .NameUpperCase }}_TRUNCATE = `
 truncate table {{ .ModelName }}
 `
+{{- end}}
 
+{{- if eq .ModelProfile.Materialization "view" }}
+const SQL_{{ .NameUpperCase }}_CREATE_VIEW = `
+create view {{ .ModelName }} as ({{ .SqlByteBuffer }})
+`
+const SQL_{{ .NameUpperCase }}_DROP_VIEW = `
+drop view {{ .ModelName }}
+`
+{{- end }}
 
 var {{ .GoName }}ModelDescriptor = &models.SQLModelDescriptor{
-	Name: "{{ .ModelName }}",
+	Name: 				"{{ .ModelName }}",
+	RawSQL: 			RAW_SQL_{{ .NameUpperCase }},
+{{- if or (eq .ModelProfile.Materialization "table") (eq .ModelProfile.Materialization "incremental") }}
 	CreateTableSQL: 	SQL_{{ .NameUpperCase }}_CREATE_TABLE,
-	CreateViewSQL: 		SQL_{{ .NameUpperCase }}_CREATE_VIEW,
-	RunSQL: 			SQL_{{ .NameUpperCase }}_RUN,
+	InsertSQL: 			SQL_{{ .NameUpperCase }}_INSERT,
 	DropTableSQL: 		SQL_{{ .NameUpperCase }}_DROP_TABLE,
-	DropViewSQL: 		SQL_{{ .NameUpperCase }}_DROP_VIEW,
 	TruncateTableSQL: 	SQL_{{ .NameUpperCase }}_TRUNCATE,
+{{- end }}
+{{- if eq .ModelProfile.Materialization "view" }}
+	CreateViewSQL: 		SQL_{{ .NameUpperCase }}_CREATE_VIEW,
+	DropViewSQL: 		SQL_{{ .NameUpperCase }}_DROP_VIEW,
+{{- end }}	
 	Upstreams: []string {
 {{- range .Upstreams}}
 		"{{ . }}",
@@ -48,8 +58,12 @@ var {{ .GoName }}ModelDescriptor = &models.SQLModelDescriptor{
 {{- end }}
 	},
 	ModelProfile:  &configs.ModelProfile{
+		Name: 				"{{ .ModelProfile.Name }}",
+		Stage: 				"{{ .ModelProfile.Stage }}",
 		Connection: 		"{{ .ModelProfile.Connection }}",
 		Materialization: 	"{{ .ModelProfile.Materialization }}",
+		IsDataFramed: 		{{ .ModelProfile.IsDataFramed }},
+		PersistInputs: 		{{ .ModelProfile.PersistInputs }},
 	},
 }
 

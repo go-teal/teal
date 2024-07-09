@@ -195,6 +195,9 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 					Str("routine.Name", routine.Name).
 					Str("Task name", taskName).
 					Msg("Asset complete...")
+				if outputData != nil {
+					log.Debug().Str("routine.name", routine.Name).Msgf("Complete with data: %v", outputData)
+				}
 				routine.dag.propagateTask(taskName, routine.Name, false, false, routine.OutPutChannels, outputData)
 			}
 		} else {

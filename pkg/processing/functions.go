@@ -15,6 +15,11 @@ func FromConnectionContext(dbConnection drivers.DBDriver, tx interface{}, modelN
 	}
 
 	functions["ModelFields"] = func() string {
+		if tx == nil {
+			// TODO: fix this temporal solution
+			tx, _ = dbConnection.Begin()
+			defer dbConnection.Commit(tx)
+		}
 		fields := dbConnection.GetListOfFields(tx, modelName)
 		return strings.Join(fields, ", ")
 	}

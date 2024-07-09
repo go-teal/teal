@@ -17,7 +17,7 @@ const GO_ASSETS_CONFIG_FILE_NAME = "configs.go"
 
 type GenAssetsConfig struct {
 	config         *configs.Config
-	profile        *configs.Profile
+	profile        *configs.ProjectProfile
 	modelsConfig   []*internalmodels.ModelConfig
 	priorityGroups [][]string
 }
@@ -34,7 +34,7 @@ func (g *GenAssetsConfig) GetFullPath() string {
 
 func InitGenAssetsConfig(
 	config *configs.Config,
-	profile *configs.Profile,
+	profile *configs.ProjectProfile,
 	modelsConfig []*internalmodels.ModelConfig,
 	priorityGroups [][]string,
 ) Generator {

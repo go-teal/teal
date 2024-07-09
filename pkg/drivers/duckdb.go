@@ -151,6 +151,10 @@ func (d *DuckDBEngine) GetListOfFields(tx interface{}, tableName string) []strin
 	return fields
 }
 
+func (d *DuckDBEngine) GetRawConnection() interface{} {
+	return d.db
+}
+
 func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error) {
 
 	duckDBConnection := &DuckDBEngine{

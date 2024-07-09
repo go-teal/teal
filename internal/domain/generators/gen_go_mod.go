@@ -15,10 +15,10 @@ const GO_MOD_FILE_NAME = "go.mod"
 
 type GenGoMod struct {
 	config  *configs.Config
-	profile *configs.Profile
+	profile *configs.ProjectProfile
 }
 
-func InitGenGoMod(config *configs.Config, profile *configs.Profile) Generator {
+func InitGenGoMod(config *configs.Config, profile *configs.ProjectProfile) Generator {
 	return &GenGoMod{
 		config:  config,
 		profile: profile,

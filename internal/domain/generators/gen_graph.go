@@ -17,11 +17,11 @@ const GRAPH_FILENAME = "graph.wsd"
 
 type GenGraph struct {
 	config        *configs.Config
-	profile       *configs.Profile
+	profile       *configs.ProjectProfile
 	modelsConfigs []*internalmodels.ModelConfig
 }
 
-func InitGenGraph(config *configs.Config, profile *configs.Profile, modelsConfigs []*internalmodels.ModelConfig) Generator {
+func InitGenGraph(config *configs.Config, profile *configs.ProjectProfile, modelsConfigs []*internalmodels.ModelConfig) Generator {
 	return &GenGraph{
 		config:        config,
 		profile:       profile,

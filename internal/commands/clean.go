@@ -50,7 +50,7 @@ func (cleanCommand *CleanCommand) Run() error {
 	// 	panic(err)
 	// }
 
-	profile, err := cleanCommand.app.GetConfigService().GetProfile(cleanCommand.projectPath)
+	profile, err := cleanCommand.app.GetConfigService().GetProfileProfile(cleanCommand.projectPath)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +71,7 @@ func (cleanCommand *CleanCommand) Run() error {
 	}
 
 	if cleanCommand.cleanMain {
-		cleanErr := os.Remove(cleanCommand.projectPath + "/cmd/" + profile.Name + "/main.go")
+		cleanErr := os.Remove(cleanCommand.projectPath + "/cmd/" + profile.Name + "/" + profile.Name + ".go")
 		if cleanErr != nil {
 			fmt.Println(cleanErr)
 		}

@@ -17,13 +17,13 @@ var dwhModelTemplate string
 
 type GenSQLModelAsset struct {
 	config      *configs.Config
-	profile     *configs.Profile
+	profile     *configs.ProjectProfile
 	modelConfig *internalmodels.ModelConfig
 }
 
 func InitGenModelAsset(
 	config *configs.Config,
-	profile *configs.Profile,
+	profile *configs.ProjectProfile,
 	modelConfig *internalmodels.ModelConfig,
 
 ) Generator {

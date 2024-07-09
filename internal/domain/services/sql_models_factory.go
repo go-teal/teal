@@ -7,19 +7,15 @@ import (
 	"io"
 	"os"
 	"strings"
-	"text/template"
-	templ "text/template"
 
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
-
-	"gopkg.in/yaml.v2"
 )
 
 const MODEL_DIR = "assets/models"
 
-func InitSQLModelConfigs(config *configs.Config, profiles *configs.Profile) ([]*internalmodels.ModelConfig, error) {
+func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfile) ([]*internalmodels.ModelConfig, error) {
 	modelsProjetDir := config.ProjectPath + "/" + MODEL_DIR
 	var modelsConfigs []*internalmodels.ModelConfig
 
@@ -36,92 +32,25 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.Profile) ([]*
 		for _, modelFileNameEntry := range modelFileNames {
 			if !modelFileNameEntry.IsDir() {
 				originalName := modelFileNameEntry.Name()
-
+				nameWithoutStageName := strings.Replace(originalName, ".sql", "", -1)
 				fmt.Printf("Building: %s.%s\n", stageName, modelFileNameEntry.Name())
 				goModelName, refName := utils.CreateModelName(stageName, modelFileNameEntry.Name())
+				modelProfile := profiles.GetModelProfile(stageName, nameWithoutStageName)
 
-				var uniqueRefs utils.UpstreamDependencies
-
-				sqlTemplateByte, err := os.ReadFile(modelsProjetDir + "/" + stageName + "/" + originalName)
+				modelFileByte, err := os.ReadFile(modelsProjetDir + "/" + stageName + "/" + originalName)
 				if err != nil {
 					panic(err)
 				}
-				inlineFunctions := utils.ExtractStringsBetweenBraces(sqlTemplateByte)
-				stringTemplate := string(sqlTemplateByte)
-				stubs := make(map[string]string, len(inlineFunctions))
-
-				funcMap := templ.FuncMap{
-					"Ref": func(ref string) string {
-						isExists, err := utils.CheckModelExists(modelsProjetDir, ref, "sql")
-						if !isExists {
-							fmt.Println(err)
-							panic(fmt.Sprintf("Model %s not found", ref))
-						}
-						for _, r := range uniqueRefs {
-							if r == ref {
-								return ref
-							}
-						}
-						uniqueRefs = append(uniqueRefs, ref)
-						return ref
-					},
-					"Source": func(ref string) string {
-						for _, r := range uniqueRefs {
-							if r == ref {
-								return ref
-							}
-						}
-						uniqueRefs = append(uniqueRefs, ref)
-						return ref
-					},
-					"ENV": func(arg1 string, arg2 string) string {
-						return fmt.Sprintf("{{ ENV \"%s\" \"%s\" }}", arg1, arg2)
-					},
-					"this": func() string {
-						return refName
-					},
-
-					"STAB": func(stubHash string) string {
-						result := strings.ReplaceAll(stubs[stubHash], "{{{", "")
-						result = strings.ReplaceAll(result, "}}}", "")
-						return "{{" + result + "}}"
-					},
-				}
-
-				fmt.Println(strings.Join(inlineFunctions, ","))
-
-				for _, inlineFunctionCall := range inlineFunctions {
-					stubHash := utils.GetMD5Hash(inlineFunctionCall)
-					stubs[stubHash] = inlineFunctionCall
-					stringTemplate = strings.ReplaceAll(stringTemplate, inlineFunctionCall, "{{ STAB \""+stubHash+"\" }}")
-				}
-				sqlCreateTempl, err := template.New(originalName).Funcs(funcMap).Parse(stringTemplate)
+				modelFileFinalTemplate, uniqueRefs, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, profiles)
 				if err != nil {
-					return nil, err
-				}
-
-				var configByteBuffer bytes.Buffer
-				var modelProfile configs.ModelProfile
-				err = sqlCreateTempl.ExecuteTemplate(&configByteBuffer, "profile.yaml", nil)
-				if err == nil {
-					err = yaml.Unmarshal(configByteBuffer.Bytes(), &modelProfile)
-					if err != nil {
-						return nil, err
-					}
+					fmt.Printf("can not parse model profle %s\n", string(modelFileByte))
+					panic(err)
 				}
 
 				var sqlByteBuffer bytes.Buffer
-				err = sqlCreateTempl.Execute(io.Writer(&sqlByteBuffer), nil)
+				err = modelFileFinalTemplate.Execute(io.Writer(&sqlByteBuffer), nil)
 				if err != nil {
 					return nil, err
-				}
-
-				if modelProfile.Connection == "" {
-					modelProfile.Connection = profiles.GetModelProfile(stageName, refName).Connection
-				}
-
-				if modelProfile.Materialization == "" {
-					modelProfile.Materialization = profiles.GetModelProfile(stageName, refName).Materialization
 				}
 
 				data := &internalmodels.ModelConfig{
@@ -132,8 +61,8 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.Profile) ([]*
 					SqlByteBuffer: sqlByteBuffer,
 					Config:        config,
 					Profile:       profiles,
-					Upstreams:     uniqueRefs,
-					ModelProfile:  &modelProfile,
+					Upstreams:     *uniqueRefs,
+					ModelProfile:  modelProfile,
 					ModelType:     internalmodels.DATABASE,
 				}
 				modelsConfigs = append(modelsConfigs, data)
