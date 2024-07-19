@@ -19,7 +19,7 @@ type GenMain struct {
 
 // GetFileName implements Generator.
 func (g *GenMain) GetFileName() string {
-	return g.profile.Name + "._go"
+	return g.profile.Name + ".go"
 }
 
 // GetFullPath implements Generator.

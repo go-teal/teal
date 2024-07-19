@@ -32,7 +32,7 @@ Commands:
 	cmds := []Runner{
 		commands.NewGenCommand(app),
 		commands.NewCleanCommand(app),
-		commands.NewCleanCommand(app),
+		commands.NewVersionCommand(app),
 		commands.NewInitCommand(app),
 	}
 

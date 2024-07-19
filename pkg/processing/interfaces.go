@@ -6,3 +6,7 @@ type Asset interface {
 	GetDownstreams() []string
 	GetName() string
 }
+
+type ModelTesting interface {
+	Execute() (bool, string, error)
+}

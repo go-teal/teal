@@ -16,13 +16,13 @@ import (
 const MODEL_DIR = "assets/models"
 
 func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfile) ([]*internalmodels.ModelConfig, error) {
-	modelsProjetDir := config.ProjectPath + "/" + MODEL_DIR
+	modelsProjectDir := config.ProjectPath + "/" + MODEL_DIR
 	var modelsConfigs []*internalmodels.ModelConfig
 
 	for _, stage := range profiles.Models.Stages {
 		stageName := stage.Name
 		// Read the directory contents
-		modelFileNames, err := os.ReadDir(modelsProjetDir + "/" + stageName)
+		modelFileNames, err := os.ReadDir(modelsProjectDir + "/" + stageName)
 		if err != nil {
 			fmt.Printf("Error reading directory: %v", err)
 			panic(err)
@@ -37,13 +37,13 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 				goModelName, refName := utils.CreateModelName(stageName, modelFileNameEntry.Name())
 				modelProfile := profiles.GetModelProfile(stageName, nameWithoutStageName)
 
-				modelFileByte, err := os.ReadFile(modelsProjetDir + "/" + stageName + "/" + originalName)
+				modelFileByte, err := os.ReadFile(modelsProjectDir + "/" + stageName + "/" + originalName)
 				if err != nil {
 					panic(err)
 				}
-				modelFileFinalTemplate, uniqueRefs, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, profiles)
+				modelFileFinalTemplate, uniqueRefs, err := prepareModelTemplate(modelFileByte, refName, modelsProjectDir, profiles)
 				if err != nil {
-					fmt.Printf("can not parse model profle %s\n", string(modelFileByte))
+					fmt.Printf("can not parse model profile %s\n", string(modelFileByte))
 					panic(err)
 				}
 

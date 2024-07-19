@@ -35,12 +35,19 @@ type SourceProfile struct {
 }
 
 type ModelProfile struct {
-	Name            string  `yaml:"name"`
-	Connection      string  `yaml:"connection"`
-	Materialization MatType `yaml:"materialization"`
-	IsDataFramed    bool    `yaml:"is_data_framed"`
-	PersistInputs   bool    `yaml:"persist_inputs"`
-	Stage           string
+	Name            string         `yaml:"name"`
+	Connection      string         `yaml:"connection"`
+	Materialization MatType        `yaml:"materialization"`
+	IsDataFramed    bool           `yaml:"is_data_framed"`
+	PersistInputs   bool           `yaml:"persist_inputs"`
+	Stage           string         `yaml:"-"`
+	Tests           []*TestProfile `yaml:"tests"`
+}
+
+type TestProfile struct {
+	Name       string `yaml:"name"`
+	Connection string `yaml:"connection"`
+	Stage      string `yaml:"-"`
 }
 
 func (mp *ModelProfile) GetTempName() string {
@@ -73,5 +80,25 @@ func (p ProjectProfile) GetModelProfile(stage string, name string) *ModelProfile
 		Stage:           stage,
 		Connection:      p.Connection,
 		Materialization: MAT_TABLE,
+	}
+}
+
+func (p ProjectProfile) GetTestProfile(stage string, name string) *TestProfile {
+	for _, s := range p.Models.Stages {
+		if s.Name == stage {
+			for _, m := range s.Models {
+				for _, testProfile := range m.Tests {
+					if testProfile.Name == name {
+						testProfile.Stage = stage
+						return testProfile
+					}
+				}
+			}
+		}
+	}
+	return &TestProfile{
+		Name:       name,
+		Stage:      stage,
+		Connection: p.Connection,
 	}
 }

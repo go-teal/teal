@@ -14,8 +14,10 @@
     - [DuckDB](#duckdb)
   - [General Architecture](#general-architecture)
     - [Cross database references](#cross-database-references)
+  - [Data testing](#data-testing)
+    - [Simple model testing](#simple-model-testing)
+      - [Test profile](#test-profile)
   - [Road Map](#road-map)
-    - [\[0.1.2\]](#012)
     - [\[0.2.0+\]](#020)
   - [Contact](#contact)
 
@@ -185,30 +187,30 @@ go run ./cmd/my-test-project
 package main
 
 import (
- _ "github.com/marcboeker/go-duckdb"
+  _ "github.com/marcboeker/go-duckdb"
 
- "fmt"
- "os"
+  "fmt"
+  "os"
 
- "github.com/rs/zerolog"
- "github.com/rs/zerolog/log"
+  "github.com/rs/zerolog"
+  "github.com/rs/zerolog/log"
 
- "github.com/go-teal/teal/pkg/core"
- "github.com/go-teal/teal/pkg/dags"
- "github.com/my_user/my_test_project/internal/assets"
+  "github.com/go-teal/teal/pkg/core"
+  "github.com/go-teal/teal/pkg/dags"
+  "github.com/my_user/my_test_project/internal/assets"
 )
 
 func main() {
- log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
- fmt.Println("my-test-project")
- core.GetInstance().Init("config.yaml", ".")
- config := core.GetInstance().Config
- dag := dags.InitChannelDag(assets.DAG, assets.PorjectAssets, config, "instance 1")
- wg := dag.Run()
- result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))
- fmt.Println(result)
- dag.Stop()
- wg.Wait()
+  log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+  fmt.Println("my-test-project")
+  core.GetInstance().Init("config.yaml", ".")
+  config := core.GetInstance().Config
+  dag := dags.InitChannelDag(assets.DAG, assets.PorjectAssets, config, "instance 1")
+  wg := dag.Run()
+  result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))
+  fmt.Println(result)
+  dag.Stop()
+  wg.Wait()
 }
 ```
 
@@ -361,20 +363,40 @@ The following two model profile parameters are responsible for cross base refere
 
 ![cross-db-ref](docs/cross-db-ref.drawio.svg)
 
+## Data testing
+
+### Simple model testing
+
+Simple tests are tests that verify data integrity after processing an SQL query, which should return the number of rows. If the returned count is zero, the test is considered successfully passed.
+
+Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`.
+
+Example:
+```sql
+{{- define "profile.yaml" }}
+    connection: 'default'    
+{{-  end }}
+select pk_id, count(pk_id) as c from {{ Ref "dds.fact_transactions" }} group by pk_id having c > 1
+```
+
+The generated source code for testing is located in the `modeltests` package.
+To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`
+
+#### Test profile
+|Param|Type|Default value|Description|
+|-----|----|-------------|-----------|
+|connection|String|profile.connection|Connection name from `config.yaml`|
+
 ## Road Map
 
-### [0.1.2]
-
-- [X] Cross database references!
-- [x] [DuckDB](https://duckdb.org/)
-- [x] GO Channel DAG
+see CHANGELOG.md
 
 ### [0.2.0+]
 
 #### Features <!-- omit from toc -->
 
 - [ ] Custom Assets (Go)
-- [ ] Tests
+- [ ] Advanced Tests
 - [ ] Seeds
 - [ ] Database Sources
 - [ ] Custom SQL assets
