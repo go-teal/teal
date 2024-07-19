@@ -372,6 +372,7 @@ Simple tests are tests that verify data integrity after processing an SQL query,
 Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`.
 
 Example:
+
 ```sql
 {{- define "profile.yaml" }}
     connection: 'default'    
@@ -383,6 +384,7 @@ The generated source code for testing is located in the `modeltests` package.
 To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`
 
 #### Test profile
+
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
 |connection|String|profile.connection|Connection name from `config.yaml`|
