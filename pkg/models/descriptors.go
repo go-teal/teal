@@ -15,3 +15,10 @@ type SQLModelDescriptor struct {
 	Downstreams      []string
 	ModelProfile     *configs.ModelProfile
 }
+
+type SQLModelTestDescriptor struct {
+	Name         string
+	RawSQL       string
+	CountTestSQL string
+	TestProfile  *configs.TestProfile
+}

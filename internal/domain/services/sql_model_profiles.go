@@ -39,7 +39,7 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 				}
 				modelFileFinalTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, profiles)
 				if err != nil {
-					fmt.Printf("can not parse model profle %s\n", string(modelFileByte))
+					fmt.Printf("can not parse model profile %s\n", string(modelFileByte))
 				}
 				var inlineProfileByteBuffer bytes.Buffer
 				var newModelProfile configs.ModelProfile
@@ -49,7 +49,7 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 					fmt.Printf("Overriding profile: %s\n", refName)
 					err = yaml.Unmarshal(inlineProfileByteBuffer.Bytes(), &newModelProfile)
 					if err != nil {
-						fmt.Printf("can not unmarshal parse model profle")
+						fmt.Printf("can not unmarshal parse model profile")
 						continue
 					}
 					newModelProfile.Name = strings.Replace(modelFileName, ".sql", "", -1)
@@ -62,6 +62,16 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 						}
 						if newModelProfile.Materialization != "" {
 							profile.Materialization = newModelProfile.Materialization
+						}
+
+						if len(newModelProfile.Tests) > 0 {
+							profile.Tests = newModelProfile.Tests
+							for _, testProfile := range profile.Tests {
+								if testProfile.Connection == "" {
+									testProfile.Connection = profile.Connection
+								}
+								testProfile.Stage = profile.Stage
+							}
 						}
 
 						profile.IsDataFramed = newModelProfile.IsDataFramed || profile.IsDataFramed

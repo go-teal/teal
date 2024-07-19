@@ -21,6 +21,7 @@ type DBDriver interface {
 	MountSource(sourceProfile *configs.SourceProfile) error
 	UnMountSource(sourceProfile *configs.SourceProfile) error
 	GetRawConnection() interface{}
+	SimpleTest(sql string) (string, error)
 }
 
 type DBconnectionFactory interface {

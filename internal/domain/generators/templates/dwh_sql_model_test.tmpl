@@ -1,0 +1,32 @@
+package modeltests
+
+import (	
+	"github.com/go-teal/teal/pkg/models"
+	"github.com/go-teal/teal/pkg/configs"
+	"github.com/go-teal/teal/pkg/processing"
+)
+
+const RAW_SQL_{{ .NameUpperCase }} = `
+{{ .SqlByteBuffer }}
+`
+
+const COUNT_TEST_SQL_{{ .NameUpperCase }} = `
+select count(*) as test_count from 
+(
+{{ .SqlByteBuffer }}
+) having test_count > 0 limit 1
+`
+
+
+var {{ .GoName }}TestDescriptor = &models.SQLModelTestDescriptor{
+	Name: 				"{{ .TestName }}",
+	RawSQL: 			RAW_SQL_{{ .NameUpperCase }},
+	CountTestSQL: 		COUNT_TEST_SQL_{{ .NameUpperCase }},
+	TestProfile: 		&configs.TestProfile {
+		Name: 				"{{ .TestName }}",
+		Stage: 				"{{ .TestProfile.Stage }}",
+		Connection: 		"{{ .TestProfile.Connection }}",
+	},
+}
+
+var {{ .GoName }}SimpleTestCase = processing.InitSQLModelTesting({{ .GoName }}TestDescriptor)
