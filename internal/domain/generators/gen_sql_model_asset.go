@@ -3,6 +3,7 @@ package generators
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"io"
 	"os"
 	"text/template"
@@ -55,6 +56,7 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 	}
 	var goByteBuffer bytes.Buffer
 	g.modelConfig.ModelFieldsFunc = "{{ ModelFields }}"
+	fmt.Println(g.modelConfig.ModelProfile)
 	err = goTempl.Execute(io.Writer(&goByteBuffer), g.modelConfig)
 	if err != nil {
 		return err

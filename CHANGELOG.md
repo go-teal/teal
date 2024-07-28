@@ -1,5 +1,16 @@
 # Changelog
 
+
+## [0.1.4] 2024-07-28
+
+### Added
+
+- Inline tests (tests after the execution of the model)
+
+### Fixed
+
+- Minor bug fixex
+
 ## [0.1.3] 2024-07-19
 
 ### Added
