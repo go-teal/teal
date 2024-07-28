@@ -16,12 +16,14 @@ type DagRoutine struct {
 	InputChannels  map[string]chan *TransitionTask
 	OutPutChannels map[string]chan *TransitionTask
 	config         *configs.Config
+	testsMap       map[string]processing.ModelTesting
 }
 
 type ChannelDag struct {
 	DagInstanceName      string
 	dagGrpah             [][]string
 	assetsMap            map[string]processing.Asset
+	testsMap             map[string]processing.ModelTesting
 	dagRoutineMap        map[string]*DagRoutine
 	config               *configs.Config
 	completeTasksResults map[string]*taskResult
@@ -31,7 +33,6 @@ type ChannelDag struct {
 type taskResult struct {
 	results              map[string]interface{}
 	resultChan           chan map[string]interface{}
-	channelIinitated     bool
 	remainingTasksNumber *atomic.Int32
 }
 
@@ -50,6 +51,24 @@ func InitChannelDag(dagGrpah [][]string, assetsMap map[string]processing.Asset, 
 	return &dag
 }
 
+func InitChannelDagWithTests(dagGrpah [][]string,
+	assetsMap map[string]processing.Asset,
+	testsMap map[string]processing.ModelTesting,
+	config *configs.Config,
+	name string) DAG {
+	dag := ChannelDag{
+		DagInstanceName:      name,
+		dagGrpah:             dagGrpah,
+		assetsMap:            assetsMap,
+		testsMap:             testsMap,
+		dagRoutineMap:        make(map[string]*DagRoutine, len(assetsMap)),
+		completeTasksResults: make(map[string]*taskResult),
+		config:               config,
+	}
+	dag.build()
+	return &dag
+}
+
 // build implements DAG.
 func (dag *ChannelDag) build() {
 	dag.numberOfFinalTasks = 0
@@ -58,7 +77,7 @@ func (dag *ChannelDag) build() {
 			if len(dag.assetsMap[task].GetDownstreams()) == 0 {
 				dag.numberOfFinalTasks++
 			}
-			dag.dagRoutineMap[task] = initDagRoutine(dag, dag.assetsMap[task], dag.dagRoutineMap, dag.config)
+			dag.dagRoutineMap[task] = initDagRoutine(dag, dag.assetsMap[task], dag.dagRoutineMap, dag.testsMap, dag.config)
 		}
 	}
 }
@@ -82,12 +101,17 @@ type TransitionTask struct {
 	IngoreSignal bool
 }
 
-func initDagRoutine(dag *ChannelDag, asset processing.Asset, channelAssets map[string]*DagRoutine, config *configs.Config) *DagRoutine {
+func initDagRoutine(dag *ChannelDag,
+	asset processing.Asset,
+	channelAssets map[string]*DagRoutine,
+	testsMap map[string]processing.ModelTesting,
+	config *configs.Config) *DagRoutine {
 	channelAsset := DagRoutine{
-		dag:    dag,
-		Name:   asset.GetName(),
-		Asset:  asset,
-		config: config,
+		dag:      dag,
+		Name:     asset.GetName(),
+		Asset:    asset,
+		config:   config,
+		testsMap: testsMap,
 	}
 
 	downstreams := asset.GetDownstreams()
@@ -198,6 +222,7 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 				if outputData != nil {
 					log.Debug().Str("routine.name", routine.Name).Msgf("Complete with data: %v", outputData)
 				}
+				routine.Asset.RunTests(routine.testsMap)
 				routine.dag.propagateTask(taskName, routine.Name, false, false, routine.OutPutChannels, outputData)
 			}
 		} else {

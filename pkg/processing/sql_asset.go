@@ -151,6 +151,23 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	return data, err
 }
 
+// RunTests implements Asset.
+func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) {
+	log.Info().Msgf("Testing %s", s.descriptor.Name)
+	for _, testConfig := range s.descriptor.ModelProfile.Tests {
+		if testCase, ok := testsMap[testConfig.Name]; ok {
+			status, testName, err := testCase.Execute()
+			if status {
+				log.Info().Str("Test Case", testName).Msg("Success")
+			} else {
+				log.Error().Str("Test Case", testName).Err(err).Msg("Failed")
+			}
+		} else {
+			log.Warn().Msgf("Test %s not found", testConfig.Name)
+		}
+	}
+}
+
 func (s *SQLModelAsset) createView(tx interface{}) error {
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
 	var sqlQuery bytes.Buffer

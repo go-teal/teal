@@ -64,6 +64,13 @@ var {{ .GoName }}ModelDescriptor = &models.SQLModelDescriptor{
 		Materialization: 	"{{ .ModelProfile.Materialization }}",
 		IsDataFramed: 		{{ .ModelProfile.IsDataFramed }},
 		PersistInputs: 		{{ .ModelProfile.PersistInputs }},
+		Tests: []*configs.TestProfile {
+{{- range .ModelProfile.Tests}}
+			{
+				Name: 			"{{ .Name }}",		
+			},
+{{- end }}
+		},
 	},
 }
 

@@ -15,8 +15,8 @@ type ProjectProfile struct {
 	Connection string `yaml:"connection"`
 	Models     struct {
 		Stages []*struct {
-			Name   string `yaml:"name"`
-			Models []*ModelProfile
+			Name   string          `yaml:"name"`
+			Models []*ModelProfile `yaml:"models"`
 		} `yaml:"stages"`
 	} `yaml:"models"`
 	Sources []SourceProfile `yaml:"sources"`
@@ -58,7 +58,7 @@ func (p ProjectProfile) ToMap() map[string]*ModelProfile {
 	profilesMap := make(map[string]*ModelProfile)
 	for _, s := range p.Models.Stages {
 		for _, m := range s.Models {
-			profilesMap[s.Name+"."+m.Name] = m
+			profilesMap[m.Name] = m
 		}
 	}
 	return profilesMap
