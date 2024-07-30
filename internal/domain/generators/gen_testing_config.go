@@ -45,7 +45,7 @@ func InitGenTestConfig(
 
 func (g *GenTestingConfig) RenderToFile() error {
 	// fmt.Printf("Rendering: %s", g.GetFullPath())
-	dirName := g.config.ProjectPath + "/internal/assets/"
+	dirName := g.config.ProjectPath + "/internal/model_tests/"
 	utils.CreateDir(dirName)
 	templ, err := template.New(GO_TESTING_CONFIG_FILE_NAME).Parse(goTesgingConfigTemplate)
 	if err != nil {
