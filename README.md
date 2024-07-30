@@ -265,6 +265,9 @@ models:
       models:
         - name: model1
         # see models pfofiles
+          tests:
+            - name: "test.name"
+            # see test pfofiles
     - name: dds  
     - name: mart
 ```
@@ -276,6 +279,7 @@ models:
 |connection|String|Connection from `config.yaml` by default|
 |models.stages:|Array of stages|list of stages for models. For each stage a folder `assets/models`/`<stage name>` must be created in advance|
 |models.stages|See: [Model Profile](#model-profile)||
+|models.stages.`name: <stage name>`.models.`<name: model name>`.tests|See: [Test Profile](#test-profile)|Test cases defined in the model profiles are executed immediately after the execution of the model itself|
 
 #### Model Profile
 
@@ -375,13 +379,16 @@ Example:
 
 ```sql
 {{- define "profile.yaml" }}
-    connection: 'default'    
+    connection: 'default'          
 {{-  end }}
 select pk_id, count(pk_id) as c from {{ Ref "dds.fact_transactions" }} group by pk_id having c > 1
 ```
 
 The generated source code for testing is located in the `modeltests` package.
 To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`
+
+Test cases defined in the model profiles are executed immediately after the execution of the model itself.
+In order for the tests to be executed immediately after the models, the DAG must be initialized with the following command: `dag := dags.InitChannelDagWithTests(assets.DAG, assets.PorjectAssets, modeltests.PorjectTests, config, "instance 1")`
 
 #### Test profile
 

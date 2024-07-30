@@ -66,7 +66,7 @@ func (d *DuckDBEngine) Connect() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("load extension: %s\n", extentionName)
+		log.Debug().Msgf("load extension: %s\n", extentionName)
 	}
 	return nil
 }

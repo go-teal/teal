@@ -35,7 +35,25 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 				nameWithoutStageName := strings.Replace(originalName, ".sql", "", -1)
 				fmt.Printf("Building: %s.%s\n", stageName, modelFileNameEntry.Name())
 				goModelName, refName := utils.CreateModelName(stageName, modelFileNameEntry.Name())
-				modelProfile := profiles.GetModelProfile(stageName, nameWithoutStageName)
+
+				var modelProfile *configs.ModelProfile
+				defaultModelProfile := profiles.GetModelProfile(stageName, nameWithoutStageName)
+				var ok bool
+				if modelProfile, ok = profiles.ToMap()[stageName+"."+nameWithoutStageName]; !ok {
+					modelProfile = defaultModelProfile
+				}
+
+				if modelProfile.Connection == "" {
+					modelProfile.Connection = defaultModelProfile.Connection
+				}
+
+				if modelProfile.Materialization == "" {
+					modelProfile.Materialization = defaultModelProfile.Materialization
+				}
+
+				if modelProfile.Stage == "" {
+					modelProfile.Stage = defaultModelProfile.Stage
+				}
 
 				modelFileByte, err := os.ReadFile(modelsProjectDir + "/" + stageName + "/" + originalName)
 				if err != nil {

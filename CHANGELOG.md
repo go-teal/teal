@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.5] 2024-07-30
+
+### Fix
+
+- teal project generation fails: panic: open ./internal/model_tests/configs.go: no such file or directory
+
+## [0.1.4] 2024-07-28
+
+### Added
+
+- Inline tests (tests after the execution of the model)
+
+### Fixed
+
+- Minor bug fixex
+
 ## [0.1.3] 2024-07-19
 
 ### Added
