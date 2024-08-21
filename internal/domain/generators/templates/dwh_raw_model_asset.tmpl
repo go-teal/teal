@@ -1,0 +1,38 @@
+package assets
+
+import (	
+	"github.com/go-teal/teal/pkg/models"
+	"github.com/go-teal/teal/pkg/configs"
+	"github.com/go-teal/teal/pkg/processing"
+)
+
+var {{ .GoName }}ModelDescriptor = &models.RawModelDescriptor{
+	Name: 				"{{ .ModelName }}",
+	Upstreams: []string {
+{{- range .Upstreams}}
+		"{{ . }}",
+{{- end }}
+	},
+	Downstreams: []string {
+{{- range .Downstreams}}
+		"{{ . }}",
+{{- end }}
+	},
+	ModelProfile:  &configs.ModelProfile{
+		Name: 				"{{ .ModelProfile.Name }}",
+		Stage: 				"{{ .ModelProfile.Stage }}",
+		Connection: 		"{{ .ModelProfile.Connection }}",
+		Materialization: 	"{{ .ModelProfile.Materialization }}",
+		IsDataFramed: 		{{ .ModelProfile.IsDataFramed }},
+		PersistInputs: 		{{ .ModelProfile.PersistInputs }},
+		Tests: []*configs.TestProfile {
+{{- range .ModelProfile.Tests}}
+			{
+				Name: 			"{{ .Name }}",		
+			},
+{{- end }}
+		},
+	},
+}
+
+var {{ .GoName }}Asset processing.Asset = processing.InitRawModelAsset({{ .GoName }}ModelDescriptor)

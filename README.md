@@ -14,6 +14,7 @@
     - [DuckDB](#duckdb)
   - [General Architecture](#general-architecture)
     - [Cross database references](#cross-database-references)
+  - [Raw Assets](#raw-assets)
   - [Data testing](#data-testing)
     - [Simple model testing](#simple-model-testing)
       - [Test profile](#test-profile)
@@ -323,6 +324,8 @@ select
 |table|The result of SQL query execution is stored in the table corresponding to the model name. If the table does not exist, it will be created. If the table already exists, it will be cleared using the truncate method.|
 |incremental|The result of the query execution is added to the existing table.  If the table does not exist, it will be created.|
 |view|The SQL query is saved as a View. |
+|custom| A custom SQL query is executed, no tables or views are created |
+|raw| TODO |
 
 ## Template functions
 
@@ -366,6 +369,10 @@ The following two model profile parameters are responsible for cross base refere
 - **persist_inputs**. If this flag is set to true, all incoming parameters in the form of gota.DataFrame structure are saved to a temporary table in the database connection that is configured in the connection parameter of the model profile.
 
 ![cross-db-ref](docs/cross-db-ref.drawio.svg)
+
+## Raw Assets
+
+TODO
 
 ## Data testing
 

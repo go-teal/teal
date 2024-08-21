@@ -7,6 +7,7 @@ const (
 	MAT_VIEW        MatType = "view"
 	MAT_INCREMENTAL MatType = "incremental"
 	MAT_CUSTOM      MatType = "custom"
+	MAT_RAW         MatType = "raw"
 )
 
 type ProjectProfile struct {
@@ -35,13 +36,15 @@ type SourceProfile struct {
 }
 
 type ModelProfile struct {
-	Name            string         `yaml:"name"`
-	Connection      string         `yaml:"connection"`
-	Materialization MatType        `yaml:"materialization"`
-	IsDataFramed    bool           `yaml:"is_data_framed"`
-	PersistInputs   bool           `yaml:"persist_inputs"`
-	Stage           string         `yaml:"-"`
-	Tests           []*TestProfile `yaml:"tests"`
+	Name             string         `yaml:"name"`
+	Connection       string         `yaml:"connection"`
+	Materialization  MatType        `yaml:"materialization"`
+	PrimaryKeyFields []string       `yaml:"primary_key_fields"`
+	IsDataFramed     bool           `yaml:"is_data_framed"`
+	PersistInputs    bool           `yaml:"persist_inputs"`
+	Stage            string         `yaml:"-"`
+	Tests            []*TestProfile `yaml:"tests"`
+	RawUpstreams     []string       `yaml:"raw_upstreams"`
 }
 
 type TestProfile struct {
@@ -58,7 +61,7 @@ func (p ProjectProfile) ToMap() map[string]*ModelProfile {
 	profilesMap := make(map[string]*ModelProfile)
 	for _, s := range p.Models.Stages {
 		for _, m := range s.Models {
-			profilesMap[m.Name] = m
+			profilesMap[s.Name+"."+m.Name] = m
 		}
 	}
 	return profilesMap

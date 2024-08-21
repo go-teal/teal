@@ -20,6 +20,8 @@ func GetStaticFunctions(
 	return templ.FuncMap{
 		"Ref": func(ref string) string {
 			isExists, err := utils.CheckModelExists(modelsProjetDir, ref, "sql")
+			_, isRawProfileExist := profilesMap[ref]
+			isExists = isExists || isRawProfileExist
 			if !isExists {
 				fmt.Println(err)
 				panic(fmt.Sprintf("Model %s not found", ref))

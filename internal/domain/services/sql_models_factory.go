@@ -32,6 +32,11 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 		for _, modelFileNameEntry := range modelFileNames {
 			if !modelFileNameEntry.IsDir() {
 				originalName := modelFileNameEntry.Name()
+				splittedName := strings.Split(originalName, ".")
+				fileExtenstion := splittedName[len(splittedName)-1]
+				if strings.ToLower(fileExtenstion) != "sql" {
+					continue
+				}
 				nameWithoutStageName := strings.Replace(originalName, ".sql", "", -1)
 				fmt.Printf("Building: %s.%s\n", stageName, modelFileNameEntry.Name())
 				goModelName, refName := utils.CreateModelName(stageName, modelFileNameEntry.Name())
@@ -82,6 +87,9 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 					Upstreams:     *uniqueRefs,
 					ModelProfile:  modelProfile,
 					ModelType:     internalmodels.DATABASE,
+				}
+				if len(modelProfile.PrimaryKeyFields) > 0 {
+					data.PrimaryKeyExpression = strings.Join(defaultModelProfile.PrimaryKeyFields, ", ")
 				}
 				modelsConfigs = append(modelsConfigs, data)
 			}

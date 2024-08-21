@@ -64,6 +64,10 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 							profile.Materialization = newModelProfile.Materialization
 						}
 
+						if len(newModelProfile.PrimaryKeyFields) > 0 {
+							profile.PrimaryKeyFields = newModelProfile.PrimaryKeyFields
+						}
+
 						if len(newModelProfile.Tests) > 0 {
 							profile.Tests = newModelProfile.Tests
 							for _, testProfile := range profile.Tests {

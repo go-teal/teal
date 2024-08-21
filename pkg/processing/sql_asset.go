@@ -130,7 +130,32 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			err = s.createTable(tx)
 		} else {
 			if err = s.truncateTable(tx); err == nil {
+				log.Debug().Msg("table has been truncated")
+				tx, err := dbConnection.Begin()
+				if err != nil {
+					log.Error().
+						Err(err).
+						Msg("Failed to begin transaction")
+					defer dbConnection.Rallback(tx)
+					return nil, err
+				}
+
 				err = s.insertToTable(tx)
+
+				if err != nil {
+					defer dbConnection.Rallback(tx)
+					log.Error().
+						Err(err).
+						Msg("Failed to insert to table")
+					return nil, err
+				}
+
+			} else {
+				defer dbConnection.Rallback(tx)
+				log.Error().
+					Err(err).
+					Msg("Failed to truncate table")
+				return nil, err
 			}
 		}
 	case configs.MAT_VIEW:
@@ -145,7 +170,9 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			err = s.createView(tx)
 		}
 	case configs.MAT_CUSTOM:
-		panic("not implemented")
+		err = s.customQuery(tx)
+	case configs.MAT_RAW:
+		panic("SQL Model can not be raw")
 	}
 
 	return data, err
@@ -237,7 +264,40 @@ func (s *SQLModelAsset) truncateTable(tx interface{}) error {
 		log.Error().Stack().Err(err).Msg("Failed to run truncate")
 		return err
 	}
-	return err
+	return dbConnection.Commit(tx)
+}
+
+func (s *SQLModelAsset) customQuery(tx interface{}) error {
+
+	s.functions["IsIncremental"] = func() bool {
+		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL
+	}
+
+	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+	simleSQLQueryTemplate, err := template.New("simleSQLQueryTemplate").
+		Funcs(FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions)).
+		Parse(s.descriptor.RawSQL)
+	if err != nil {
+		log.Error().Stack().
+			Err(err).
+			Msg("Failed to parse asset query")
+		return err
+	}
+	var sqlQuery bytes.Buffer
+	err = simleSQLQueryTemplate.Execute(&sqlQuery, nil)
+	if err != nil {
+		log.Error().Stack().
+			Err(err).
+			Msgf("Rendering template: %s", sqlQuery.String())
+		return err
+	}
+	err = dbConnection.Exec(tx, sqlQuery.String())
+	if err != nil {
+		defer dbConnection.Rallback(tx)
+		log.Error().Stack().Err(err).Msg("Failed to run a custom query")
+		return err
+	}
+	return dbConnection.Commit(tx)
 }
 
 func (s *SQLModelAsset) insertToTable(tx interface{}) error {
@@ -265,7 +325,7 @@ func (s *SQLModelAsset) insertToTable(tx interface{}) error {
 	err = dbConnection.Exec(tx, sqlQuery.String())
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msg("Failed to run incremental")
+		log.Error().Stack().Err(err).Msg("Failed to insert")
 		return err
 	}
 	return dbConnection.Commit(tx)

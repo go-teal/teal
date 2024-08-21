@@ -22,3 +22,10 @@ type SQLModelTestDescriptor struct {
 	CountTestSQL string
 	TestProfile  *configs.TestProfile
 }
+
+type RawModelDescriptor struct {
+	Name         string
+	Upstreams    []string
+	Downstreams  []string
+	ModelProfile *configs.ModelProfile
+}
