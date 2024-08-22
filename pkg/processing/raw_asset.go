@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/go-teal/teal/pkg/configs"
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/rs/zerolog/log"
 )
 
-type ExecutorFunc func(input map[string]interface{}) (interface{}, error)
+type ExecutorFunc func(input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
 
 // GO singletone
 type GlobalExecutors struct {
@@ -35,7 +36,7 @@ type RawModelAsset struct {
 // Execute implements Asset.
 func (r *RawModelAsset) Execute(input map[string]interface{}) (interface{}, error) {
 	if f, ok := GetExecutors().Execurots[r.descriptor.Name]; ok {
-		return f(input)
+		return f(input, r.descriptor.ModelProfile)
 	} else {
 		return nil, fmt.Errorf("executor %v is not registered", r.descriptor.Name)
 	}

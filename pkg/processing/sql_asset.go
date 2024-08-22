@@ -106,7 +106,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	case configs.MAT_INCREMENTAL:
 
 		if s.descriptor.ModelProfile.IsDataFramed {
-			data, err = s.GetDataFrame()
+			data, err = s.getDataFrame()
 			if err != nil {
 				return nil, err
 			}
@@ -121,7 +121,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	case configs.MAT_TABLE:
 		if s.descriptor.ModelProfile.IsDataFramed {
 			log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-			data, err = s.GetDataFrame()
+			data, err = s.getDataFrame()
 			if err != nil {
 				return nil, err
 			}
@@ -161,7 +161,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	case configs.MAT_VIEW:
 		if s.descriptor.ModelProfile.IsDataFramed {
 			log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-			data, err = s.GetDataFrame()
+			data, err = s.getDataFrame()
 			if err != nil {
 				return nil, err
 			}
@@ -170,7 +170,14 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			err = s.createView(tx)
 		}
 	case configs.MAT_CUSTOM:
-		err = s.customQuery(tx)
+		if s.descriptor.ModelProfile.IsDataFramed {
+			data, err = s.getDataFrame()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			err = s.customQuery(tx)
+		}
 	case configs.MAT_RAW:
 		panic("SQL Model can not be raw")
 	}
@@ -180,6 +187,9 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 // RunTests implements Asset.
 func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) {
+	if len(s.descriptor.ModelProfile.Tests) == 0 {
+		return
+	}
 	log.Info().Msgf("Testing %s", s.descriptor.Name)
 	for _, testConfig := range s.descriptor.ModelProfile.Tests {
 		if testCase, ok := testsMap[testConfig.Name]; ok {
@@ -331,7 +341,7 @@ func (s *SQLModelAsset) insertToTable(tx interface{}) error {
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) GetDataFrame() (*dataframe.DataFrame, error) {
+func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
 
 	s.functions["IsIncremental"] = func() bool {
 		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL

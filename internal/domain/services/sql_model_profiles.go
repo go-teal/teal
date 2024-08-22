@@ -77,7 +77,9 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 								testProfile.Stage = profile.Stage
 							}
 						}
-
+						if profile.Connection == "" {
+							profile.Connection = "default"
+						}
 						profile.IsDataFramed = newModelProfile.IsDataFramed || profile.IsDataFramed
 						profile.PersistInputs = newModelProfile.PersistInputs || profile.PersistInputs
 						modelProfilesMap[refName] = profile
