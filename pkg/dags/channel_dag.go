@@ -199,13 +199,13 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 			taskName = inputTask.TaskName
 		}
 
-		startTaskTs := time.Now().UnixMilli()
 		if !ignore {
 			log.Debug().
 				Str("DAG", routine.dag.DagInstanceName).
 				Str("routine name", routine.Name).
 				Str("task name", taskName).
 				Msg("Executing asset...")
+			startTaskTs := time.Now().UnixMilli()
 			outputData, err := routine.Asset.Execute(params)
 			stopTaskTs := time.Now().UnixMilli()
 			if err != nil {

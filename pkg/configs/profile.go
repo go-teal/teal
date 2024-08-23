@@ -61,6 +61,9 @@ func (p ProjectProfile) ToMap() map[string]*ModelProfile {
 	profilesMap := make(map[string]*ModelProfile)
 	for _, s := range p.Models.Stages {
 		for _, m := range s.Models {
+			if m.Stage == "" {
+				m.Stage = s.Name
+			}
 			profilesMap[s.Name+"."+m.Name] = m
 		}
 	}

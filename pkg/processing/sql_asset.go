@@ -89,22 +89,20 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		}
 	}
 
-	if s.descriptor.ModelProfile.PersistInputs {
-		err := s.persistInputs(tx, input)
-		if err != nil {
-			defer dbConnection.Rallback(tx)
-			log.Error().
-				Err(err).
-				Msg("Failed to persist inputs")
-			return nil, err
-		}
-	}
-
 	isTableExists := dbConnection.CheckTableExists(tx, s.descriptor.Name)
 
 	switch s.descriptor.ModelProfile.Materialization {
 	case configs.MAT_INCREMENTAL:
-
+		if s.descriptor.ModelProfile.PersistInputs {
+			err := s.persistInputs(tx, input)
+			if err != nil {
+				defer dbConnection.Rallback(tx)
+				log.Error().
+					Err(err).
+					Msg("Failed to persist inputs")
+				return nil, err
+			}
+		}
 		if s.descriptor.ModelProfile.IsDataFramed {
 			data, err = s.getDataFrame()
 			if err != nil {
@@ -119,14 +117,25 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		}
 
 	case configs.MAT_TABLE:
-		if s.descriptor.ModelProfile.IsDataFramed {
-			log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-			data, err = s.getDataFrame()
-			if err != nil {
-				return nil, err
-			}
-		}
+
 		if !isTableExists {
+			if s.descriptor.ModelProfile.PersistInputs {
+				err := s.persistInputs(tx, input)
+				if err != nil {
+					defer dbConnection.Rallback(tx)
+					log.Error().
+						Err(err).
+						Msg("Failed to persist inputs")
+					return nil, err
+				}
+			}
+			if s.descriptor.ModelProfile.IsDataFramed {
+				log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+				data, err = s.getDataFrame()
+				if err != nil {
+					return nil, err
+				}
+			}
 			err = s.createTable(tx)
 		} else {
 			if err = s.truncateTable(tx); err == nil {
@@ -140,6 +149,23 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 					return nil, err
 				}
 
+				if s.descriptor.ModelProfile.PersistInputs {
+					err := s.persistInputs(tx, input)
+					if err != nil {
+						defer dbConnection.Rallback(tx)
+						log.Error().
+							Err(err).
+							Msg("Failed to persist inputs")
+						return nil, err
+					}
+				}
+				if s.descriptor.ModelProfile.IsDataFramed {
+					log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+					data, err = s.getDataFrame()
+					if err != nil {
+						return nil, err
+					}
+				}
 				err = s.insertToTable(tx)
 
 				if err != nil {
@@ -159,6 +185,18 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			}
 		}
 	case configs.MAT_VIEW:
+
+		if s.descriptor.ModelProfile.PersistInputs {
+			err := s.persistInputs(tx, input)
+			if err != nil {
+				defer dbConnection.Rallback(tx)
+				log.Error().
+					Err(err).
+					Msg("Failed to persist inputs")
+				return nil, err
+			}
+		}
+
 		if s.descriptor.ModelProfile.IsDataFramed {
 			log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
 			data, err = s.getDataFrame()
@@ -170,6 +208,18 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			err = s.createView(tx)
 		}
 	case configs.MAT_CUSTOM:
+
+		if s.descriptor.ModelProfile.PersistInputs {
+			err := s.persistInputs(tx, input)
+			if err != nil {
+				defer dbConnection.Rallback(tx)
+				log.Error().
+					Err(err).
+					Msg("Failed to persist inputs")
+				return nil, err
+			}
+		}
+
 		if s.descriptor.ModelProfile.IsDataFramed {
 			data, err = s.getDataFrame()
 			if err != nil {

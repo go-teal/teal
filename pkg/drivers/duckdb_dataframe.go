@@ -3,6 +3,7 @@ package drivers
 import (
 	"database/sql"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/go-teal/gota/dataframe"
@@ -62,7 +63,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 			case "DOUBLE":
 				safeData[i] = &sql.NullFloat64{}
 			case "HUGEINT":
-				safeData[i] = &sql.NullString{}
+				var bigIntStub = new(big.Int)
+				safeData[i] = bigIntStub
 			case "INTEGER":
 				safeData[i] = &sql.NullInt32{}
 			case "TIMESTAMP":
@@ -100,8 +102,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 
 			case "HUGEINT":
 				sd := seriesData[i].([]string)
-				val := safeData[i].(*sql.NullString)
-				sd = append(sd, val.String)
+				val := safeData[i].(*big.Int)
+				sd = append(sd, val.String())
 				seriesData[i] = sd
 
 			case "INTEGER":
@@ -217,7 +219,7 @@ func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *datafra
 		}
 		query += fmt.Sprintf("insert into %s(%s) values(%s);\n", name, strings.Join(colNames, ", "), strings.Join(vals, ", "))
 	}
-	// log.Debug().Msg(query)
+	log.Debug().Msg(query)
 	_, err := tx.(*sql.Tx).Exec(query)
 	return err
 }
