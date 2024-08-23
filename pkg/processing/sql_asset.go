@@ -431,6 +431,9 @@ func (s *SQLModelAsset) persistInputs(tx interface{}, inputs map[string]interfac
 	for sourceModelName, inputValue := range inputs {
 		switch df := inputValue.(type) {
 		case *dataframe.DataFrame:
+			if df == nil {
+				continue
+			}
 			// log.Debug().Str("sourceModelName", sourceModelName).Msgf("persisting %v", df)
 			tempName := "tmp_" + strings.ReplaceAll(sourceModelName, ".", "_")
 			err := dbConnection.PersistDataFrame(tx, tempName, df)

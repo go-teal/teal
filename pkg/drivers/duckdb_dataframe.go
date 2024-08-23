@@ -179,6 +179,7 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 }
 
 func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *dataframe.DataFrame) error {
+	log.Debug().Str("name", name).Msg("Persisting DataFrame")
 	query := fmt.Sprintf("create temp table %s (\n", name)
 	colTypes := df.Types()
 	colNames := df.Names()
