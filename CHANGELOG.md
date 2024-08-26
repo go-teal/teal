@@ -1,8 +1,20 @@
 # Changelog
 
+
+## [0.1.6] 2024-08-26
+
+### Added
+
+- raw go assets
+- custom sql assets
+
+### Fixed
+
+- dataframe marshaling
+
 ## [0.1.5] 2024-07-30
 
-### Fix
+### Fixed
 
 - teal project generation fails: panic: open ./internal/model_tests/configs.go: no such file or directory
 

@@ -196,6 +196,8 @@ func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *datafra
 			switch colType {
 			case series.String:
 				val := df.Elem(rowIdx, colIdx).String()
+				val = strings.ReplaceAll(val, "'", "''")
+				val = strings.ReplaceAll(val, "\"", "\"")
 				vals[colIdx] = fmt.Sprintf("'%s'", val)
 			case series.Float:
 				val := df.Elem(rowIdx, colIdx).Float()
