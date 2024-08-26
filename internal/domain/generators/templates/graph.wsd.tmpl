@@ -6,7 +6,7 @@ left to right direction
 state {{ $s }} {
     {{- range $asset := $assets }}
         {{- if eq $asset.Stage $s}}
-            state {{ $asset.ModelName  }}: {{ $asset.ModelProfile.Materialization }}            
+    state {{ $asset.ModelName  }}: {{ $asset.ModelProfile.Materialization }}            
         {{- end }} 
     {{- end}}
 }
@@ -15,7 +15,7 @@ state {{ $s }} {
 
 {{- range $asset := $assets }}
     {{- range $ds := $asset.Downstreams }}
-{{ $asset.ModelName }}-->{{ $ds }}
+{{ $asset.ModelName }}-->{{ $ds }}: Ref {{ $asset.ModelName }}
     {{- end}}
 {{- end}}
 

@@ -12,7 +12,12 @@ const RAW_SQL_{{ .NameUpperCase }} = `
 
 {{- if or (eq .ModelProfile.Materialization "table") (eq .ModelProfile.Materialization "incremental") }}
 const SQL_{{ .NameUpperCase }}_CREATE_TABLE = `
-create table {{ .ModelName }} as ({{ .SqlByteBuffer }})
+create table {{ .ModelName }} 
+as ({{ .SqlByteBuffer }});
+
+{{- if ne .PrimaryKeyExpression "" }}
+create unique index {{ .ModelProfile.Name }}_pkey on {{ .ModelName }} ({{ .PrimaryKeyExpression }});
+{{- end }}
 `
 const SQL_{{ .NameUpperCase }}_INSERT = `
 insert into {{ .ModelName }} ({{ .ModelFieldsFunc }}) ({{ .SqlByteBuffer }})
@@ -21,7 +26,8 @@ const SQL_{{ .NameUpperCase }}_DROP_TABLE = `
 drop table {{ .ModelName }}
 `
 const SQL_{{ .NameUpperCase }}_TRUNCATE = `
-truncate table {{ .ModelName }}
+delete from {{ .ModelName }} where true;
+truncate table {{ .ModelName }};
 `
 {{- end}}
 

@@ -12,22 +12,22 @@ import (
 	"github.com/go-teal/teal/pkg/configs"
 )
 
-//go:embed templates/dwh_sql_model_asset.tmpl
-var dwhModelTemplate string
+//go:embed templates/dwh_raw_model_asset.tmpl
+var dwhRawModelTemplate string
 
-type GenSQLModelAsset struct {
+type GenRawModelAsset struct {
 	config         *configs.Config
 	projectProfile *configs.ProjectProfile
 	modelConfig    *internalmodels.ModelConfig
 }
 
-func InitGenModelSQLAsset(
+func InitGenModelRawAsset(
 	config *configs.Config,
 	projectProfile *configs.ProjectProfile,
 	modelConfig *internalmodels.ModelConfig,
 
 ) Generator {
-	return &GenSQLModelAsset{
+	return &GenRawModelAsset{
 		config:         config,
 		projectProfile: projectProfile,
 		modelConfig:    modelConfig,
@@ -35,21 +35,21 @@ func InitGenModelSQLAsset(
 }
 
 // GetFileName implements Generator.
-func (g *GenSQLModelAsset) GetFileName() string {
+func (g *GenRawModelAsset) GetFileName() string {
 	return g.modelConfig.ModelName
 }
 
 // GetFullPath implements Generator.
-func (g *GenSQLModelAsset) GetFullPath() string {
+func (g *GenRawModelAsset) GetFullPath() string {
 	return g.config.ProjectPath + "/internal/assets/" + g.GetFileName() + ".go"
 }
 
-func (g *GenSQLModelAsset) RenderToFile() error {
+func (g *GenRawModelAsset) RenderToFile() error {
 
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
 
-	goTempl, err := template.New(g.GetFileName()).Parse(dwhModelTemplate)
+	goTempl, err := template.New(g.GetFileName()).Parse(dwhRawModelTemplate)
 	if err != nil {
 		return err
 	}

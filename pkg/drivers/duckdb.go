@@ -128,6 +128,9 @@ func (d *DuckDBEngine) Commit(tx interface{}) error {
 func (d *DuckDBEngine) Exec(tx interface{}, sqlQuery string) error {
 	log.Debug().Msg(sqlQuery)
 	_, result := tx.(*sql.Tx).Exec(sqlQuery)
+	if result != nil {
+		log.Error().Msg(sqlQuery)
+	}
 	return result
 }
 

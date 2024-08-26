@@ -64,6 +64,10 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 							profile.Materialization = newModelProfile.Materialization
 						}
 
+						if len(newModelProfile.PrimaryKeyFields) > 0 {
+							profile.PrimaryKeyFields = newModelProfile.PrimaryKeyFields
+						}
+
 						if len(newModelProfile.Tests) > 0 {
 							profile.Tests = newModelProfile.Tests
 							for _, testProfile := range profile.Tests {
@@ -73,7 +77,9 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 								testProfile.Stage = profile.Stage
 							}
 						}
-
+						if profile.Connection == "" {
+							profile.Connection = "default"
+						}
 						profile.IsDataFramed = newModelProfile.IsDataFramed || profile.IsDataFramed
 						profile.PersistInputs = newModelProfile.PersistInputs || profile.PersistInputs
 						modelProfilesMap[refName] = profile
