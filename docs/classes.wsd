@@ -24,7 +24,7 @@ Interface DBDriver {
 }
 
 Class DuckDB
-Class PossgreSQL
+Class PostgreSQL
 Class ClickHouse
 Class MySQL
 Class SQLModelDescriptor
@@ -34,16 +34,19 @@ Interface DAG {
 	+Stop()
 }
 
+Interface Executor{
+	+func(input, modelProfile) (interface{}, error)
+}
+
 class Routine
 
 SQLModelAsset .up.|> Asset
-GOAsset .up.|> Asset
-SeedAsset .up.|> Asset
+RawAsset .up.|> Asset
 SQLModelAsset o-right-> DBDriver
 SQLModelAsset o--> SQLModelDescriptor
-SeedAsset o--> DBDriver
+RawAsset o--> Executor
 DuckDB .up.|> DBDriver
-PossgreSQL .up.|> DBDriver
+PostgreSQL .up.|> DBDriver
 ClickHouse .up.|> DBDriver
 MySQL .up.|> DBDriver
 
