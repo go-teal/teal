@@ -19,6 +19,7 @@ func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	log.Info().Msg("{{ .Profile.Name }}")
 	core.GetInstance().Init("config.yaml", ".")
+	defer core.GetInstance().Shutdown()
 	config := core.GetInstance().Config
 	dag := dags.InitChannelDag(assets.DAG, assets.PorjectAssets, config, "instance 1")
 	wg := dag.Run()
