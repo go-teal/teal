@@ -46,15 +46,13 @@ func (c *Core) Init(configFileName string, projectPath string) {
 		if err != nil {
 			panic(err)
 		}
-		if dbConnection.IsPermanent() {
-			err = dbConnection.Connect()
-			if err != nil {
-				panic(err)
-			}
+
+		err = dbConnection.Connect()
+		if err != nil {
+			panic(err)
 		}
 		c.dbConnections[connectionConfig.Name] = dbConnection
 	}
-	// fmt.Printf("Connections %s have been initialized\n", c.dbConnections)
 }
 
 func (c *Core) GetDBConnection(connection string) drivers.DBDriver {
@@ -63,8 +61,6 @@ func (c *Core) GetDBConnection(connection string) drivers.DBDriver {
 
 func (c *Core) Shutdown() {
 	for _, dbConnection := range c.dbConnections {
-		if dbConnection.IsPermanent() {
-			dbConnection.Close()
-		}
+		dbConnection.Close()
 	}
 }

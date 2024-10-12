@@ -23,19 +23,8 @@ func InitSQLModelTesting(descriptor *models.SQLModelTestDescriptor) ModelTesting
 }
 
 func (mt *SQLModelTestCase) Execute() (bool, string, error) {
-	dbConnection := core.GetInstance().GetDBConnection(mt.descriptor.TestProfile.Connection)
 
-	if !dbConnection.IsPermanent() {
-		err := dbConnection.Connect()
-		if err != nil {
-			log.Error().
-				Err(err).
-				Msg("Failed to connect to database")
-			defer dbConnection.Close()
-			return false, "", err
-		}
-		defer dbConnection.Close()
-	}
+	dbConnection := core.GetInstance().GetDBConnection(mt.descriptor.TestProfile.Connection)
 
 	sqlTestTemplate, err := template.New("runSQTestTemplate").
 		Funcs(FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(template.FuncMap))).

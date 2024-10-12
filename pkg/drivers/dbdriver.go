@@ -17,7 +17,6 @@ type DBDriver interface {
 	GetListOfFields(tx interface{}, tableName string) []string
 	CheckTableExists(tx interface{}, tableName string) bool
 	CheckSchemaExists(tx interface{}, schemaName string) bool
-	IsPermanent() bool
 	MountSource(sourceProfile *configs.SourceProfile) error
 	UnMountSource(sourceProfile *configs.SourceProfile) error
 	GetRawConnection() interface{}

@@ -43,18 +43,14 @@ func (d *DuckDBEngine) UnMountSource(sourceProfile *configs.SourceProfile) error
 type DuckDBEngineFactory struct {
 }
 
-func (d *DuckDBEngine) IsPermanent() bool {
-	return false
-}
-
 // Rallback implements DBEngine.
 func (d *DuckDBEngine) Rallback(tx interface{}) error {
+	d.mutex.Lock()
 	return tx.(*sql.Tx).Rollback()
 }
 
 // Connect implements DBEngine.
 func (d *DuckDBEngine) Connect() error {
-	d.mutex.Lock()
 	var err error
 	d.db, err = sql.Open("duckdb", d.dbConnection.Config.Path)
 	log.Debug().Str("path", d.dbConnection.Config.Path).Msg("Connected")
@@ -94,6 +90,7 @@ func (d *DuckDBEngine) CheckSchemaExists(tx interface{}, tableName string) bool 
 
 // Begin implements DBEngine.
 func (d *DuckDBEngine) Begin() (interface{}, error) {
+	d.mutex.Lock()
 	return d.db.Begin()
 }
 
@@ -112,7 +109,7 @@ func (d *DuckDBEngine) CheckTableExists(tx interface{}, tableName string) bool {
 // Close implements DBEngine.
 func (d *DuckDBEngine) Close() error {
 	log.Debug().Str("path", d.dbConnection.Config.Path).Msg("disconnected")
-	defer d.mutex.Unlock()
+	// defer d.mutex.Unlock()
 	if d.db == nil {
 		return nil
 	}
@@ -121,6 +118,7 @@ func (d *DuckDBEngine) Close() error {
 
 // Commit implements DBEngine.
 func (d *DuckDBEngine) Commit(tx interface{}) error {
+	d.mutex.Unlock()
 	return tx.(*sql.Tx).Commit()
 }
 
@@ -165,7 +163,7 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 		mutex:        &sync.Mutex{},
 	}
 
-	fmt.Printf("Init DuckDB %s at %s\n", dbConnectionConfig.Name, dbConnectionConfig.Config.Path)
+	log.Debug().Msgf("Init DuckDB %s at %s\n", dbConnectionConfig.Name, dbConnectionConfig.Config.Path)
 	_, err := os.Stat(dbConnectionConfig.Config.Path)
 
 	if os.IsNotExist(err) {
@@ -175,7 +173,7 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 		}
 		defer db.Close()
 		if len(dbConnectionConfig.Config.Extensions) > 0 {
-			fmt.Printf("Installing extensions: %v\n", dbConnectionConfig.Config.Extensions)
+			log.Info().Msgf("Installing extensions: %v\n", dbConnectionConfig.Config.Extensions)
 		}
 		for _, extentionName := range dbConnectionConfig.Config.Extensions {
 			_, err := db.Exec(fmt.Sprintf("INSTALL %s;", extentionName))
@@ -186,9 +184,8 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 			if err != nil {
 				panic(err)
 			}
-			fmt.Printf("Installed extension: %s\n", extentionName)
+			log.Info().Msgf("Installed extension: %s\n", extentionName)
 		}
-
 	}
 	return duckDBConnection, nil
 }

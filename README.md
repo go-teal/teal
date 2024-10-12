@@ -15,6 +15,7 @@
   - [General Architecture](#general-architecture)
     - [Cross database references](#cross-database-references)
   - [Raw Assets](#raw-assets)
+    - [Registration and declaration of a raw asset](#registration-and-declaration-of-a-raw-asset)
   - [Data testing](#data-testing)
     - [Simple model testing](#simple-model-testing)
       - [Test profile](#test-profile)
@@ -271,6 +272,13 @@ models:
             # see test pfofiles
     - name: dds  
     - name: mart
+      models:
+        - name: custom_asset
+          materialization: 'raw'
+          connection: 'default'
+          raw_upstreams:
+            - "dds.model1"
+            - "dds.model2"
 ```
 
 |Param|Type|Description|
@@ -281,6 +289,7 @@ models:
 |models.stages:|Array of stages|list of stages for models. For each stage a folder `assets/models`/`<stage name>` must be created in advance|
 |models.stages|See: [Model Profile](#model-profile)||
 |models.stages.`name: <stage name>`.models.`<name: model name>`.tests|See: [Test Profile](#test-profile)|Test cases defined in the model profiles are executed immediately after the execution of the model itself|
+|models.stages.`name: <stage name>`.models.`<name: model name>`.raw_upstreams|See: [Raw assets](#raw-assets)|A list of upstreams that supply data to this raw asset or that must be executed before this asset is run.|
 
 #### Model Profile
 
@@ -325,7 +334,7 @@ select
 |incremental|The result of the query execution is added to the existing table.  If the table does not exist, it will be created.|
 |view|The SQL query is saved as a View. |
 |custom| A custom SQL query is executed, no tables or views are created |
-|raw| TODO |
+|raw| A custom Go function is executed |
 
 ## Template functions
 
@@ -363,16 +372,42 @@ Native available functions:
 
 ### Cross database references
 
+Cross database references allow seamless queries to be executed. Seamless queries are queries that allow retrieving the result of an asset that is connected to another database, even one using a different database driver.
+
 The following two model profile parameters are responsible for cross base references:
 
 - **is_data_framed**. If this flag is set to True, the result of query execution is saved to the [gota.Dataframe](https://github.com/go-gota/) structure. This structure is then passed to the next node in your DAG.
-- **persist_inputs**. If this flag is set to true, all incoming parameters in the form of gota.DataFrame structure are saved to a temporary table in the database connection that is configured in the connection parameter of the model profile.
+- **persist_inputs**. If this flag is set to true, all incoming parameters in the form of gota.DataFrame structure are saved to a temporary table in the database connection that is configured in the connection parameter of the model profile. You don't need to change the reference to the asset for this.
 
 ![cross-db-ref](docs/cross-db-ref.drawio.svg)
 
 ## Raw Assets
 
-TODO
+Raw assets are custom functions written in Go that can accept and return dataframes and contain any other custom logic.
+
+Raw assets must implement the following function interface:
+
+```Go
+type ExecutorFunc func(input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
+```
+
+Retrieving a dataframe from an upstream is done as follows:
+
+```Go
+df := input["dds.model1"].(*dataframe.DataFrame)
+```
+At the same time, the `is_data_framed` flag must be set in the upstream asset.
+A custom asset can return a dataframe, which can then be seamlessly(see: [Cross database references](#cross-database-references)) used in an SQL query or in another custom dataframe.
+
+### Registration and declaration of a raw asset
+
+A raw asset must be registered in the main function.
+
+```Go
+processing.GetExecutors().Execurots["<staging>.<asset name>"] = youPackage.YouRawAssetFunction
+```
+
+Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in the model profile (see: [profile.yaml](#profileyaml))
 
 ## Data testing
 

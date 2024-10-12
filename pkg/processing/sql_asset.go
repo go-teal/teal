@@ -52,21 +52,9 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		Msg("Executing asset")
 	log.Debug().Str("s.descriptor.Name", s.descriptor.Name).Msgf("input params: %v", input)
 
-	if !dbConnection.IsPermanent() {
-		err := dbConnection.Connect()
-		if err != nil {
-			log.Error().
-				Err(err).
-				Msg("Failed to connect to database")
-			defer dbConnection.Close()
-			return nil, err
-		}
-		defer dbConnection.Close()
-	}
-
 	tx, err := dbConnection.Begin()
 	if err != nil {
-		log.Error().
+		log.Error().Caller().
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -81,7 +69,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
 			defer dbConnection.Rallback(tx)
-			log.Error().
+			log.Error().Caller().
 				Err(err).
 				Msg("Failed to create schema")
 
@@ -91,13 +79,22 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	isTableExists := dbConnection.CheckTableExists(tx, s.descriptor.Name)
 
+	err = dbConnection.Commit(tx)
+
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to create schema or table")
+		defer dbConnection.Rallback(tx)
+		return nil, err
+	}
+
 	switch s.descriptor.ModelProfile.Materialization {
 	case configs.MAT_INCREMENTAL:
 		if s.descriptor.ModelProfile.PersistInputs {
-			err := s.persistInputs(tx, input)
+			err := s.persistInputs(input)
 			if err != nil {
-				defer dbConnection.Rallback(tx)
-				log.Error().
+				log.Error().Caller().
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -111,19 +108,18 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		}
 
 		if !isTableExists {
-			err = s.createTable(tx)
+			err = s.createTable()
 		} else {
-			err = s.insertToTable(tx)
+			err = s.insertToTable()
 		}
 
 	case configs.MAT_TABLE:
 
 		if !isTableExists {
 			if s.descriptor.ModelProfile.PersistInputs {
-				err := s.persistInputs(tx, input)
+				err := s.persistInputs(input)
 				if err != nil {
-					defer dbConnection.Rallback(tx)
-					log.Error().
+					log.Error().Caller().
 						Err(err).
 						Msg("Failed to persist inputs")
 					return nil, err
@@ -136,24 +132,14 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 					return nil, err
 				}
 			}
-			err = s.createTable(tx)
+			err = s.createTable()
 		} else {
-			if err = s.truncateTable(tx); err == nil {
+			if err = s.truncateTable(); err == nil {
 				log.Debug().Msg("table has been truncated")
-				tx, err := dbConnection.Begin()
-				if err != nil {
-					log.Error().
-						Err(err).
-						Msg("Failed to begin transaction")
-					defer dbConnection.Rallback(tx)
-					return nil, err
-				}
-
 				if s.descriptor.ModelProfile.PersistInputs {
-					err := s.persistInputs(tx, input)
+					err := s.persistInputs(input)
 					if err != nil {
-						defer dbConnection.Rallback(tx)
-						log.Error().
+						log.Error().Caller().
 							Err(err).
 							Msg("Failed to persist inputs")
 						return nil, err
@@ -166,19 +152,17 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 						return nil, err
 					}
 				}
-				err = s.insertToTable(tx)
+				err = s.insertToTable()
 
 				if err != nil {
 					defer dbConnection.Rallback(tx)
-					log.Error().
+					log.Error().Caller().
 						Err(err).
 						Msg("Failed to insert to table")
 					return nil, err
 				}
-
 			} else {
-				defer dbConnection.Rallback(tx)
-				log.Error().
+				log.Error().Caller().
 					Err(err).
 					Msg("Failed to truncate table")
 				return nil, err
@@ -187,10 +171,10 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	case configs.MAT_VIEW:
 
 		if s.descriptor.ModelProfile.PersistInputs {
-			err := s.persistInputs(tx, input)
+			err := s.persistInputs(input)
 			if err != nil {
 				defer dbConnection.Rallback(tx)
-				log.Error().
+				log.Error().Caller().
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -205,15 +189,14 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			}
 		}
 		if !isTableExists {
-			err = s.createView(tx)
+			err = s.createView()
 		}
 	case configs.MAT_CUSTOM:
 
 		if s.descriptor.ModelProfile.PersistInputs {
-			err := s.persistInputs(tx, input)
+			err := s.persistInputs(input)
 			if err != nil {
-				defer dbConnection.Rallback(tx)
-				log.Error().
+				log.Error().Caller().
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -226,7 +209,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 				return nil, err
 			}
 		} else {
-			err = s.customQuery(tx)
+			err = s.customQuery()
 		}
 	case configs.MAT_RAW:
 		panic("SQL Model can not be raw")
@@ -247,7 +230,7 @@ func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) {
 			if status {
 				log.Info().Str("Test Case", testName).Msg("Success")
 			} else {
-				log.Error().Str("Test Case", testName).Err(err).Msg("Failed")
+				log.Error().Caller().Str("Test Case", testName).Err(err).Msg("Failed")
 			}
 		} else {
 			log.Warn().Msgf("Test %s not found", testConfig.Name)
@@ -255,36 +238,55 @@ func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) {
 	}
 }
 
-func (s *SQLModelAsset) createView(tx interface{}) error {
+func (s *SQLModelAsset) createView() error {
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+
+	tx, err := dbConnection.Begin()
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to begin transaction")
+		defer dbConnection.Rallback(tx)
+		return err
+	}
+
 	var sqlQuery bytes.Buffer
 	createViewSQLTemplate, err := template.New("createViewSQLTemplate").
 		Funcs(FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions)).
 		Parse(s.descriptor.CreateViewSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msgf("parse view SQL %s", s.descriptor.CreateViewSQL)
+		log.Error().Caller().Stack().Err(err).Msgf("parse view SQL %s", s.descriptor.CreateViewSQL)
 		return err
 	}
 
 	err = createViewSQLTemplate.Execute(&sqlQuery, nil)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msgf("Render view SQL %s", sqlQuery.String())
+		log.Error().Caller().Stack().Err(err).Msgf("Render view SQL %s", sqlQuery.String())
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery.String())
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msg("Failed to create view")
+		log.Error().Caller().Stack().Err(err).Msg("Failed to create view")
 		return err
 	}
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) createTable(tx interface{}) error {
+func (s *SQLModelAsset) createTable() error {
 
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+
+	tx, err := dbConnection.Begin()
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to begin transaction")
+		defer dbConnection.Rallback(tx)
+		return err
+	}
 
 	s.functions["IsIncremental"] = func() bool {
 		return false
@@ -295,7 +297,7 @@ func (s *SQLModelAsset) createTable(tx interface{}) error {
 		Parse(s.descriptor.CreateTableSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msgf("Parsing template: %s", s.descriptor.CreateTableSQL)
+		log.Error().Caller().Stack().Err(err).Msgf("Parsing template: %s", s.descriptor.CreateTableSQL)
 		return err
 	}
 
@@ -304,41 +306,62 @@ func (s *SQLModelAsset) createTable(tx interface{}) error {
 	err = createTableSQLTempl.Execute(&sqlQuery, nil)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msgf("Executing template: %s", sqlQuery.String())
+		log.Error().Caller().Stack().Err(err).Msgf("Executing template: %s", sqlQuery.String())
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery.String())
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msg("Failed to create table")
+		log.Error().Caller().Stack().Err(err).Msg("Failed to create table")
 		return err
 	}
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) truncateTable(tx interface{}) error {
+func (s *SQLModelAsset) truncateTable() error {
+
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
-	err := dbConnection.Exec(tx, s.descriptor.TruncateTableSQL)
+
+	tx, err := dbConnection.Begin()
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to begin transaction")
+		defer dbConnection.Rallback(tx)
+		return err
+	}
+
+	err = dbConnection.Exec(tx, s.descriptor.TruncateTableSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msg("Failed to run truncate")
+		log.Error().Caller().Stack().Err(err).Msg("Failed to run truncate")
 		return err
 	}
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) customQuery(tx interface{}) error {
+func (s *SQLModelAsset) customQuery() error {
 
 	s.functions["IsIncremental"] = func() bool {
 		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL
 	}
 
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+
+	tx, err := dbConnection.Begin()
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to begin transaction")
+		defer dbConnection.Rallback(tx)
+		return err
+	}
+
 	simleSQLQueryTemplate, err := template.New("simleSQLQueryTemplate").
 		Funcs(FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions)).
 		Parse(s.descriptor.RawSQL)
 	if err != nil {
-		log.Error().Stack().
+		log.Error().Caller().Stack().
 			Err(err).
 			Msg("Failed to parse asset query")
 		return err
@@ -346,7 +369,7 @@ func (s *SQLModelAsset) customQuery(tx interface{}) error {
 	var sqlQuery bytes.Buffer
 	err = simleSQLQueryTemplate.Execute(&sqlQuery, nil)
 	if err != nil {
-		log.Error().Stack().
+		log.Error().Caller().Stack().
 			Err(err).
 			Msgf("Rendering template: %s", sqlQuery.String())
 		return err
@@ -354,14 +377,24 @@ func (s *SQLModelAsset) customQuery(tx interface{}) error {
 	err = dbConnection.Exec(tx, sqlQuery.String())
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msg("Failed to run a custom query")
+		log.Error().Caller().Stack().Err(err).Msg("Failed to run a custom query")
 		return err
 	}
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) insertToTable(tx interface{}) error {
+func (s *SQLModelAsset) insertToTable() error {
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+
+	tx, err := dbConnection.Begin()
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to begin transaction")
+		defer dbConnection.Rallback(tx)
+		return err
+	}
+
 	var sqlQuery bytes.Buffer
 	s.functions["IsIncremental"] = func() bool {
 		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL
@@ -372,20 +405,20 @@ func (s *SQLModelAsset) insertToTable(tx interface{}) error {
 		Parse(s.descriptor.InsertSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msgf("Parsing template: %s", s.descriptor.InsertSQL)
+		log.Error().Caller().Stack().Err(err).Msgf("Parsing template: %s", s.descriptor.InsertSQL)
 		return err
 	}
 
 	err = runSQLTemplate.Execute(&sqlQuery, nil)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msgf("Rendering template: %s", sqlQuery.String())
+		log.Error().Caller().Stack().Err(err).Msgf("Rendering template: %s", sqlQuery.String())
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery.String())
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Stack().Err(err).Msg("Failed to insert")
+		log.Error().Caller().Stack().Err(err).Msg("Failed to insert")
 		return err
 	}
 	return dbConnection.Commit(tx)
@@ -402,7 +435,7 @@ func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
 		Funcs(FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions)).
 		Parse(s.descriptor.RawSQL)
 	if err != nil {
-		log.Error().Stack().
+		log.Error().Caller().Stack().
 			Err(err).
 			Msg("Failed to parse asset query")
 		return nil, err
@@ -410,7 +443,7 @@ func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
 	var sqlQuery bytes.Buffer
 	err = simleSQLQueryTemplate.Execute(&sqlQuery, nil)
 	if err != nil {
-		log.Error().Stack().
+		log.Error().Caller().Stack().
 			Err(err).
 			Msgf("Rendering template: %s", sqlQuery.String())
 		return nil, err
@@ -418,7 +451,7 @@ func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
 
 	data, err := dbConnection.ToDataFrame(sqlQuery.String())
 	if err != nil {
-		log.Error().Stack().
+		log.Error().Caller().Stack().
 			Err(err).
 			Msgf("Failed to create a DataFrame for: %s", sqlQuery.String())
 		return nil, err
@@ -426,8 +459,18 @@ func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
 	return data, nil
 }
 
-func (s *SQLModelAsset) persistInputs(tx interface{}, inputs map[string]interface{}) error {
+func (s *SQLModelAsset) persistInputs(inputs map[string]interface{}) error {
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+
+	tx, err := dbConnection.Begin()
+	if err != nil {
+		log.Error().Caller().
+			Err(err).
+			Msg("Failed to begin transaction")
+		defer dbConnection.Rallback(tx)
+		return err
+	}
+
 	for sourceModelName, inputValue := range inputs {
 		switch df := inputValue.(type) {
 		case *dataframe.DataFrame:
@@ -438,17 +481,18 @@ func (s *SQLModelAsset) persistInputs(tx interface{}, inputs map[string]interfac
 			tempName := "tmp_" + strings.ReplaceAll(sourceModelName, ".", "_")
 			err := dbConnection.PersistDataFrame(tx, tempName, df)
 			if err != nil {
-				defer dbConnection.Rallback(tx)
-				log.Error().Stack().
+
+				log.Error().Caller().Stack().
 					Err(err).
 					Str("model", s.descriptor.Name).
 					Str("connection", s.descriptor.ModelProfile.Connection).
 					Msg("Failed to persist inputs")
+				defer dbConnection.Rallback(tx)
 				return err
 			}
 		default:
 			log.Warn().Str("sourceModelName", sourceModelName).Msg("Input is not a *dataframe")
 		}
 	}
-	return nil
+	return dbConnection.Commit(tx)
 }
