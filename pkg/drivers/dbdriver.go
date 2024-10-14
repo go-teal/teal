@@ -1,6 +1,8 @@
 package drivers
 
 import (
+	"sync"
+
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/teal/pkg/configs"
 )
@@ -21,6 +23,7 @@ type DBDriver interface {
 	UnMountSource(sourceProfile *configs.SourceProfile) error
 	GetRawConnection() interface{}
 	SimpleTest(sql string) (string, error)
+	IsConcurrencyAllowed() (bool, *sync.Mutex)
 }
 
 type DBconnectionFactory interface {

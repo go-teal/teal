@@ -1,6 +1,14 @@
 # Changelog
 
+## [0.1.8] 2024-10-14
+
+### Fixed
+
+- DuckDB mutex dead lock bugfux
+
 ## [0.1.7] 2024-10-12
+
+### Added
 
 - duckdb optimizations
 
