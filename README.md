@@ -446,11 +446,9 @@ see CHANGELOG.md
 
 #### Features <!-- omit from toc -->
 
-- [ ] Custom Assets (Go)
 - [ ] Advanced Tests
 - [ ] Seeds
 - [ ] Database Sources
-- [ ] Custom SQL assets
 - [ ] Pre/Post-hooks
 - [ ] Embedded UI Dashboard
 - [ ] DataVault
@@ -465,7 +463,7 @@ see CHANGELOG.md
 #### Workflow <!-- omit from toc -->
 
 - [ ] Temporal.io
-- [ ] Kafka Distibuted
+- [ ] Kafka Distributed
 
 ## Contact
 

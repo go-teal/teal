@@ -14,7 +14,7 @@ import (
 type DuckDBEngine struct {
 	dbConnection *configs.DBConnectionConfig
 	db           *sql.DB
-	mutex        *sync.Mutex
+	Mutex        *sync.Mutex
 }
 
 // MountSource implements DBDriver.
@@ -45,7 +45,7 @@ type DuckDBEngineFactory struct {
 
 // Rallback implements DBEngine.
 func (d *DuckDBEngine) Rallback(tx interface{}) error {
-	d.mutex.Lock()
+	// d.mutex.Lock()
 	return tx.(*sql.Tx).Rollback()
 }
 
@@ -90,7 +90,7 @@ func (d *DuckDBEngine) CheckSchemaExists(tx interface{}, tableName string) bool 
 
 // Begin implements DBEngine.
 func (d *DuckDBEngine) Begin() (interface{}, error) {
-	d.mutex.Lock()
+	// d.mutex.Lock()
 	return d.db.Begin()
 }
 
@@ -118,7 +118,7 @@ func (d *DuckDBEngine) Close() error {
 
 // Commit implements DBEngine.
 func (d *DuckDBEngine) Commit(tx interface{}) error {
-	d.mutex.Unlock()
+	// d.mutex.Unlock()
 	return tx.(*sql.Tx).Commit()
 }
 
@@ -160,7 +160,7 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 
 	duckDBConnection := &DuckDBEngine{
 		dbConnection: dbConnectionConfig,
-		mutex:        &sync.Mutex{},
+		Mutex:        &sync.Mutex{},
 	}
 
 	log.Debug().Msgf("Init DuckDB %s at %s\n", dbConnectionConfig.Name, dbConnectionConfig.Config.Path)
@@ -188,4 +188,8 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 		}
 	}
 	return duckDBConnection, nil
+}
+
+func (d *DuckDBEngine) IsConcurrencyAllowed() (bool, *sync.Mutex) {
+	return false, d.Mutex
 }

@@ -46,6 +46,12 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	var data *dataframe.DataFrame
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
+	isConcurrencyAllowed, mutex := dbConnection.IsConcurrencyAllowed()
+	if !isConcurrencyAllowed {
+		mutex.Lock()
+		defer mutex.Unlock()
+	}
+
 	log.Debug().
 		Str("s.descriptor.Name", s.descriptor.Name).
 		Str("s.descriptor.ModelProfile.Connection", s.descriptor.ModelProfile.Connection).
