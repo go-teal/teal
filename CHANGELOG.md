@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9] 2024-10-17
+
+### Fixed
+
+- Minor typos
+- Docs upadted
+
 ## [0.1.8] 2024-10-14
 
 ### Fixed
