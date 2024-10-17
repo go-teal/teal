@@ -5,7 +5,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var PorjectTests = map[string] processing.ModelTesting{
+var ProjectTests = map[string] processing.ModelTesting{
 {{- range $tst := .Tests }}
 	"{{ $tst.TestName }}":{{$tst.GoName}}SimpleTestCase,
 {{- end }}
@@ -13,7 +13,7 @@ var PorjectTests = map[string] processing.ModelTesting{
 
 
 func TestAll() {
-	for _, testCase := range PorjectTests {
+	for _, testCase := range ProjectTests {
 		status, testName, err := testCase.Execute()
 		if status {
 			log.Info().Str("Test Case", testName).Msg("Success")

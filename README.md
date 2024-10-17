@@ -207,7 +207,7 @@ func main() {
   fmt.Println("my-test-project")
   core.GetInstance().Init("config.yaml", ".")
   config := core.GetInstance().Config
-  dag := dags.InitChannelDag(assets.DAG, assets.PorjectAssets, config, "instance 1")
+  dag := dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, "instance 1")
   wg := dag.Run()
   result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))
   fmt.Println(result)
@@ -247,13 +247,13 @@ connections:
 2. The following databases are supported at the moment (v0.1.2):
     - [DuckDB](#duckdb), see the specific config params.
 
-|Param   |Type   |Description                                                   |
-|--------|-------|--------------------------------------------------------------|
-|version|String constant|1.0.0|
-|module|String|Generated go module name|
-|connections|String|Array of database connections|
-|connections.name|String|Name of the connection for model profile|
-|connections.type|String|Driver name of the database connection, DuckDB, PostgreSQL, etc.|
+|Param             |Type             |Description                                                   |
+|------------------|-----------------|--------------------------------------------------------------|
+|version           |String constant  |1.0.0                                                         |
+|module            |String           |Generated Go module name                                       |
+|connections       |Array of objects |Array of database connections                                  |
+|connections.name  |String           |Name of the connection used in the model profile               |
+|connections.type  |String           |Driver name of the database connection (e.g., DuckDB, PostgreSQL, etc.)|
 
 ### profile.yaml
 
@@ -283,12 +283,12 @@ models:
 
 |Param|Type|Description|
 |-----|----|-----------|
-|version|String constant|1.0.0|
-|name|String|Generated folder name for main.go|
-|connection|String|Connection from `config.yaml` by default|
-|models.stages:|Array of stages|list of stages for models. For each stage a folder `assets/models`/`<stage name>` must be created in advance|
+|version|String constant|`1.0.0`|
+|name|String|Generated folder name for `main.go`.|
+|connection|String|Connection from `config.yaml` by default.|
+|models.stages|Array of stages|List of stages for models. For each stage, a folder `assets/models/<stage name>` must be created in advance.|
 |models.stages|See: [Model Profile](#model-profile)||
-|models.stages.`name: <stage name>`.models.`<name: model name>`.tests|See: [Test Profile](#test-profile)|Test cases defined in the model profiles are executed immediately after the execution of the model itself|
+|models.stages.`name: <stage name>`.models.`<name: model name>`.tests|See: [Test Profile](#test-profile)|Test cases defined in the model profiles are executed immediately after the execution of the model itself.|
 |models.stages.`name: <stage name>`.models.`<name: model name>`.raw_upstreams|See: [Raw assets](#raw-assets)|A list of upstreams that supply data to this raw asset or that must be executed before this asset is run.|
 
 #### Model Profile
@@ -320,21 +320,21 @@ select
 
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
-|name|String|filename|The model name must be the same as the file name without regard to the system extension (.sql)|
-|connection|String|profile.connection|Connection name from `config.yaml`|
-|materialization|String|table|See [Materializations](#materializations)|
-|is_data_framed|boolean|false|See [Cross database references](#cross-database-references)|
-|persist_inputs|boolean|false|See [Cross database references](#cross-database-references)|
+|name|String|filename|The model name must match the file name, disregarding the system extension (.sql).|
+|connection|String|profile.connection|The connection name from `config.yaml`.|
+|materialization|String|table|See [Materializations](#materializations).|
+|is_data_framed|boolean|false|See [Cross-database references](#cross-database-references).|
+|persist_inputs|boolean|false|See [Cross-database references](#cross-database-references).|
 
 ## Materializations
 
 |Materializations|Description|
 |---|---|
-|table|The result of SQL query execution is stored in the table corresponding to the model name. If the table does not exist, it will be created. If the table already exists, it will be cleared using the truncate method.|
-|incremental|The result of the query execution is added to the existing table.  If the table does not exist, it will be created.|
-|view|The SQL query is saved as a View. |
-|custom| A custom SQL query is executed, no tables or views are created |
-|raw| A custom Go function is executed |
+|table|The result of an SQL query execution is stored in the table corresponding to the model name. If the table does not exist, it will be created. If the table already exists, it will be cleared using the truncate method.|
+|incremental|The result of the query execution is added to the existing table. If the table does not exist, it will be created.|
+|view|The SQL query is saved as a view.|
+|custom|A custom SQL query is executed; no tables or views are created.|
+|raw|A custom Go function is executed.|
 
 ## Template functions
 
@@ -350,8 +350,8 @@ Native available functions:
 |Function|Input Parameters|Output data|Description|
 |--|--|--|--|
 |Ref|`"<staging name>.<model name>"`|string|`Ref` is the main function on which the DAG is based. It points to the model that will be replaced by the table name after the template is executed.|
-|this|No|string|`this` function returns the name of the current table|
-|IsIncremental|No|boolean|`IsIncremental` function returns the sign of model execution in the increment mode|
+|this|None|string|The `this` function returns the name of the current table.|
+|IsIncremental|None|boolean|The `IsIncremental` function returns a flag indicating whether the model is being executed in incremental mode.|
 
 ## Databases
 
@@ -362,9 +362,9 @@ Native available functions:
 
 |Param|Type|Description|
 |-----|----|-----------|
-|extensions|Array of strings|List of [DuckDB extenstions](https://duckdb.org/docs/extensions/overview.html). Extenstions will be install during the creation of database and loaded befor the asset execution|
-|path|String|Path to the DuckDB database file|
-|extraParams|Object|Pairs of the name->values parameters for [DuckDB configuration](https://duckdb.org/docs/configuration/overview.html)|
+|extensions|Array of strings|List of [DuckDB extensions](https://duckdb.org/docs/extensions/overview.html). Extensions will be installed during the creation of the database and loaded before the asset execution.|
+|path|String|Path to the DuckDB database file.|
+|extraParams|Object|Pairs of name-value parameters for [DuckDB configuration](https://duckdb.org/docs/configuration/overview.html).|
 
 ## General Architecture
 
@@ -372,12 +372,12 @@ Native available functions:
 
 ### Cross database references
 
-Cross database references allow seamless queries to be executed. Seamless queries are queries that allow retrieving the result of an asset that is connected to another database, even one using a different database driver.
+Cross-database references allow seamless queries to be executed, enabling the retrieval of results from an asset connected to another database, even if it uses a different database driver.
 
-The following two model profile parameters are responsible for cross base references:
+The following two model profile parameters control cross-database references:
 
-- **is_data_framed**. If this flag is set to True, the result of query execution is saved to the [gota.Dataframe](https://github.com/go-gota/) structure. This structure is then passed to the next node in your DAG.
-- **persist_inputs**. If this flag is set to true, all incoming parameters in the form of gota.DataFrame structure are saved to a temporary table in the database connection that is configured in the connection parameter of the model profile. You don't need to change the reference to the asset for this.
+- **is_data_framed**: When this flag is set to `True`, the result of the query execution is saved to the [gota.DataFrame](https://github.com/go-gota/) structure. This structure is then passed to the next node in your DAG.
+- **persist_inputs**: When this flag is set to `True`, all incoming parameters in the form of a `gota.DataFrame` structure are saved to a temporary table in the database connection configured in the model profile's `connection` parameter. You don't need to modify the reference to the asset for this to happen.
 
 ![cross-db-ref](docs/cross-db-ref.drawio.svg)
 
@@ -387,7 +387,7 @@ Raw assets are custom functions written in Go that can accept and return datafra
 
 Raw assets must implement the following function interface:
 
-```Go
+```go
 type ExecutorFunc func(input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
 ```
 
@@ -396,8 +396,9 @@ Retrieving a dataframe from an upstream is done as follows:
 ```Go
 df := input["dds.model1"].(*dataframe.DataFrame)
 ```
-At the same time, the `is_data_framed` flag must be set in the upstream asset.
-A custom asset can return a dataframe, which can then be seamlessly(see: [Cross database references](#cross-database-references)) used in an SQL query or in another custom dataframe.
+
+At the same time, the `is_data_framed` flag must be set in the upstream asset.  
+A custom asset can return a dataframe, which can then be seamlessly (see: [Cross-database references](#cross-database-references)) used in an SQL query or another custom dataframe.
 
 ### Registration and declaration of a raw asset
 
@@ -407,13 +408,13 @@ A raw asset must be registered in the main function.
 processing.GetExecutors().Execurots["<staging>.<asset name>"] = youPackage.YouRawAssetFunction
 ```
 
-Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in the model profile (see: [profile.yaml](#profileyaml))
+Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in the model profile (see: [profile.yaml](#profileyaml)).
 
 ## Data testing
 
 ### Simple model testing
 
-Simple tests are tests that verify data integrity after processing an SQL query, which should return the number of rows. If the returned count is zero, the test is considered successfully passed.
+Simple tests verify data integrity after processing an SQL query, which should return the number of rows. If the returned count is zero, the test is considered successfully passed.
 
 Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`.
 
@@ -426,17 +427,18 @@ Example:
 select pk_id, count(pk_id) as c from {{ Ref "dds.fact_transactions" }} group by pk_id having c > 1
 ```
 
-The generated source code for testing is located in the `modeltests` package.
-To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`
+The generated source code for testing is located in the `modeltests` package.  
+To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`.
 
-Test cases defined in the model profiles are executed immediately after the execution of the model itself.
-In order for the tests to be executed immediately after the models, the DAG must be initialized with the following command: `dag := dags.InitChannelDagWithTests(assets.DAG, assets.PorjectAssets, modeltests.PorjectTests, config, "instance 1")`
+Test cases defined in the model profiles are executed immediately after the execution of the model itself.  
+For the tests to be executed immediately after the models, the DAG must be initialized with the following command:  
+`dag := dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "instance 1")`
 
 #### Test profile
 
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
-|connection|String|profile.connection|Connection name from `config.yaml`|
+|connection|String|profile.connection|The connection name from `config.yaml`.|
 
 ## Road Map
 

@@ -3,7 +3,7 @@ package assets
 
 import "github.com/go-teal/teal/pkg/processing"
 
-var PorjectAssets = map[string] processing.Asset{
+var ProjectAssets = map[string] processing.Asset{
 	{{- range $asset := .Assets }}
 	"{{ $asset.ModelName }}":{{$asset.GoName}}Asset,
 	{{- end }}
