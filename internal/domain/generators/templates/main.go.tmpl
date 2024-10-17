@@ -21,7 +21,7 @@ func main() {
 	core.GetInstance().Init("config.yaml", ".")
 	defer core.GetInstance().Shutdown()
 	config := core.GetInstance().Config
-	dag := dags.InitChannelDag(assets.DAG, assets.PorjectAssets, config, "instance 1")
+	dag := dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, "instance 1")
 	wg := dag.Run()
 	result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))
 	fmt.Println(result)	
