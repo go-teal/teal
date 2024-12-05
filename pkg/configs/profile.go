@@ -40,11 +40,18 @@ type ModelProfile struct {
 	Connection       string         `yaml:"connection"`
 	Materialization  MatType        `yaml:"materialization"`
 	PrimaryKeyFields []string       `yaml:"primary_key_fields"`
+	Indexes          []*DBIndex     `yaml:"indexes"`
 	IsDataFramed     bool           `yaml:"is_data_framed"`
 	PersistInputs    bool           `yaml:"persist_inputs"`
 	Stage            string         `yaml:"-"`
 	Tests            []*TestProfile `yaml:"tests"`
 	RawUpstreams     []string       `yaml:"raw_upstreams"`
+}
+
+type DBIndex struct {
+	Name   string   `yaml:"name"`
+	Unique bool     `yaml:"unique"`
+	Fields []string `yaml:"fields"`
 }
 
 type TestProfile struct {

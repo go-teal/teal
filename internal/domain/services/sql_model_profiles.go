@@ -67,6 +67,9 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 						if len(newModelProfile.PrimaryKeyFields) > 0 {
 							profile.PrimaryKeyFields = newModelProfile.PrimaryKeyFields
 						}
+						if len(newModelProfile.Indexes) > 0 {
+							profile.Indexes = newModelProfile.Indexes
+						}
 
 						if len(newModelProfile.Tests) > 0 {
 							profile.Tests = newModelProfile.Tests
