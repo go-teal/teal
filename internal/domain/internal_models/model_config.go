@@ -30,4 +30,11 @@ type ModelConfig struct {
 	ModelType            ModelType
 	ModelFieldsFunc      string
 	PrimaryKeyExpression string
+	Indexes              []*IndexConfig
+}
+
+type IndexConfig struct {
+	IndexName   string
+	Unique      bool
+	IndexFields string
 }
