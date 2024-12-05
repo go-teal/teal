@@ -11,11 +11,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
+func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProfile) {
 	fmt.Println("reading model profiles...")
 	modelsProjetDir := config.ProjectPath + "/" + MODEL_DIR
 
-	for _, stage := range profiles.Models.Stages {
+	for _, stage := range projectProfile.Models.Stages {
 		fmt.Printf("Stage: %s\n", stage.Name)
 		modelProfilesMap := make(map[string]*configs.ModelProfile)
 		for _, modelProfile := range stage.Models {
@@ -37,7 +37,7 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 				if err != nil {
 					panic(err)
 				}
-				modelFileFinalTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, profiles)
+				modelFileFinalTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, projectProfile)
 				if err != nil {
 					fmt.Printf("can not parse model profile %s\n", string(modelFileByte))
 				}
@@ -54,9 +54,12 @@ func CombineProfiles(config *configs.Config, profiles *configs.ProjectProfile) {
 					}
 					newModelProfile.Name = strings.Replace(modelFileName, ".sql", "", -1)
 					profile, ok := modelProfilesMap[refName]
+					// TODO: simplify
 					if !ok {
+						// If profile is not defined in the profile.yaml file, we read it from the model file
 						modelProfilesMap[refName] = &newModelProfile
 					} else {
+						// If profile defined in the profile.yaml file, we try to merge profiles
 						if newModelProfile.Connection != "" {
 							profile.Connection = newModelProfile.Connection
 						}

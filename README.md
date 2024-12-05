@@ -364,6 +364,7 @@ Native available functions:
 |-----|----|-----------|
 |extensions|Array of strings|List of [DuckDB extensions](https://duckdb.org/docs/extensions/overview.html). Extensions will be installed during the creation of the database and loaded before the asset execution.|
 |path|String|Path to the DuckDB database file.|
+|path_env|String|Environment variable that contains the path to the data file. If set, the `path` setting is ignored|
 |extraParams|Object|Pairs of name-value parameters for [DuckDB configuration](https://duckdb.org/docs/configuration/overview.html).|
 
 ## General Architecture

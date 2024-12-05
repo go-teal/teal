@@ -5,78 +5,68 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"sync"
 
+	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/rs/zerolog/log"
 )
 
-type DuckDBEngine struct {
+type PostgresDBEngine struct {
 	dbConnection *configs.DBConnectionConfig
 	db           *sql.DB
-	Mutex        *sync.Mutex
+}
+
+// PersistDataFrame implements DBDriver.
+func (d *PostgresDBEngine) PersistDataFrame(tx interface{}, name string, df *dataframe.DataFrame) error {
+	panic("unimplemented")
+}
+
+// ToDataFrame implements DBDriver.
+func (d *PostgresDBEngine) ToDataFrame(sql string) (*dataframe.DataFrame, error) {
+	panic("unimplemented")
 }
 
 // MountSource implements DBDriver.
-func (d *DuckDBEngine) MountSource(sourceProfile *configs.SourceProfile) error {
-	params := make([]string, len(sourceProfile.Params))
-	for i, p := range sourceProfile.Params {
-		params[i] = fmt.Sprintf("%s=%s", p.Name, p.Value)
-	}
-	var asParams []string
-	asParams = append(asParams, strings.ToUpper(sourceProfile.Type))
-	if sourceProfile.ReadOnly {
-		asParams = append(asParams, "READ_ONLY")
-	}
-	command := fmt.Sprintf("ATTACH '%s' as %s (%s);", sourceProfile.Name, strings.Join(params, " "), strings.Join(asParams, ", "))
-	_, err := d.db.Exec(command)
-	return err
+func (d *PostgresDBEngine) MountSource(sourceProfile *configs.SourceProfile) error {
+
+	return nil
 }
 
 // UnMountSource implements DBDriver.
-func (d *DuckDBEngine) UnMountSource(sourceProfile *configs.SourceProfile) error {
-	command := fmt.Sprintf("DETATTACH %s", sourceProfile.Name)
-	_, err := d.db.Exec(command)
-	return err
+func (d *PostgresDBEngine) UnMountSource(sourceProfile *configs.SourceProfile) error {
+	return nil
 }
 
-type DuckDBEngineFactory struct {
+type PostgresDBEngineFactory struct {
 }
 
 // Rallback implements DBEngine.
-func (d *DuckDBEngine) Rallback(tx interface{}) error {
+func (d *PostgresDBEngine) Rallback(tx interface{}) error {
 	return tx.(*sql.Tx).Rollback()
 }
 
 // Connect implements DBEngine.
-func (d *DuckDBEngine) Connect() error {
+func (d *PostgresDBEngine) Connect() error {
 	var err error
 	d.db, err = sql.Open("duckdb", d.dbConnection.Config.Path)
 	log.Debug().Str("path", d.dbConnection.Config.Path).Msg("Connected")
 	if err != nil {
 		return err
 	}
-	for _, extentionName := range d.dbConnection.Config.Extensions {
-		_, err = d.db.Exec(fmt.Sprintf("LOAD %s;", extentionName))
-		if err != nil {
-			return err
-		}
-		log.Debug().Msgf("load extension: %s\n", extentionName)
-	}
 	return nil
 }
 
 // CreateConnection implements DBconnectionFactory.
-func (d *DuckDBEngineFactory) CreateConnection(connection configs.DBConnectionConfig) (DBDriver, error) {
+func (d *PostgresDBEngineFactory) CreateConnection(connection configs.DBConnectionConfig) (DBDriver, error) {
 	return initDuckDb(&connection)
 }
 
-func InitDuckDBEnginFactory() DBconnectionFactory {
-	return &DuckDBEngineFactory{}
+func InitPostgresDBEnginFactory() DBconnectionFactory {
+	return &PostgresDBEngineFactory{}
 }
 
 // CheckSchemaExists implements DBEngine.
-func (d *DuckDBEngine) CheckSchemaExists(tx interface{}, tableName string) bool {
+func (d *PostgresDBEngine) CheckSchemaExists(tx interface{}, tableName string) bool {
 	splitted := strings.Split(tableName, ".")
 	query := "SELECT count(DISTINCT schema_name) from information_schema.schemata WHERE schema_name=$1;"
 	var count int
@@ -88,12 +78,12 @@ func (d *DuckDBEngine) CheckSchemaExists(tx interface{}, tableName string) bool 
 }
 
 // Begin implements DBEngine.
-func (d *DuckDBEngine) Begin() (interface{}, error) {
+func (d *PostgresDBEngine) Begin() (interface{}, error) {
 	return d.db.Begin()
 }
 
 // CheckTableExists implements DBEngine.
-func (d *DuckDBEngine) CheckTableExists(tx interface{}, tableName string) bool {
+func (d *PostgresDBEngine) CheckTableExists(tx interface{}, tableName string) bool {
 	splitted := strings.Split(tableName, ".")
 	query := "SELECT count(DISTINCT table_name) from information_schema.tables WHERE table_schema=$1 and table_name=$2;"
 	var count int
@@ -105,7 +95,7 @@ func (d *DuckDBEngine) CheckTableExists(tx interface{}, tableName string) bool {
 }
 
 // Close implements DBEngine.
-func (d *DuckDBEngine) Close() error {
+func (d *PostgresDBEngine) Close() error {
 	log.Debug().Str("path", d.dbConnection.Config.Path).Msg("disconnected")
 	if d.db == nil {
 		return nil
@@ -114,12 +104,12 @@ func (d *DuckDBEngine) Close() error {
 }
 
 // Commit implements DBEngine.
-func (d *DuckDBEngine) Commit(tx interface{}) error {
+func (d *PostgresDBEngine) Commit(tx interface{}) error {
 	return tx.(*sql.Tx).Commit()
 }
 
 // Exec implements DBEngine.
-func (d *DuckDBEngine) Exec(tx interface{}, sqlQuery string) error {
+func (d *PostgresDBEngine) Exec(tx interface{}, sqlQuery string) error {
 	log.Debug().Msg(sqlQuery)
 	_, result := tx.(*sql.Tx).Exec(sqlQuery)
 	if result != nil {
@@ -129,7 +119,7 @@ func (d *DuckDBEngine) Exec(tx interface{}, sqlQuery string) error {
 }
 
 // GetListOfFields implements DBEngine.
-func (d *DuckDBEngine) GetListOfFields(tx interface{}, tableName string) []string {
+func (d *PostgresDBEngine) GetListOfFields(tx interface{}, tableName string) []string {
 	var fields []string
 	splitted := strings.Split(tableName, ".")
 	rows, err := tx.(*sql.Tx).Query("SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2;", splitted[0], splitted[1])
@@ -148,15 +138,14 @@ func (d *DuckDBEngine) GetListOfFields(tx interface{}, tableName string) []strin
 	return fields
 }
 
-func (d *DuckDBEngine) GetRawConnection() interface{} {
+func (d *PostgresDBEngine) GetRawConnection() interface{} {
 	return d.db
 }
 
-func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error) {
+func initPostgresDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error) {
 
-	duckDBConnection := &DuckDBEngine{
+	PostgresDBConnection := &PostgresDBEngine{
 		dbConnection: dbConnectionConfig,
-		Mutex:        &sync.Mutex{},
 	}
 
 	log.Debug().Msgf("Init DuckDB %s at %s\n", dbConnectionConfig.Name, dbConnectionConfig.Config.Path)
@@ -183,13 +172,13 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 			log.Info().Msgf("Installed extension: %s\n", extentionName)
 		}
 	}
-	return duckDBConnection, nil
+	return PostgresDBConnection, nil
 }
 
-func (d *DuckDBEngine) ConcurrencyLock() {
-	d.Mutex.Lock()
+func (d *PostgresDBEngine) ConcurrencyLock() {
+
 }
 
-func (d *DuckDBEngine) ConcurrencyUnlock() {
-	d.Mutex.Unlock()
+func (d *PostgresDBEngine) ConcurrencyUnlock() {
+
 }

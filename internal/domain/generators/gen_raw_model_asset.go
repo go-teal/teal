@@ -3,7 +3,6 @@ package generators
 import (
 	"bytes"
 	_ "embed"
-	"io"
 	"os"
 	"text/template"
 
@@ -55,7 +54,7 @@ func (g *GenRawModelAsset) RenderToFile() error {
 	}
 	var goByteBuffer bytes.Buffer
 	g.modelConfig.ModelFieldsFunc = "{{ ModelFields }}"
-	err = goTempl.Execute(io.Writer(&goByteBuffer), g.modelConfig)
+	err = goTempl.Execute(&goByteBuffer, g.modelConfig)
 	if err != nil {
 		return err
 	}

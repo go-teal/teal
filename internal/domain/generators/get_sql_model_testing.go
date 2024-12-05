@@ -3,7 +3,6 @@ package generators
 import (
 	"bytes"
 	_ "embed"
-	"io"
 	"os"
 	"text/template"
 
@@ -41,7 +40,7 @@ func (g *GenSQLModelTest) RenderToFile() error {
 		return err
 	}
 	var goByteBuffer bytes.Buffer
-	err = goTempl.Execute(io.Writer(&goByteBuffer), g.testConfig)
+	err = goTempl.Execute(&goByteBuffer, g.testConfig)
 	if err != nil {
 		return err
 	}
