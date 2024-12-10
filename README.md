@@ -300,6 +300,13 @@ The asset profile can be specified via the `profile.yaml` file or via a GO templ
     connection: 'default'
     materialization: 'table'  
     is_data_framed: true
+    primary_key_fields:
+      - "id"
+    indexes:
+      - name: "wallet"
+        unique: false
+        fields:
+          - "wallet_id"
 {{ end }}
 
 select
@@ -325,6 +332,11 @@ select
 |materialization|String|table|See [Materializations](#materializations).|
 |is_data_framed|boolean|false|See [Cross-database references](#cross-database-references).|
 |persist_inputs|boolean|false|See [Cross-database references](#cross-database-references).|
+|primary_key_fields|Array of string||List of fields for the primary unique index|
+|indexes|Array of Indexes||List of indexes for the asset (only for the table and incremental materializations)|
+|indexes.`<name: IndexName>`|String||Name of the index|
+|indexes.`<name: IndexName>`.Unique|boolean|false|flag of the uniqueness of the Index|
+|indexes.`<name: IndexName>`.fields|Array of string||List of fields for the index|
 
 ## Materializations
 

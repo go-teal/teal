@@ -90,6 +90,17 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 				if len(modelProfile.PrimaryKeyFields) > 0 {
 					data.PrimaryKeyExpression = strings.Join(defaultModelProfile.PrimaryKeyFields, ", ")
 				}
+
+				if len(modelProfile.Indexes) > 0 {
+					for _, index := range modelProfile.Indexes {
+						data.Indexes = append(data.Indexes, &internalmodels.IndexConfig{
+							IndexName:   index.Name,
+							Unique:      index.Unique,
+							IndexFields: strings.Join(index.Fields, ", "),
+						})
+					}
+
+				}
 				modelsConfigs = append(modelsConfigs, data)
 			}
 		}
