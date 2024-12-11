@@ -12,6 +12,7 @@
     - [List of functions](#list-of-functions)
   - [Databases](#databases)
     - [DuckDB](#duckdb)
+    - [PostgreSQL](#postgresql)
   - [General Architecture](#general-architecture)
     - [Cross database references](#cross-database-references)
   - [Raw Assets](#raw-assets)
@@ -244,16 +245,17 @@ connections:
 
 1. Teal supports multiple connections.
 
-2. The following databases are supported at the moment (v0.1.2):
+2. The following databases are supported at the moment (v0.10.0):
     - [DuckDB](#duckdb), see the specific config params.
+    - [PostgreSQL](#postgresql), see the specific config params.
 
 |Param             |Type             |Description                                                   |
 |------------------|-----------------|--------------------------------------------------------------|
 |version           |String constant  |1.0.0                                                         |
-|module            |String           |Generated Go module name                                       |
-|connections       |Array of objects |Array of database connections                                  |
-|connections.name  |String           |Name of the connection used in the model profile               |
-|connections.type  |String           |Driver name of the database connection (e.g., DuckDB, PostgreSQL, etc.)|
+|module            |String           |Generated Go module name                                      |
+|connections       |Array of objects |Array of database connections                                 |
+|connections.name  |String           |Name of the connection used in the model profile              |
+|connections.type  |String           |Driver name of the database connection `duckdb`, `postgres`|
 
 ### profile.yaml
 
@@ -369,14 +371,41 @@ Native available functions:
 
 ### DuckDB
 
-1. To enable DuckDB support, the following line `_ "github.com/marcboeker/go-duckdb"` must be added to `main.go`
-2. Specific config params:
+1. Specific config params:
 
 |Param|Type|Description|
 |-----|----|-----------|
+|connections.type  |String|duckdb|
 |extensions|Array of strings|List of [DuckDB extensions](https://duckdb.org/docs/extensions/overview.html). Extensions will be installed during the creation of the database and loaded before the asset execution.|
 |path|String|Path to the DuckDB database file.|
+|path_env|String|Environment variable that contains the path to the data file. If set, the `path` setting is ignored|
 |extraParams|Object|Pairs of name-value parameters for [DuckDB configuration](https://duckdb.org/docs/configuration/overview.html).|
+
+### PostgreSQL
+
+1. Specific config params:
+
+| Param            | Type   | Description                                                                                                  |
+|------------------|--------|--------------------------------------------------------------------------------------------------------------|
+|connections.type  |String|postgres|
+| host             | String | The hostname or IP address of the PostgreSQL server.                                                        |
+| host_env         | String | The environment variable name for the PostgreSQL server hostname or IP address.                             |
+| port             | String | The port number on which the PostgreSQL server is running. Default is typically `5432`.                     |
+| port_env         | String | The environment variable name for the PostgreSQL server port number.                                        |
+| database         | String | The name of the database to connect to on the PostgreSQL server.                                             |
+| database_env     | String | The environment variable name for the PostgreSQL database name.                                              |
+| user             | String | The username for authenticating to the PostgreSQL server.                                                   |
+| user_env         | String | The environment variable name for the PostgreSQL username.                                                   |
+| password         | String | The password for authenticating to the PostgreSQL server.                                                   |
+| password_env     | String | The environment variable name for the PostgreSQL password.                                                   |
+| db_root_cert     | String | Path to the root certificate file for SSL connections to the PostgreSQL server.                              |
+| db_root_cert_env | String | The environment variable name for the path to the root certificate file for SSL connections.                 |
+| db_cert          | String | Path to the client certificate file for SSL connections to the PostgreSQL server.                            |
+| db_cert_env      | String | The environment variable name for the path to the client certificate file for SSL connections.               |
+| db_key           | String | Path to the client key file for SSL connections to the PostgreSQL server.                                    |
+| db_key_env       | String | The environment variable name for the path to the client key file for SSL connections.                       |
+| db_sslnmode      | String | The SSL mode for connections to the PostgreSQL server. Options include `disable`, `require`, `verify-ca`, and `verify-full`. |
+| db_sslnmode_env  | String | The environment variable name for specifying the SSL mode for connections.                                   |
 
 ## General Architecture
 
@@ -469,7 +498,6 @@ see CHANGELOG.md
 
 #### Database support <!-- omit from toc -->
 
-- [ ] PostgreSQL (comming soon)
 - [ ] MySQL
 - [ ] ClickHouse
 - [ ] SnowFlake

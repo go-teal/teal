@@ -46,11 +46,9 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	var data *dataframe.DataFrame
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
-	isConcurrencyAllowed, mutex := dbConnection.IsConcurrencyAllowed()
-	if !isConcurrencyAllowed {
-		mutex.Lock()
-		defer mutex.Unlock()
-	}
+
+	dbConnection.ConcurrencyLock()
+	defer dbConnection.ConcurrencyUnlock()
 
 	log.Debug().
 		Str("s.descriptor.Name", s.descriptor.Name).
@@ -72,6 +70,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	if !isSchemaExists {
 		splitted := strings.Split(s.descriptor.Name, ".")
 		log.Info().Msgf("Schema %s does not exist", splitted[0])
+		// TODO: Move this to the driver
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
 			defer dbConnection.Rallback(tx)

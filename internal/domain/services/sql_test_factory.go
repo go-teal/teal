@@ -3,7 +3,6 @@ package services
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -15,7 +14,7 @@ import (
 
 const TESTS_DIR = "assets/tests"
 
-func InitSQLTestsConfigs(config *configs.Config, profiles *configs.ProjectProfile) ([]*internalmodels.TestConfig, error) {
+func InitSQLTestsConfigs(config *configs.Config, projectProfile *configs.ProjectProfile) ([]*internalmodels.TestConfig, error) {
 	var testConfigs []*internalmodels.TestConfig
 	testProjectDir := config.ProjectPath + "/" + TESTS_DIR
 	modelsProjectDir := config.ProjectPath + "/" + MODEL_DIR
@@ -30,12 +29,12 @@ func InitSQLTestsConfigs(config *configs.Config, profiles *configs.ProjectProfil
 			testConfigs = append(testConfigs, initTestConfig("root",
 				testProjectDir+"/"+fileEntry.Name(),
 				fileEntry.Name(),
-				profiles,
+				projectProfile,
 				modelsProjectDir))
 		}
 	}
 
-	for _, stage := range profiles.Models.Stages {
+	for _, stage := range projectProfile.Models.Stages {
 		stageName := stage.Name
 		// Read the directory contents
 		stageTestFileNames, err := os.ReadDir(testProjectDir + "/" + stageName)
@@ -48,7 +47,7 @@ func InitSQLTestsConfigs(config *configs.Config, profiles *configs.ProjectProfil
 					stageName,
 					testProjectDir+"/"+stageName+"/"+stageFile.Name(),
 					stageFile.Name(),
-					profiles,
+					projectProfile,
 					modelsProjectDir))
 			}
 		}
@@ -61,23 +60,23 @@ func initTestConfig(
 	stage string,
 	fullPath string,
 	fileName string,
-	profiles *configs.ProjectProfile,
+	projectProfile *configs.ProjectProfile,
 	modelsProjectDir string,
 ) *internalmodels.TestConfig {
-	modelFileByte, err := os.ReadFile(fullPath)
+	testFileByte, err := os.ReadFile(fullPath)
 	goFuncName, refName := utils.CreateModelName(stage, fileName)
 	if err != nil {
 		panic(err)
 	}
-	modelFileFinalTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjectDir, profiles)
+	testFileFinalTemplate, _, err := prepareModelTemplate(testFileByte, refName, modelsProjectDir, projectProfile)
 	if err != nil {
-		fmt.Printf("can not parse test profile %s\n", string(modelFileByte))
+		fmt.Printf("can not parse test profile %s\n", string(testFileByte))
 		panic(err)
 	}
 
 	var inlineTestProfileByteBuffer bytes.Buffer
-	globalTestProfile := profiles.GetTestProfile(stage, fileName)
-	err = modelFileFinalTemplate.ExecuteTemplate(&inlineTestProfileByteBuffer, "profile.yaml", nil)
+	globalTestProfile := projectProfile.GetTestProfile(stage, fileName)
+	err = testFileFinalTemplate.ExecuteTemplate(&inlineTestProfileByteBuffer, "profile.yaml", nil)
 	if err == nil {
 		var newTestPrifile configs.TestProfile
 		err = yaml.Unmarshal(inlineTestProfileByteBuffer.Bytes(), &newTestPrifile)
@@ -89,7 +88,7 @@ func initTestConfig(
 	}
 
 	var sqlByteBuffer bytes.Buffer
-	err = modelFileFinalTemplate.Execute(io.Writer(&sqlByteBuffer), nil)
+	err = testFileFinalTemplate.Execute(&sqlByteBuffer, nil)
 	if err != nil {
 		return nil
 	}

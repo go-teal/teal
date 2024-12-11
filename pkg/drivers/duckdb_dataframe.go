@@ -52,9 +52,9 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		}
 	}
 
-	var rowNumber int = 0
+	// var rowNumber int = 0
 	for rows.Next() {
-		rowNumber++
+		// rowNumber++
 		safeData := make([]interface{}, len(columnTypes))
 		for i, c := range columnTypes {
 			switch c.DatabaseTypeName() {

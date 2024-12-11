@@ -7,9 +7,13 @@ import (
 )
 
 var Factories = map[string]DBconnectionFactory{
-	"duckdb": InitDuckDBEnginFactory(),
+	"duckdb":   InitDuckDBEnginFactory(),
+	"postgres": InitPostgresDBEnginFactory(),
 }
 
+// This method can be used to register a custom database engine
+//
+// A custom database engine must implement the [drivers.DBDriver] interface
 func RegisterConnectionFactory(driverName string, f DBconnectionFactory) {
 	Factories[driverName] = f
 }

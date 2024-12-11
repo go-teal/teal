@@ -4,7 +4,6 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -71,7 +70,7 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 				}
 
 				var sqlByteBuffer bytes.Buffer
-				err = modelFileFinalTemplate.Execute(io.Writer(&sqlByteBuffer), nil)
+				err = modelFileFinalTemplate.Execute(&sqlByteBuffer, nil)
 				if err != nil {
 					return nil, err
 				}
