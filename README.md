@@ -247,7 +247,7 @@ connections:
 
 2. The following databases are supported at the moment (v0.10.0):
     - [DuckDB](#duckdb), see the specific config params.
-    - [PostgreSQL](#PostgreSQL), see the specific config params.
+    - [PostgreSQL](#postgresql), see the specific config params.
 
 |Param             |Type             |Description                                                   |
 |------------------|-----------------|--------------------------------------------------------------|
