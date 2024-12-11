@@ -116,4 +116,28 @@ func preLoadEnvs(connectionConfig *configs.DBConnectionConfig) {
 			env.Value = value
 		}
 	}
+
+	if connectionConfig.Config.DBRootCertEnv != "" {
+		if value, ok := os.LookupEnv(connectionConfig.Config.DBRootCertEnv); ok {
+			connectionConfig.Config.DBRootCert = value
+		}
+	}
+
+	if connectionConfig.Config.DBRCertEnv != "" {
+		if value, ok := os.LookupEnv(connectionConfig.Config.DBRCertEnv); ok {
+			connectionConfig.Config.DBCert = value
+		}
+	}
+
+	if connectionConfig.Config.DBKeyEnv != "" {
+		if value, ok := os.LookupEnv(connectionConfig.Config.DBKeyEnv); ok {
+			connectionConfig.Config.DBKey = value
+		}
+	}
+
+	if connectionConfig.Config.DBSSLModeEnv != "" {
+		if value, ok := os.LookupEnv(connectionConfig.Config.DBSSLModeEnv); ok {
+			connectionConfig.Config.DBSSLModeEnv = value
+		}
+	}
 }

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0] 2024-12-05
+
+### Added
+
+- PostgreSQL support
+
+## [0.1.10] 2024-12-05
+
+### Added
+
+- Indexes
+
 ## [0.1.9] 2024-10-17
 
 ### Fixed

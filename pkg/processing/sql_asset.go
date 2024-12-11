@@ -70,6 +70,7 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	if !isSchemaExists {
 		splitted := strings.Split(s.descriptor.Name, ".")
 		log.Info().Msgf("Schema %s does not exist", splitted[0])
+		// TODO: Move this to the driver
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
 			defer dbConnection.Rallback(tx)

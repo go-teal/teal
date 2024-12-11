@@ -61,13 +61,23 @@ func (g *GenMain) RenderToFile() error {
 
 	defer file.Close()
 
-	data := struct {
-		Profile *configs.ProjectProfile
-		Config  *configs.Config
-	}{
-		Profile: g.profile,
-		Config:  g.config,
+	connectionsFlags := make(map[string]bool)
+
+	for _, c := range g.config.Connections {
+		connectionsFlags[c.Type] = true
 	}
+
+	data := struct {
+		Profile     *configs.ProjectProfile
+		Config      *configs.Config
+		Connections map[string]bool
+	}{
+		Profile:     g.profile,
+		Config:      g.config,
+		Connections: connectionsFlags,
+	}
+
 	err = templ.Execute(file, data)
+
 	return err
 }
