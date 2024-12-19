@@ -21,7 +21,7 @@
     - [Simple model testing](#simple-model-testing)
       - [Test profile](#test-profile)
   - [Road Map](#road-map)
-    - [\[0.2.0+\]](#020)
+    - [\[0.3.0+\]](#030)
   - [Contact](#contact)
 
 In the changing field of data engineering, having strong, scalable, and user-friendly tools is essential. We introduce Teal, a new open-source ETL tool designed to improve your data transformation and orchestration.
@@ -245,7 +245,7 @@ connections:
 
 1. Teal supports multiple connections.
 
-2. The following databases are supported at the moment (v0.10.0):
+2. The following databases are supported at the moment (v0.2.1):
     - [DuckDB](#duckdb), see the specific config params.
     - [PostgreSQL](#postgresql), see the specific config params.
 
@@ -485,7 +485,7 @@ For the tests to be executed immediately after the models, the DAG must be initi
 
 see CHANGELOG.md
 
-### [0.2.0+]
+### [0.3.0+]
 
 #### Features <!-- omit from toc -->
 
@@ -501,6 +501,7 @@ see CHANGELOG.md
 - [ ] MySQL
 - [ ] ClickHouse
 - [ ] SnowFlake
+- [ ] Apache Spark
 
 #### Workflow <!-- omit from toc -->
 
