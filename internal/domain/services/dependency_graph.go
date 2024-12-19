@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sort"
 
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 )
@@ -39,6 +40,10 @@ func (dg *DependnacyGraph) Build(modelsConfigs []*internalmodels.ModelConfig) []
 	priorityGroups := make([][]string, maxPriority+1)
 	for modelName, priority := range priorityMap {
 		priorityGroups[priority] = append(priorityGroups[priority], modelName)
+	}
+
+	for _, modelConfig := range modelsConfigs {
+		sort.Strings(modelConfig.Downstreams)
 	}
 	return priorityGroups
 }
