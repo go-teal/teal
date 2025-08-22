@@ -31,6 +31,11 @@ func (s *SQLModelAsset) GetName() string {
 	return s.descriptor.Name
 }
 
+// GetDescriptor implements Asset.
+func (s *SQLModelAsset) GetDescriptor() any {
+	return s.descriptor
+}
+
 // GetDownstrem implements Asset.
 func (s *SQLModelAsset) GetDownstreams() []string {
 	return s.descriptor.Downstreams

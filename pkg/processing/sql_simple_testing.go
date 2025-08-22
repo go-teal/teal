@@ -55,3 +55,8 @@ func (mt *SQLModelTestCase) Execute() (bool, string, error) {
 
 	return true, mt.descriptor.Name, nil
 }
+
+// GetDescriptor implements ModelTesting.
+func (mt *SQLModelTestCase) GetDescriptor() any {
+	return mt.descriptor
+}

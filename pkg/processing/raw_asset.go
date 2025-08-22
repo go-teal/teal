@@ -53,6 +53,11 @@ func (r *RawModelAsset) GetName() string {
 	return r.descriptor.Name
 }
 
+// GetDescriptor implements Asset.
+func (r *RawModelAsset) GetDescriptor() any {
+	return r.descriptor
+}
+
 // GetUpstreams implements Asset.
 func (r *RawModelAsset) GetUpstreams() []string {
 	return r.descriptor.Upstreams

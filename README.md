@@ -109,7 +109,7 @@ models:
 teal gen
 ```
 
-You'll see the following outpout
+You'll see the following output
 
 ```bash
 project-path: .
@@ -268,7 +268,7 @@ models:
     - name: staging
       models:
         - name: model1
-        # see models pfofiles
+        # see model profiles
           tests:
             - name: "test.name"
             # see test pfofiles
@@ -446,7 +446,7 @@ A custom asset can return a dataframe, which can then be seamlessly (see: [Cross
 A raw asset must be registered in the main function.
 
 ```Go
-processing.GetExecutors().Execurots["<staging>.<asset name>"] = youPackage.YouRawAssetFunction
+processing.GetExecutors().Executors["<staging>.<asset name>"] = youPackage.YouRawAssetFunction
 ```
 
 Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in the model profile (see: [profile.yaml](#profileyaml)).

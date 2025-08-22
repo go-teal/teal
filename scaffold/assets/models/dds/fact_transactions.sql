@@ -17,6 +17,8 @@ with source as (
     inner join {{ Ref "dds.dim_addresses"}} as a 
         on a.wallet_address = t.wallet_address 
         and  a.currency = t.currency 
+    inner join {{ Ref "staging.wallets" }} as wallets 
+        on wallets.wallet_address =  t.wallet_address 
 )
 
 select 
@@ -27,7 +29,9 @@ select
     tx_hour,
     tx_hash,
     fk_address_id,
-    tx_index
+    tx_index,
+    wallets.currency,
+    wallets.ticker
  from source
 
  {{{- if IsIncremental }}}

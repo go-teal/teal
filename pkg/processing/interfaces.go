@@ -6,8 +6,10 @@ type Asset interface {
 	GetUpstreams() []string
 	GetDownstreams() []string
 	GetName() string
+	GetDescriptor() any
 }
 
 type ModelTesting interface {
 	Execute() (bool, string, error)
+	GetDescriptor() any
 }

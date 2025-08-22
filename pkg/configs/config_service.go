@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const TEAL_VERSION = "v0.2.1"
+const TEAL_VERSION = "v1.0.0"
 
 type ConfigService struct {
 }

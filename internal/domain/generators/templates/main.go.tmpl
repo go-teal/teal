@@ -7,29 +7,121 @@ import (
 {{if index .Connections "postgres" }}
 	"github.com/jackc/pgx/v5"
 {{end}}
+	"encoding/json"
+	"flag"
 	"os"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	modeltests "github.com/go-teal/demo/internal/model_tests"
+	modeltests "{{ .Config.Module }}/internal/model_tests"
 	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/dags"
+	"github.com/go-teal/teal/pkg/ui"
 	"{{ .Config.Module }}/internal/assets"
 )
 
 func main() {
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	// Define subcommands
+	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
+	uiCmd := flag.NewFlagSet("ui", flag.ExitOnError)
+
+	// Run command flags
+	inputData := runCmd.String("input-data", "", "Input data in JSON format (optional)")
+	logOutput := runCmd.String("log-output", "json", "Log output format: json or raw")
+	logLevel := runCmd.String("log-level", "info", "Log level: debug, info, warn, error")
+	withTests := runCmd.Bool("with-tests", false, "Run with tests")
+
+	// UI command flags
+	port := uiCmd.Int("port", 8080, "Port for debug UI server")
+
+	// Check if no command is provided, default to "run"
+	if len(os.Args) < 2 {
+		os.Args = append(os.Args, "run")
+	}
+
+	switch os.Args[1] {
+	case "run":
+		runCmd.Parse(os.Args[2:])
+		runETL(*inputData, *logOutput, *logLevel, *withTests)
+	case "ui":
+		uiCmd.Parse(os.Args[2:])
+		runUI(*port)
+	default:
+		// If unrecognized command, treat as run with all args
+		runCmd.Parse(os.Args[1:])
+		runETL(*inputData, *logOutput, *logLevel, *withTests)
+	}
+}
+
+func runETL(inputDataStr, logOutput, logLevel string, withTests bool) {
+	// Configure logger based on log output format
+	if logOutput == "raw" {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	} else {
+		log.Logger = log.Output(os.Stderr)
+	}
+
+	// Set log level
+	switch logLevel {
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	default:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
 	log.Info().Msg("Starting {{ .Profile.Name }}")
 	core.GetInstance().Init("config.yaml", ".")
 	defer core.GetInstance().Shutdown()
 	config := core.GetInstance().Config
-	dag := dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, "{{ .Profile.Name }}")
-	// dag := dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "{{ .Profile.Name }}")
+
+	// Parse input data if provided
+	var inputData map[string]interface{}
+	if inputDataStr != "" {
+		if err := json.Unmarshal([]byte(inputDataStr), &inputData); err != nil {
+			log.Fatal().Err(err).Msg("Failed to parse input data JSON")
+		}
+	}
+
+	// Initialize DAG with or without tests based on flag
+	var dag dags.DAG
+	if withTests {
+		dag = dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "{{ .Profile.Name }}")
+	} else {
+		dag = dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, "{{ .Profile.Name }}")
+	}
+
 	wg := dag.Run()
-	result := <-dag.Push("{{ .Profile.Name }}", nil, make(chan map[string]interface{}))
+	result := <-dag.Push("{{ .Profile.Name }}", inputData, make(chan map[string]interface{}))
 	log.Info().Any("Result", result).Send()
 	dag.Stop()
 	wg.Wait()
 
-	modeltests.TestAll()
+	if withTests {
+		modeltests.TestAll()
+	}
 	log.Info().Msg("Finishing {{ .Profile.Name }}")
+}
+
+func runUI(port int) {
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Info().Msg("Starting {{ .Profile.Name }} in UI mode")
+	
+	// Initialize core
+	core.GetInstance().Init("config.yaml", ".")
+	defer core.GetInstance().Shutdown()
+	config := core.GetInstance().Config
+	
+	// Create DebugDag for UI mode
+	dag := dags.InitDebugDag(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "{{ .Profile.Name }}")
+	
+	// Start UI server with DebugDag
+	server := ui.NewUIServer("{{ .Profile.Name }}", "{{ .Config.Module }}", port, dag)
+	if err := server.Start(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start UI server")
+	}
 }
