@@ -16,9 +16,9 @@ func TestAll() {
 	for _, testCase := range ProjectTests {
 		status, testName, err := testCase.Execute()
 		if status {
-			log.Info().Str("Test Case", testName).Msg("Success")
+			log.Info().Str("testCase", testName).Msg("Success")
 		} else {
-			log.Error().Str("Test Case", testName).Err(err).Msg("Failed")
+			log.Error().Caller().Str("testCase", testName).Err(err).Msg("Failed")
 		}
 	}
 }

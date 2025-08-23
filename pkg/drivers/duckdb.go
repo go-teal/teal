@@ -123,7 +123,7 @@ func (d *DuckDBEngine) Exec(tx interface{}, sqlQuery string) error {
 	log.Debug().Msg(sqlQuery)
 	_, result := tx.(*sql.Tx).Exec(sqlQuery)
 	if result != nil {
-		log.Error().Msg(sqlQuery)
+		log.Error().Caller().Msg(sqlQuery)
 	}
 	return result
 }
@@ -161,6 +161,7 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 
 	log.Debug().Msgf("Init DuckDB %s at %s\n", dbConnectionConfig.Name, dbConnectionConfig.Config.Path)
 	_, err := os.Stat(dbConnectionConfig.Config.Path)
+	log.Warn().Err(err).Send()
 
 	if os.IsNotExist(err) {
 		db, err := sql.Open("duckdb", dbConnectionConfig.Config.Path)

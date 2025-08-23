@@ -122,7 +122,7 @@ var pgOIDToType = map[int]string{
 func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error) {
 	rows, err := d.db.Query(context.Background(), sqlQuery)
 	if err != nil {
-		log.Error().Stack().Err(err).Msg(sqlQuery)
+		log.Error().Caller().Stack().Err(err).Msg(sqlQuery)
 		return nil, err
 	}
 	columnTypes := rows.FieldDescriptions()
@@ -169,7 +169,7 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 		}
 		err := rows.Scan(safeData...)
 		if err != nil {
-			log.Error().Stack().Err(err).Msg("PostgreSQL Scan error")
+			log.Error().Caller().Stack().Err(err).Msg("PostgreSQL Scan error")
 			return nil, err
 		}
 
@@ -269,14 +269,14 @@ func (d *PostgresDBEngine) PersistDataFrame(tx interface{}, name string, df *dat
 			case series.Int:
 				val, err := df.Elem(rowIdx, colIdx).Int()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
 					return err
 				}
 				vals[colIdx] = fmt.Sprintf("%d", val)
 			case series.Bool:
 				val, err := df.Elem(rowIdx, colIdx).Bool()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
 					return err
 				}
 				vals[colIdx] = fmt.Sprintf("%t, ", val)

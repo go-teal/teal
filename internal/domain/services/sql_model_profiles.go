@@ -49,7 +49,7 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 					fmt.Printf("Overriding profile: %s\n", refName)
 					err = yaml.Unmarshal(inlineProfileByteBuffer.Bytes(), &newModelProfile)
 					if err != nil {
-						fmt.Printf("can not unmarshal parse model profile")
+						fmt.Fprint(os.Stderr, "can not unmarshal parse model profile\n")
 						continue
 					}
 					newModelProfile.Name = strings.Replace(modelFileName, ".sql", "", -1)
@@ -57,8 +57,10 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 					// TODO: simplify
 					if !ok {
 						// If profile is not defined in the profile.yaml file, we read it from the model file
+						fmt.Printf("Prepairing profile %s\n", modelFileName)
 						modelProfilesMap[refName] = &newModelProfile
 					} else {
+						fmt.Printf("Merging profile %s\n", modelFileName)
 						// If profile defined in the profile.yaml file, we try to merge profiles
 						if newModelProfile.Connection != "" {
 							profile.Connection = newModelProfile.Connection
@@ -86,6 +88,9 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 						if profile.Connection == "" {
 							profile.Connection = "default"
 						}
+						if profile.Materialization == "" {
+							profile.Materialization = configs.MAT_TABLE
+						}
 						profile.IsDataFramed = newModelProfile.IsDataFramed || profile.IsDataFramed
 						profile.PersistInputs = newModelProfile.PersistInputs || profile.PersistInputs
 						modelProfilesMap[refName] = profile
@@ -97,6 +102,12 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 		stage.Models = make([]*configs.ModelProfile, len(modelProfilesMap))
 		var idx int
 		for _, v := range modelProfilesMap {
+			if v.Connection == "" {
+				v.Connection = "default"
+			}
+			if v.Materialization == "" {
+				v.Materialization = configs.MAT_TABLE
+			}
 			stage.Models[idx] = v
 			idx++
 		}

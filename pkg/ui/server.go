@@ -28,8 +28,14 @@ func NewUIServer(projectName, moduleName string, port int, dag *dags.DebugDag) *
 }
 
 type DagResponseDTO struct {
+	ProjectName     string                  `json:"projectName"`
+	ModuleName      string                  `json:"moduleName"`
 	DagInstanceName string                  `json:"dagInstanceName"`
 	Nodes           []debugging.DagNodeDTO `json:"nodes"`
+}
+
+type TestProfilesResponseDTO struct {
+	Tests []debugging.TestProfileDTO `json:"tests"`
 }
 
 func (s *UIServer) Start() error {
@@ -47,6 +53,7 @@ func (s *UIServer) Start() error {
 	r.Use(cors.New(config))
 
 	r.GET("/api/dag", s.handleDagData)
+	r.GET("/api/tests", s.handleTestProfiles)
 
 	addr := fmt.Sprintf(":%d", s.Port)
 	log.Info().Str("address", addr).Msg("UI server listening")
@@ -62,7 +69,17 @@ func (s *UIServer) handleDagData(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, DagResponseDTO{
+		ProjectName:     s.ProjectName,
+		ModuleName:      s.ModuleName,
 		DagInstanceName: s.debuggingService.GetDagInstanceName(),
 		Nodes:           nodes,
+	})
+}
+
+func (s *UIServer) handleTestProfiles(c *gin.Context) {
+	tests := s.debuggingService.GetTestProfiles()
+
+	c.JSON(http.StatusOK, TestProfilesResponseDTO{
+		Tests: tests,
 	})
 }

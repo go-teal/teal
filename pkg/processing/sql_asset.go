@@ -238,9 +238,9 @@ func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) {
 		if testCase, ok := testsMap[testConfig.Name]; ok {
 			status, testName, err := testCase.Execute()
 			if status {
-				log.Info().Str("Test Case", testName).Msg("Success")
+				log.Info().Str("testCase", testName).Msg("Success")
 			} else {
-				log.Error().Caller().Str("Test Case", testName).Err(err).Msg("Failed")
+				log.Error().Caller().Str("testCase", testName).Err(err).Msg("Failed")
 			}
 		} else {
 			log.Warn().Msgf("Test %s not found", testConfig.Name)

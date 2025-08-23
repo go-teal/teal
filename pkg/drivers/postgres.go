@@ -127,7 +127,7 @@ func (d *PostgresDBEngine) Exec(tx interface{}, sqlQuery string) error {
 	log.Debug().Msg(sqlQuery)
 	_, result := tx.(pgx.Tx).Exec(context.Background(), sqlQuery)
 	if result != nil {
-		log.Error().Msg(sqlQuery)
+		log.Error().Caller().Msg(sqlQuery)
 	}
 	return result
 }

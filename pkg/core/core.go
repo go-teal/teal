@@ -81,7 +81,7 @@ func preLoadEnvs(connectionConfig *configs.DBConnectionConfig) {
 			var err error
 			connectionConfig.Config.Port, err = strconv.Atoi(value)
 			if err != nil {
-				log.Error().Msgf("Error parsing port env: %s", connectionConfig.Config.PortEnv)
+				log.Error().Caller().Msgf("Error parsing port env: %s", connectionConfig.Config.PortEnv)
 				panic(err)
 			}
 		}

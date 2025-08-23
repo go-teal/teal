@@ -30,7 +30,7 @@ func (mt *SQLModelTestCase) Execute() (bool, string, error) {
 		Funcs(FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(template.FuncMap))).
 		Parse(mt.descriptor.CountTestSQL)
 	if err != nil {
-		log.Error().Stack().Err(err).Msgf("Parsing template: %s", mt.descriptor.CountTestSQL)
+		log.Error().Caller().Stack().Err(err).Msgf("Parsing template: %s", mt.descriptor.CountTestSQL)
 		return false, mt.descriptor.Name, err
 	}
 
@@ -39,7 +39,7 @@ func (mt *SQLModelTestCase) Execute() (bool, string, error) {
 	err = sqlTestTemplate.Execute(&sqlQuery, nil)
 
 	if err != nil {
-		log.Error().Stack().Err(err).Msgf("Execute template: %s", mt.descriptor.CountTestSQL)
+		log.Error().Caller().Stack().Err(err).Msgf("Execute template: %s", mt.descriptor.CountTestSQL)
 		return false, mt.descriptor.Name, err
 	}
 

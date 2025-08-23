@@ -168,7 +168,7 @@ func (dag *ChannelDag) Stop() {
 func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 	log.Info().
 		Str("DAG", routine.dag.DagInstanceName).
-		Str("routine name", routine.Name).
+		Str("assetName", routine.Name).
 		Msg("Starting routine")
 
 	defer wg.Done()
@@ -181,15 +181,15 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 			log.Debug().
 				Str("DAG", routine.dag.DagInstanceName).
 				Str("channelName", channelName).
-				Str("routine name", routine.Name).
-				Str("inputTask.TaskName", inputTask.TaskName).Msg("task received")
+				Str("assetName", routine.Name).
+				Str("taskName", inputTask.TaskName).Msg("task received")
 			if inputTask.StopSignal {
 				routine.dag.propagateTask(inputTask.TaskName, routine.Name, true, true, routine.OutPutChannels, nil)
 				log.Debug().
 					Str("DAG", routine.dag.DagInstanceName).
 					Str("channelName", channelName).
-					Str("inputTask.TaskName", inputTask.TaskName).
-					Str("routine name", routine.Name).Msg("Stop signal received")
+					Str("taskName", inputTask.TaskName).
+					Str("assetName", routine.Name).Msg("Stop signal received")
 				return
 			}
 			if inputTask.IngoreSignal {
@@ -202,40 +202,43 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 		if !ignore {
 			log.Debug().
 				Str("DAG", routine.dag.DagInstanceName).
-				Str("routine name", routine.Name).
-				Str("task name", taskName).
+				Str("assetName", routine.Name).
+				Str("taskName", taskName).
 				Msg("Executing asset...")
 			startTaskTs := time.Now().UnixMilli()
 			outputData, err := routine.Asset.Execute(params)
 			stopTaskTs := time.Now().UnixMilli()
 			if err != nil {
-				log.Error().Stack().
+				log.Error().Caller().Stack().
 					Str("DAG", routine.dag.DagInstanceName).
-					Str("routine name", routine.Name).
-					Str("task name", taskName).
-					Float64("duration (sec)", float64(stopTaskTs-startTaskTs)/1000.0).
+					Str("assetName", routine.Name).
+					Str("taskName", taskName).
+					Float64("durationSec", float64(stopTaskTs-startTaskTs)/1000.0).
 					Err(err).
 					Msg("Asset Error")
 				routine.dag.propagateTask(taskName, routine.Name, false, true, routine.OutPutChannels, nil)
 			} else {
 				if outputData != nil {
-					log.Debug().Str("routine name", routine.Name).Msgf("Complete with data: %v", outputData)
+					log.Debug().
+					Str("DAG", routine.dag.DagInstanceName).
+					Str("assetName", routine.Name).
+					Msgf("Complete with data: %v", outputData)
 				}
 				routine.Asset.RunTests(routine.testsMap)
 				stopTaskTs := time.Now().UnixMilli()
 				log.Info().
 					Str("DAG", routine.dag.DagInstanceName).
-					Str("routine name", routine.Name).
-					Str("task name", taskName).
-					Float64("duration (sec)", float64(stopTaskTs-startTaskTs)/1000.0).
+					Str("assetName", routine.Name).
+					Str("taskName", taskName).
+					Float64("durationSec", float64(stopTaskTs-startTaskTs)/1000.0).
 					Msg("Asset complete")
 				routine.dag.propagateTask(taskName, routine.Name, false, false, routine.OutPutChannels, outputData)
 			}
 		} else {
 			log.Warn().
 				Str("DAG", routine.dag.DagInstanceName).
-				Str("routine name", routine.Name).
-				Str("task name", taskName).
+				Str("assetName", routine.Name).
+				Str("taskName", taskName).
 				Msg("Task has been ingored")
 			routine.dag.propagateTask(taskName, routine.Name, false, true, routine.OutPutChannels, nil)
 		}
@@ -249,7 +252,7 @@ func (dag *ChannelDag) propagateTask(taskName string, assetName string, stop boo
 		log.Debug().
 			Str("DAG", dag.DagInstanceName).
 			Str("assetName", assetName).
-			Str("task name", taskName).
+			Str("taskName", taskName).
 			Msg("No next channels found")
 
 		if taskName != "STOP" {
@@ -261,7 +264,7 @@ func (dag *ChannelDag) propagateTask(taskName string, assetName string, stop boo
 					log.Debug().
 						Str("DAG", dag.DagInstanceName).
 						Str("assetName", assetName).
-						Str("task name", taskName).
+						Str("taskName", taskName).
 						Msg("Task complete")
 					resultTask.resultChan <- resultTask.results
 					delete(dag.completeTasksResults, taskName)

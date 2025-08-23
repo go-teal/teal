@@ -270,8 +270,8 @@ models:
         - name: model1
         # see model profiles
           tests:
-            - name: "test.name"
-            # see test pfofiles
+            - name: "root.test_model1_unique"
+            # see test profiles
     - name: dds  
     - name: mart
       models:
@@ -457,7 +457,11 @@ Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in
 
 Simple tests verify data integrity after processing an SQL query, which should return the number of rows. If the returned count is zero, the test is considered successfully passed.
 
-Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`.
+Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`. Tests located directly in `assets/tests/` folder have the virtual stage name `root`.
+
+Test names follow the pattern `<stage>.<test_name>`, where:
+- Tests in `assets/tests/` use `root` as the stage (e.g., `root.test_dim_addresses_unique`)
+- Tests in `assets/tests/<stage>/` use their stage name (e.g., `dds.test_fact_transactions_unique`)
 
 Example:
 
@@ -479,6 +483,7 @@ For the tests to be executed immediately after the models, the DAG must be initi
 
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
+|name|String|`<stage>.<filename>`|The test name following the pattern `<stage>.<test_name>`. Can be specified in the test file's profile or in the model profile when defining tests. For tests in `assets/tests/`, stage is `root`.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
 
 ## Road Map

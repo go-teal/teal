@@ -15,12 +15,12 @@ import (
 func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error) {
 	rows, err := d.db.Query(sqlQuery)
 	if err != nil {
-		log.Error().Stack().Err(err).Msg(sqlQuery)
+		log.Error().Caller().Stack().Err(err).Msg(sqlQuery)
 		return nil, err
 	}
 	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
-		log.Error().Stack().Err(err).Msg("Can not extract column types")
+		log.Error().Caller().Stack().Err(err).Msg("Can not extract column types")
 		return nil, err
 	}
 	seriesData := make([]interface{}, len(columnTypes))
@@ -81,7 +81,7 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		}
 		err := rows.Scan(safeData...)
 		if err != nil {
-			log.Error().Stack().Err(err).Msg("DuckDB Scan error")
+			log.Error().Caller().Stack().Err(err).Msg("DuckDB Scan error")
 			return nil, err
 		}
 
@@ -205,14 +205,14 @@ func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *datafra
 			case series.Int:
 				val, err := df.Elem(rowIdx, colIdx).Int()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
 					return err
 				}
 				vals[colIdx] = fmt.Sprintf("%d", val)
 			case series.Bool:
 				val, err := df.Elem(rowIdx, colIdx).Bool()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
 					return err
 				}
 				vals[colIdx] = fmt.Sprintf("%t, ", val)
