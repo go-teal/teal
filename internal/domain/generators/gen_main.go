@@ -9,7 +9,7 @@ import (
 	"github.com/go-teal/teal/pkg/configs"
 )
 
-//go:embed templates/main.go.tmpl
+//go:embed templates/main_prod.go.tmpl
 var mainTemplate string
 
 type GenMain struct {

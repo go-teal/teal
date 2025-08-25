@@ -80,7 +80,11 @@ project/
 │   ├── dds/
 │   └── mart/
 ├── assets/tests/           # SQL test files
-├── cmd/<project-name>/     # Generated main.go entry point
+├── cmd/
+│   ├── <project-name>/     # Production binary (Channel DAG only)
+│   │   └── <project-name>.go
+│   └── <project-name>-ui/  # Debug UI binary (Debug DAG + UI server)
+│       └── <project-name>-ui.go
 ├── internal/assets/        # Generated Go code for each model
 │   ├── configs.go         # DAG configuration
 │   └── <stage>.<model>.go # Individual model implementations
@@ -88,6 +92,30 @@ project/
 ├── config.yaml            # Database connections configuration
 └── profile.yaml           # Project and model profiles
 ```
+
+### File Generation Principles
+
+The `teal gen` command generates two separate main entry points to ensure clean separation of concerns:
+
+1. **Production Binary (`cmd/<project-name>/`)**:
+   - Uses Channel DAG for efficient concurrent execution
+   - No UI or debugging dependencies
+   - Generates unique task names with timestamps (format: `<project_name>_<timestamp>`)
+   - Optimized for production deployments
+   - Supports custom task names via `--task-name` flag
+
+2. **Debug UI Binary (`cmd/<project-name>-ui/`)**:
+   - Uses Debug DAG for visualization and monitoring
+   - Includes UI server with REST API endpoints
+   - Provides execution tracking and task history
+   - Designed for development and debugging
+   - Runs on configurable port (default 8080)
+
+This dual-generation approach ensures:
+- Production binaries have no unnecessary dependencies
+- Clean separation between production and debugging code
+- Developers get powerful debugging tools without affecting production
+- Both versions share the same asset and test implementations
 
 ### Key Concepts
 
@@ -97,6 +125,38 @@ project/
 - **Model Profiles**: Configuration embedded in SQL files or profile.yaml
 - **Static vs Dynamic Templates**: `{{}}` for generation-time, `{{{}}}` for runtime execution
 
+## Usage Examples
+
+### Running Production Binary
+```bash
+# Run with auto-generated task name
+go run cmd/<project-name>/<project-name>.go --input-data '{"key":"value"}' --with-tests
+
+# Run with custom task name
+go run cmd/<project-name>/<project-name>.go --task-name "etl_batch_001" --log-output raw
+
+# Build and run production binary
+go build -o bin/<project-name> cmd/<project-name>/<project-name>.go
+./bin/<project-name> --log-level info
+```
+
+### Running Debug UI Binary
+```bash
+# Start UI server on default port 8080
+go run cmd/<project-name>-ui/<project-name>-ui.go
+
+# Start on custom port
+go run cmd/<project-name>-ui/<project-name>-ui.go --port 9090
+
+# API endpoints available:
+# GET  /api/dag                  - Get DAG structure
+# GET  /api/tests                - Get test profiles
+# POST /api/dag/run              - Execute DAG with task ID
+# GET  /api/dag/status/:taskId   - Get task execution status
+# GET  /api/dag/tasks            - List all task executions
+# POST /api/dag/reset            - Clear execution history
+```
+
 ## Development Notes
 
 - Always check for existing CLAUDE.md improvements when using `teal init`
@@ -104,3 +164,5 @@ project/
 - DuckDB driver requires uncommenting import in generated main.go
 - Test execution requires `InitChannelDagWithTests` instead of `InitChannelDag`
 - Raw assets must be registered in main function before DAG execution
+- Production and UI binaries are generated automatically by `teal gen`
+- Task names in production are unique by default (timestamp-based) to support tracking

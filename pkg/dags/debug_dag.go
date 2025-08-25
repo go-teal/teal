@@ -33,8 +33,10 @@ type DagAssetDebugService struct {
 	Tests                 map[string]processing.ModelTesting
 	LastError             error
 	LastResult            interface{}
-	LastExecutionDuration int64 // Duration in milliseconds
-	LastTestsDuration     int64 // Duration of tests execution in milliseconds
+	LastExecutionDuration int64      // Duration in milliseconds
+	LastTestsDuration     int64      // Duration of tests execution in milliseconds
+	StartTime             *time.Time // Start time of execution
+	EndTime               *time.Time // End time of execution
 }
 
 // DebugDag is a debug-enabled DAG implementation using pointers instead of channels
@@ -182,6 +184,8 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 			node.LastError = nil
 			node.LastExecutionDuration = 0
 			node.LastTestsDuration = 0
+			node.StartTime = nil
+			node.EndTime = nil
 		}
 
 		// Store initial input data if provided
@@ -222,8 +226,10 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 				node.State = NodeStateInProgress
 
 				startTime := time.Now()
+				node.StartTime = &startTime
 				result, err := node.Asset.Execute(inputData)
 				endTime := time.Now()
+				node.EndTime = &endTime
 				node.LastExecutionDuration = endTime.Sub(startTime).Milliseconds()
 
 				if err != nil {

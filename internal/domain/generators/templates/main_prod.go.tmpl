@@ -1,0 +1,100 @@
+package main
+
+import (
+{{if index .Connections "duckdb" }}
+	_ "github.com/marcboeker/go-duckdb"
+{{end}}
+{{if index .Connections "postgres" }}
+	"github.com/jackc/pgx/v5"
+{{end}}
+	"encoding/json"
+	"flag"
+	"fmt"
+	"os"
+	"time"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	modeltests "{{ .Config.Module }}/internal/model_tests"
+	"github.com/go-teal/teal/pkg/core"
+	"github.com/go-teal/teal/pkg/dags"
+	"{{ .Config.Module }}/internal/assets"
+)
+
+func main() {
+	// Parse command line flags
+	inputData := flag.String("input-data", "", "Input data in JSON format (optional)")
+	logOutput := flag.String("log-output", "json", "Log output format: json or raw")
+	logLevel := flag.String("log-level", "debug", "Log level: panic, fatal, error, warn, info, debug, trace")
+	withTests := flag.Bool("with-tests", true, "Run with tests")
+	customTaskName := flag.String("task-name", "", "Custom task name (optional, auto-generated if not provided)")
+	flag.Parse()
+
+	// Configure logger based on log output format
+	if *logOutput == "raw" {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	} else {
+		log.Logger = log.Output(os.Stderr)
+	}
+
+	// Set log level
+	switch *logLevel {
+	case "panic":
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	case "fatal":
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	default:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
+	log.Info().Msg("Starting {{ .Profile.Name }}")
+	core.GetInstance().Init("config.yaml", ".")
+	defer core.GetInstance().Shutdown()
+	config := core.GetInstance().Config
+
+	// Parse input data if provided
+	var inputDataMap map[string]interface{}
+	if *inputData != "" {
+		if err := json.Unmarshal([]byte(*inputData), &inputDataMap); err != nil {
+			log.Fatal().Err(err).Msg("Failed to parse input data JSON")
+		}
+	}
+
+	// Generate unique task name with timestamp or use custom name
+	var taskName string
+	if *customTaskName != "" {
+		taskName = *customTaskName
+		log.Info().Str("taskName", taskName).Msg("Using custom task name")
+	} else {
+		taskName = fmt.Sprintf("{{ .Profile.Name }}_%d", time.Now().Unix())
+		log.Info().Str("taskName", taskName).Msg("Generated task name")
+	}
+
+	// Initialize DAG with or without tests based on flag
+	var dag dags.DAG
+	if *withTests {
+		dag = dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, taskName)
+	} else {
+		dag = dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, taskName)
+	}
+
+	wg := dag.Run()
+	result := <-dag.Push(taskName, inputDataMap, make(chan map[string]interface{}))
+	log.Info().Str("taskName", taskName).Any("Result", result).Send()
+	dag.Stop()
+	wg.Wait()
+
+	if *withTests {
+		modeltests.TestAll()
+	}
+	log.Info().Msg("Finishing {{ .Profile.Name }}")
+}

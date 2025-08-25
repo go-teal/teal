@@ -2,6 +2,14 @@
 
 - [Teal](#teal)
   - [QuickStart](#quickstart)
+    - [Installation](#installation)
+    - [Creating your project](#creating-your-project)
+    - [Init your project from scratch](#init-your-project-from-scratch)
+    - [Update config.yaml](#update-configyaml)
+    - [Update profile.yaml](#update-profileyaml)
+    - [Generate go project](#generate-go-project)
+    - [Run your project](#run-your-project)
+    - [Understanding the Generated Main Files](#understanding-the-generated-main-files)
   - [Configuration](#configuration)
     - [config.yaml](#configyaml)
     - [profile.yaml](#profileyaml)
@@ -120,8 +128,9 @@ Building: staging.wallets.sql
 Building: dds.dim_addresses.sql
 Building: dds.fact_transactions.sql
 Building: mart.mart_wallet_report.sql
-Files 10
-./cmd/my-test-project/main._go .................................................. [OK]
+Files 11
+./cmd/my-test-project/my-test-project.go ........................................ [OK]
+./cmd/my-test-project-ui/my-test-project-ui.go .................................. [OK]
 ./go.mod ........................................................................ [OK]
 ./internal/assets/staging.addresses.go .......................................... [OK]
 ./internal/assets/staging.transactions.go ....................................... [OK]
@@ -136,10 +145,13 @@ Files 10
 Your DAG is depicted in the PlantUML file `graph.wsd`
 ![DAG](docs/hello-world.svg)
 
-1. Rename `main._go` to `my-test-project.go`
-2. Uncomment the following line: `_ "github.com/marcboeker/go-duckdb"` in `my-test-project.go`.
-3. Run `go mod tidy`
-4. Final project structure:
+**Note:** Teal generates two main.go files:
+- `cmd/my-test-project/my-test-project.go` - Production binary with Channel DAG for efficient execution
+- `cmd/my-test-project-ui/my-test-project-ui.go` - Debug UI binary with Debug DAG and REST API server for development
+
+1. Uncomment the following line: `_ "github.com/marcboeker/go-duckdb"` in both generated main files if using DuckDB.
+2. Run `go mod tidy`
+3. Final project structure:
 
 ```bash
 .
@@ -155,8 +167,10 @@ Your DAG is depicted in the PlantUML file `graph.wsd`
 │           ├── transactions.sql
 │           └── wallets.sql
 ├── cmd
-│   └── my-test-project
-│       └── main.go
+│   └── my-test-project              # Production binary
+│       └── my-test-project.go
+│   └── my-test-project-ui           # Debug UI binary
+│       └── my-test-project-ui.go
 ├── config.yaml
 ├── docs
 │   └── graph.wsd
@@ -180,47 +194,140 @@ Your DAG is depicted in the PlantUML file `graph.wsd`
 
 ### Run your project <!-- omit from toc -->
 
+**Production mode (Channel DAG):**
+
+First, build the production binary:
 ```bash
-go run ./cmd/my-test-project
+# Build the production binary
+go build -o bin/my-test-project ./cmd/my-test-project/my-test-project.go
+
+# Make it executable (Unix/Linux/Mac)
+chmod +x bin/my-test-project
 ```
 
-### Explore my-test-project.go <!-- omit from toc -->
+Then run the compiled binary with various options:
+```bash
+# Basic run with auto-generated task name and tests
+./bin/my-test-project
 
+# Run with custom task name
+./bin/my-test-project --task-name "etl_batch_001"
+
+# Run with input data and human-readable logs
+./bin/my-test-project \
+  --input-data '{"source":"api","date":"2024-01-01"}' \
+  --log-output raw \
+  --log-level info
+
+# Run without tests for faster execution
+./bin/my-test-project --with-tests=false
+
+# Production deployment with minimal logging
+./bin/my-test-project \
+  --task-name "prod_$(date +%Y%m%d_%H%M%S)" \
+  --log-level error \
+  --log-output json
+
+# Schedule with cron (example)
+# 0 */6 * * * /path/to/bin/my-test-project --task-name "scheduled_$(date +\%Y\%m\%d_\%H\%M\%S)" --log-level info
+```
+
+**Note:** For production deployments, always use the compiled binary rather than `go run` for better performance and reliability.
+
+
+### Understanding the Generated Main Files <!-- omit from toc -->
+
+Teal generates two entry points for different use cases:
+
+#### Production Binary (my-test-project.go)
+- Uses **Channel DAG** for high-performance concurrent execution
+- Generates unique task names with timestamps (e.g., `my-test-project_1703123456`)
+- Optimized for production deployments with minimal dependencies
+- No UI server or debugging overhead
+
+**Command-line arguments:**
+- `--task-name` - Custom task name (optional, auto-generated if not provided)
+- `--input-data` - Input data in JSON format (optional)
+- `--log-output` - Log output format: `json` or `raw` (default: `json`)
+- `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `debug`)
+- `--with-tests` - Run with tests enabled (default: `true`)
+
+#### Debug UI Binary (my-test-project-ui.go)
+- Uses **Debug DAG** for visualization and monitoring
+- Provides REST API endpoints for DAG control and status
+- Includes execution tracking and task history
+- Ideal for development and debugging
+
+**Command-line arguments:**
+- `--port` - Port for debug UI server (default: `8080`)
+- `--log-output` - Log output format: `json` or `raw` (default: `raw`)
+- `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `info`)
+
+Example production code structure:
 ```go
 package main
 
 import (
-  _ "github.com/marcboeker/go-duckdb"
-
-  "fmt"
-  "os"
-
-  "github.com/rs/zerolog"
-  "github.com/rs/zerolog/log"
-
-  "github.com/go-teal/teal/pkg/core"
-  "github.com/go-teal/teal/pkg/dags"
-  "github.com/my_user/my_test_project/internal/assets"
+    _ "github.com/marcboeker/go-duckdb"  // Uncomment for DuckDB
+    "encoding/json"
+    "flag"
+    "fmt"
+    "time"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
+    modeltests "github.com/my_user/my_test_project/internal/model_tests"
+    "github.com/go-teal/teal/pkg/core"
+    "github.com/go-teal/teal/pkg/dags"
+    "github.com/my_user/my_test_project/internal/assets"
 )
 
 func main() {
-  log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-  fmt.Println("my-test-project")
-  core.GetInstance().Init("config.yaml", ".")
-  config := core.GetInstance().Config
-  dag := dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, "instance 1")
-  wg := dag.Run()
-  result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))
-  fmt.Println(result)
-  dag.Stop()
-  wg.Wait()
+    // Parse command-line flags
+    inputData := flag.String("input-data", "", "Input data in JSON format")
+    logOutput := flag.String("log-output", "json", "Log output format")
+    logLevel := flag.String("log-level", "debug", "Log level")
+    withTests := flag.Bool("with-tests", true, "Run with tests")
+    customTaskName := flag.String("task-name", "", "Custom task name")
+    flag.Parse()
+
+    // Configure logging
+    if *logOutput == "raw" {
+        log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+    }
+    
+    // Initialize core and config
+    core.GetInstance().Init("config.yaml", ".")
+    config := core.GetInstance().Config
+    
+    // Generate unique task name or use custom
+    var taskName string
+    if *customTaskName != "" {
+        taskName = *customTaskName
+    } else {
+        taskName = fmt.Sprintf("my-test-project_%d", time.Now().Unix())
+    }
+    
+    // Initialize and run DAG
+    var dag dags.DAG
+    if *withTests {
+        dag = dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, 
+                                          modeltests.ProjectTests, config, taskName)
+    } else {
+        dag = dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, taskName)
+    }
+    
+    wg := dag.Run()
+    result := <-dag.Push(taskName, inputDataMap, make(chan map[string]interface{}))
+    log.Info().Str("taskName", taskName).Any("Result", result).Send()
+    dag.Stop()
+    wg.Wait()
 }
 ```
 
 What this code does:
 
 1. `dag.Run()` builds a DAG based on Ref from your .sql models, where each node is an asset and each edge is a GO channel.
-2. `result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))` triggers the execution of this DAG synchronously.
+2. `dag.Push()` triggers the execution of this DAG with a unique task name for tracking.
 3. `dag.Stop()` sends the deactivation command.
 
 ## Configuration
@@ -286,7 +393,7 @@ models:
 |Param|Type|Description|
 |-----|----|-----------|
 |version|String constant|`1.0.0`|
-|name|String|Generated folder name for `main.go`.|
+|name|String|Base name for generated binaries. Creates both `cmd/<name>/` for production and `cmd/<name>-ui/` for debug UI.|
 |connection|String|Connection from `config.yaml` by default.|
 |models.stages|Array of stages|List of stages for models. For each stage, a folder `assets/models/<stage name>` must be created in advance.|
 |models.stages|See: [Model Profile](#model-profile)||

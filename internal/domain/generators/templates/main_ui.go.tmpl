@@ -1,0 +1,70 @@
+package main
+
+import (
+{{if index .Connections "duckdb" }}
+	_ "github.com/marcboeker/go-duckdb"
+{{end}}
+{{if index .Connections "postgres" }}
+	"github.com/jackc/pgx/v5"
+{{end}}
+	"flag"
+	"os"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	modeltests "{{ .Config.Module }}/internal/model_tests"
+	"github.com/go-teal/teal/pkg/core"
+	"github.com/go-teal/teal/pkg/dags"
+	"github.com/go-teal/teal/pkg/ui"
+	"{{ .Config.Module }}/internal/assets"
+)
+
+func main() {
+	// Parse command line flags
+	port := flag.Int("port", 8080, "Port for debug UI server")
+	logOutput := flag.String("log-output", "raw", "Log output format: json or raw")
+	logLevel := flag.String("log-level", "info", "Log level: panic, fatal, error, warn, info, debug, trace")
+	flag.Parse()
+
+	// Configure logger based on log output format
+	if *logOutput == "raw" {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	} else {
+		log.Logger = log.Output(os.Stderr)
+	}
+
+	// Set log level
+	switch *logLevel {
+	case "panic":
+		zerolog.SetGlobalLevel(zerolog.PanicLevel)
+	case "fatal":
+		zerolog.SetGlobalLevel(zerolog.FatalLevel)
+	case "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "warn":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	default:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
+	log.Info().Int("port", *port).Msg("Starting {{ .Profile.Name }} in UI debug mode")
+	
+	// Initialize core
+	core.GetInstance().Init("config.yaml", ".")
+	defer core.GetInstance().Shutdown()
+	config := core.GetInstance().Config
+	
+	// Create DebugDag for UI mode
+	dag := dags.InitDebugDag(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "{{ .Profile.Name }}")
+	
+	// Start UI server with DebugDag
+	server := ui.NewUIServer("{{ .Profile.Name }}", "{{ .Config.Module }}", *port, dag)
+	if err := server.Start(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start UI server")
+	}
+}

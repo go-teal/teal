@@ -26,7 +26,8 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	}
 
 	var generatorsList []generators.Generator = []generators.Generator{
-		generators.InitGenMain(config, projectProfile),
+		generators.InitGenMain(config, projectProfile),    // Production main.go
+		generators.InitGenMainUI(config, projectProfile),  // UI debugging main.go
 		generators.InitGenGoMod(config, projectProfile),
 	}
 

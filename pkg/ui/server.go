@@ -54,6 +54,12 @@ func (s *UIServer) Start() error {
 
 	r.GET("/api/dag", s.handleDagData)
 	r.GET("/api/tests", s.handleTestProfiles)
+	r.POST("/api/dag/run", s.handleDagRun)
+	r.GET("/api/dag/status/:taskId", s.handleDagStatus)
+	r.GET("/api/dag/tasks", s.handleDagTasks)
+	r.POST("/api/dag/asset/:name/execute", s.handleAssetExecute)
+	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
+	r.POST("/api/dag/reset", s.handleDagReset)
 
 	addr := fmt.Sprintf(":%d", s.Port)
 	log.Info().Str("address", addr).Msg("UI server listening")
@@ -82,4 +88,141 @@ func (s *UIServer) handleTestProfiles(c *gin.Context) {
 	c.JSON(http.StatusOK, TestProfilesResponseDTO{
 		Tests: tests,
 	})
+}
+
+func (s *UIServer) handleDagRun(c *gin.Context) {
+	var request debugging.DagRunRequestDTO
+	
+	// Parse request body
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Validate taskId
+	if request.TaskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+
+	// Execute DAG with timeout
+	responseChan := s.debuggingService.ExecuteDag(request.TaskId, request.Data)
+	
+	// Wait for response (will timeout after 10 seconds as configured in ExecuteDag)
+	response := <-responseChan
+	
+	// Return appropriate status code based on execution status
+	statusCode := http.StatusOK
+	if response.Status == debugging.DagExecutionStatusFailed {
+		statusCode = http.StatusInternalServerError
+	} else if response.Status == debugging.DagExecutionStatusPending {
+		statusCode = http.StatusAccepted // 202 for async operations still in progress
+	}
+	
+	c.JSON(statusCode, response)
+}
+
+func (s *UIServer) handleDagStatus(c *gin.Context) {
+	taskId := c.Param("taskId")
+	
+	if taskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+	
+	// Get current task status
+	status := s.debuggingService.GetTaskStatus(taskId)
+	
+	// Return appropriate status code based on execution status
+	statusCode := http.StatusOK
+	if status.Status == debugging.DagExecutionStatusNotStarted {
+		statusCode = http.StatusNotFound
+	}
+	
+	c.JSON(statusCode, status)
+}
+
+func (s *UIServer) handleDagTasks(c *gin.Context) {
+	taskList := s.debuggingService.GetAllTasks()
+	c.JSON(http.StatusOK, taskList)
+}
+
+func (s *UIServer) handleAssetExecute(c *gin.Context) {
+	assetName := c.Param("name")
+	
+	if assetName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
+		return
+	}
+	
+	var request debugging.AssetExecuteRequestDTO
+	
+	// Parse request body
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+	
+	// Validate taskId
+	if request.TaskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+	
+	// Execute asset with timeout
+	responseChan := s.debuggingService.ExecuteAsset(assetName, request.TaskId)
+	
+	// Wait for response (will timeout after 10 seconds as configured in ExecuteAsset)
+	response := <-responseChan
+	
+	// Return appropriate status code based on execution status
+	statusCode := http.StatusOK
+	if response.Status == debugging.NodeStateFailed {
+		statusCode = http.StatusInternalServerError
+	} else if response.Status == debugging.NodeStateInProgress {
+		statusCode = http.StatusAccepted // 202 for async operations still in progress
+	}
+	
+	c.JSON(statusCode, response)
+}
+
+func (s *UIServer) handleDagReset(c *gin.Context) {
+	err := s.debuggingService.ResetDagState()
+	
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to reset DAG state")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to reset DAG state",
+			"details": err.Error(),
+		})
+		return
+	}
+	
+	log.Info().Msg("DAG state reset successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "DAG state reset successfully",
+		"status": "SUCCESS",
+	})
+}
+
+func (s *UIServer) handleAssetData(c *gin.Context) {
+	assetName := c.Param("name")
+	
+	if assetName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
+		return
+	}
+	
+	// Get asset data
+	response := s.debuggingService.GetAssetData(assetName)
+	
+	// Return appropriate status code based on whether data exists
+	statusCode := http.StatusOK
+	if response.Error != "" {
+		statusCode = http.StatusNotFound
+	} else if !response.HasData {
+		statusCode = http.StatusNoContent
+	}
+	
+	c.JSON(statusCode, response)
 }
