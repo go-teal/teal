@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-gota/gota/dataframe"
+	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/models"
 )
@@ -17,7 +17,7 @@ import (
 type DebuggingService struct {
 	dag         *dags.DebugDag
 	taskHistory map[string]DagExecutionResponseDTO // Store execution results by taskId
-	mu          sync.RWMutex                        // Mutex for thread-safe access to taskHistory
+	mu          sync.RWMutex                       // Mutex for thread-safe access to taskHistory
 }
 
 func NewDebuggingService(dag *dags.DebugDag) *DebuggingService {
@@ -46,7 +46,7 @@ func (s *DebuggingService) GetDagNodes() []DagNodeDTO {
 
 		// Get actual runtime state from NodeMap if available
 		if debugNode, exists := s.dag.NodeMap[name]; exists {
-			node.State = NodeState(debugNode.State)  // Convert dags.NodeState to debugging.NodeState
+			node.State = NodeState(debugNode.State) // Convert dags.NodeState to debugging.NodeState
 			node.SuccessfulTests = debugNode.TestsPassed
 			node.LastExecutionDuration = debugNode.LastExecutionDuration
 			node.LastTestsDuration = debugNode.LastTestsDuration
@@ -58,7 +58,7 @@ func (s *DebuggingService) GetDagNodes() []DagNodeDTO {
 		switch desc := descriptor.(type) {
 		case *models.SQLModelDescriptor:
 			node.SQLSelectQuery = strings.TrimSpace(desc.RawSQL)
-			
+
 			// Use appropriate compiled query based on materialization type
 			node.Materialization = MaterializationType(desc.ModelProfile.Materialization)
 			switch node.Materialization {
@@ -179,20 +179,20 @@ func (s *DebuggingService) GetTestProfiles() []TestProfileDTO {
 func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResponseDTO {
 	if s.dag == nil {
 		return DagExecutionResponseDTO{
-			TaskId: taskId,
-			Status: DagExecutionStatusNotStarted,
-			Tasks:  []TaskStatusDTO{},
+			TaskId:      taskId,
+			Status:      DagExecutionStatusNotStarted,
+			NodesStatus: []NodeStatusDTO{},
 		}
 	}
 
 	// Use GetNodeStates to get thread-safe access to node states
 	nodeStates := s.dag.GetNodeStates()
-	
+
 	totalAssets := len(nodeStates)
 	completedAssets := 0
 	failedAssets := 0
 	inProgressAssets := 0
-	tasks := make([]TaskStatusDTO, 0)
+	tasks := make([]NodeStatusDTO, 0)
 	lastTaskName := ""
 	order := 0
 
@@ -212,16 +212,12 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 	for _, taskGroup := range s.dag.DagGraph {
 		for _, assetName := range taskGroup {
 			if nodeState, exists := nodeStates[assetName]; exists {
-				taskStatus := TaskStatusDTO{
-					Name:             assetName,
-					State:            NodeState(nodeState),
-					Order:            order,
-					CompletedAssets:  completedAssets,
-					TotalAssets:      totalAssets,
-					FailedAssets:     failedAssets,
-					InProgressAssets: inProgressAssets,
+				taskStatus := NodeStatusDTO{
+					Name:  assetName,
+					State: NodeState(nodeState),
+					Order: order,
 				}
-				
+
 				// Get additional details from the node if available
 				if node := s.dag.GetNode(assetName); node != nil {
 					taskStatus.ExecutionTimeMs = node.LastExecutionDuration
@@ -237,8 +233,28 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 						endTimeMs := node.EndTime.UnixMilli()
 						taskStatus.EndTime = &endTimeMs
 					}
+					// Add test counts
+					taskStatus.TotalTests = len(node.Tests)
+					taskStatus.PassedTests = node.TestsPassed
+					taskStatus.FailedTests = node.TestsFailed
+					
+					// Add test results
+					if len(node.TestResults) > 0 {
+						taskStatus.TestResults = make([]TestResultDTO, len(node.TestResults))
+						for i, tr := range node.TestResults {
+							taskStatus.TestResults[i] = TestResultDTO{
+								TestName:   tr.TestName,
+								Status:     string(tr.Status),
+								DurationMs: tr.DurationMs,
+							}
+							// Convert error to string for JSON serialization
+							if tr.Error != nil {
+								taskStatus.TestResults[i].ErrorMsg = tr.Error.Error()
+							}
+						}
+					}
 				}
-				
+
 				tasks = append(tasks, taskStatus)
 				order++
 
@@ -265,10 +281,14 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 	}
 
 	return DagExecutionResponseDTO{
-		TaskId:       taskId,
-		Status:       status,
-		Tasks:        tasks,
-		LastTaskName: lastTaskName,
+		TaskId:           taskId,
+		Status:           status,
+		NodesStatus:      tasks,
+		LastTaskName:     lastTaskName,
+		CompletedAssets:  completedAssets,
+		TotalAssets:      totalAssets,
+		FailedAssets:     failedAssets,
+		InProgressAssets: inProgressAssets,
 	}
 }
 
@@ -277,15 +297,15 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 
 	if s.dag == nil {
 		response := DagExecutionResponseDTO{
-			TaskId: taskId,
-			Status: DagExecutionStatusFailed,
-			Tasks:  []TaskStatusDTO{},
+			TaskId:      taskId,
+			Status:      DagExecutionStatusFailed,
+			NodesStatus: []NodeStatusDTO{},
 		}
 		// Store failed result in history
 		s.mu.Lock()
 		s.taskHistory[taskId] = response
 		s.mu.Unlock()
-		
+
 		responseChan <- response
 		close(responseChan)
 		return responseChan
@@ -294,9 +314,9 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 	// Store initial status
 	s.mu.Lock()
 	s.taskHistory[taskId] = DagExecutionResponseDTO{
-		TaskId: taskId,
-		Status: DagExecutionStatusInProgress,
-		Tasks:  []TaskStatusDTO{},
+		TaskId:      taskId,
+		Status:      DagExecutionStatusInProgress,
+		NodesStatus: []NodeStatusDTO{},
 	}
 	s.mu.Unlock()
 
@@ -319,34 +339,34 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 			case <-dagResultChan:
 				// DAG completed, get final status
 				finalStatus := s.GetDagExecutionStatus(taskId)
-				
+
 				// Store final result in history
 				s.mu.Lock()
 				s.taskHistory[taskId] = finalStatus
 				s.mu.Unlock()
-				
+
 				responseChan <- finalStatus
 				return
-				
+
 			case <-ticker.C:
 				// Update task history with current progress
 				currentStatus := s.GetDagExecutionStatus(taskId)
 				s.mu.Lock()
 				s.taskHistory[taskId] = currentStatus
 				s.mu.Unlock()
-				
+
 			case <-time.After(10 * time.Second):
 				// Timeout - return current status as PENDING
 				status := s.GetDagExecutionStatus(taskId)
 				if status.Status == DagExecutionStatusInProgress {
 					status.Status = DagExecutionStatusPending
 				}
-				
+
 				// Store timeout result in history
 				s.mu.Lock()
 				s.taskHistory[taskId] = status
 				s.mu.Unlock()
-				
+
 				responseChan <- status
 				return
 			}
@@ -364,7 +384,7 @@ func (s *DebuggingService) GetTaskStatus(taskId string) DagExecutionResponseDTO 
 		return history
 	}
 	s.mu.RUnlock()
-	
+
 	// If no history exists, return current DAG state with the taskId
 	return s.GetDagExecutionStatus(taskId)
 }
@@ -374,7 +394,7 @@ func (s *DebuggingService) ResetDagState() error {
 	s.mu.Lock()
 	s.taskHistory = make(map[string]DagExecutionResponseDTO)
 	s.mu.Unlock()
-	
+
 	if s.dag == nil {
 		return nil // Nothing else to reset
 	}
@@ -382,21 +402,22 @@ func (s *DebuggingService) ResetDagState() error {
 	// Reset all node states and clear execution history
 	for _, node := range s.dag.NodeMap {
 		node.State = dags.NodeStateInitial
-		
+
 		// Clear execution results - this handles both regular results and dataframes
 		// If the asset is_data_framed, LastResult would be a *dataframe.DataFrame
 		// Setting it to nil properly clears the pointer and allows GC to free memory
 		node.LastResult = nil
 		node.LastError = nil
-		
+
 		// Reset execution metrics
 		node.LastExecutionDuration = 0
 		node.LastTestsDuration = 0
 		node.TestsPassed = 0
 		node.TestsFailed = 0
+		node.TestResults = nil // Clear test results
 		node.StartTime = nil
 		node.EndTime = nil
-		
+
 		// Note: The DAG structure (Upstreams, Downstreams pointers) remains intact
 		// Only the data in LastResult is cleared, which will be recreated on next execution
 	}
@@ -409,28 +430,23 @@ func (s *DebuggingService) GetAllTasks() TaskListResponseDTO {
 	defer s.mu.RUnlock()
 
 	tasks := make([]TaskSummaryDTO, 0, len(s.taskHistory))
-	
+
 	// Convert task history to summary DTOs
 	for taskId, execution := range s.taskHistory {
 		summary := TaskSummaryDTO{
-			TaskId: taskId,
-			Status: execution.Status,
+			TaskId:           taskId,
+			Status:           execution.Status,
+			TotalAssets:      execution.TotalAssets,
+			CompletedAssets:  execution.CompletedAssets,
+			FailedAssets:     execution.FailedAssets,
+			InProgressAssets: execution.InProgressAssets,
 		}
-		
-		// Get asset counts from the first task (they all have the same counts)
-		if len(execution.Tasks) > 0 {
-			firstTask := execution.Tasks[0]
-			summary.TotalAssets = firstTask.TotalAssets
-			summary.CompletedAssets = firstTask.CompletedAssets
-			summary.FailedAssets = firstTask.FailedAssets
-			summary.InProgressAssets = firstTask.InProgressAssets
-		}
-		
+
 		// Find the earliest start time and latest end time from all tasks
 		var earliestStart *int64
 		var latestEnd *int64
-		
-		for _, task := range execution.Tasks {
+
+		for _, task := range execution.NodesStatus {
 			if task.StartTime != nil {
 				if earliestStart == nil || *task.StartTime < *earliestStart {
 					earliestStart = task.StartTime
@@ -442,13 +458,13 @@ func (s *DebuggingService) GetAllTasks() TaskListResponseDTO {
 				}
 			}
 		}
-		
+
 		summary.StartTime = earliestStart
 		summary.EndTime = latestEnd
-		
+
 		tasks = append(tasks, summary)
 	}
-	
+
 	// Sort tasks by start time (earliest first)
 	sort.Slice(tasks, func(i, j int) bool {
 		// Handle nil start times (put them at the end)
@@ -463,7 +479,7 @@ func (s *DebuggingService) GetAllTasks() TaskListResponseDTO {
 		}
 		return *tasks[i].StartTime < *tasks[j].StartTime
 	})
-	
+
 	return TaskListResponseDTO{
 		Tasks: tasks,
 		Total: len(tasks),
@@ -475,7 +491,7 @@ func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan 
 
 	go func() {
 		defer close(responseChan)
-		
+
 		response := AssetExecuteResponseDTO{
 			TaskId:    taskId,
 			AssetName: assetName,
@@ -501,41 +517,41 @@ func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan 
 		// Collect upstream data from the current DAG state
 		inputData := make(map[string]interface{})
 		upstreamsUsed := []string{}
-		
+
 		for _, upstream := range node.Upstreams {
 			if upstream.LastResult != nil {
 				inputData[upstream.Name] = upstream.LastResult
 				upstreamsUsed = append(upstreamsUsed, upstream.Name)
 			}
 		}
-		
+
 		response.UpstreamsUsed = upstreamsUsed
 
 		// Create a channel for execution result
 		execDone := make(chan struct{})
-		
+
 		// Execute the asset in a goroutine
 		go func() {
 			startTime := time.Now()
 			startTimeMs := startTime.UnixMilli()
 			response.StartTime = &startTimeMs
-			
+
 			// Update node state
 			node.State = dags.NodeStateInProgress
 			node.StartTime = &startTime
-			
+
 			// Execute the asset
 			result, err := node.Asset.Execute(inputData)
-			
+
 			endTime := time.Now()
 			endTimeMs := endTime.UnixMilli()
 			response.EndTime = &endTimeMs
 			response.ExecutionTimeMs = endTime.Sub(startTime).Milliseconds()
-			
+
 			// Update node with execution results
 			node.EndTime = &endTime
 			node.LastExecutionDuration = response.ExecutionTimeMs
-			
+
 			if err != nil {
 				node.State = dags.NodeStateFailed
 				node.LastError = err
@@ -548,7 +564,7 @@ func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan 
 				response.Status = NodeStateSuccess
 				response.Result = result
 			}
-			
+
 			close(execDone)
 		}()
 
@@ -610,12 +626,12 @@ func (s *DebuggingService) GetAssetData(assetName string) AssetDataResponseDTO {
 	case *dataframe.DataFrame:
 		response.DataType = "dataframe"
 		response.IsDataFramed = true
-		
+
 		// Get dataframe metadata
 		response.RowCount = v.Nrow()
 		response.ColumnCount = v.Ncol()
 		response.Columns = v.Names()
-		
+
 		// Convert dataframe to JSON
 		// Create a slice of maps for JSON representation
 		records := make([]map[string]interface{}, 0, v.Nrow())
@@ -631,27 +647,27 @@ func (s *DebuggingService) GetAssetData(assetName string) AssetDataResponseDTO {
 			records = append(records, record)
 		}
 		response.Data = records
-		
+
 	case map[string]interface{}:
 		response.DataType = "map"
 		response.Data = v
-		
+
 	case []interface{}:
 		response.DataType = "array"
 		response.Data = v
-		
+
 	case string:
 		response.DataType = "string"
 		response.Data = v
-		
+
 	case int, int64, float64, bool:
 		response.DataType = fmt.Sprintf("%T", v)
 		response.Data = v
-		
+
 	default:
 		// For any other type, try to serialize as JSON
 		response.DataType = reflect.TypeOf(v).String()
-		
+
 		// Attempt to marshal to JSON and unmarshal back to interface{}
 		// This ensures the data is JSON-serializable
 		jsonBytes, err := json.Marshal(v)

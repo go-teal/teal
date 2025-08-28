@@ -31,6 +31,7 @@ type DagAssetDebugService struct {
 	TestsPassed           int
 	TestsFailed           int
 	Tests                 map[string]processing.ModelTesting
+	TestResults           []processing.TestResult // Store test execution results
 	LastError             error
 	LastResult            interface{}
 	LastExecutionDuration int64      // Duration in milliseconds
@@ -184,6 +185,9 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 			node.LastError = nil
 			node.LastExecutionDuration = 0
 			node.LastTestsDuration = 0
+			node.TestsPassed = 0
+			node.TestsFailed = 0
+			node.TestResults = nil
 			node.StartTime = nil
 			node.EndTime = nil
 		}
@@ -257,35 +261,44 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 					node.TestsPassed = 0
 					node.TestsFailed = 0
 
-					// Create a custom test runner to track results
-					// We'll execute tests through the asset's RunTests method
 					log.Info().Str("asset", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
 
 					// Track test execution time
 					testStartTime := time.Now()
 
-					// The asset's RunTests method handles test execution and logging
-					node.Asset.RunTests(d.TestsMap)
+					// Execute tests and get results
+					testResults := node.Asset.RunTests(d.TestsMap)
+					
+					// Store test results for later retrieval
+					node.TestResults = testResults
 
-					// Count test results by executing them again to get status
-					// (since RunTests doesn't return results)
-					for testName, test := range node.Tests {
-						status, _, testErr := test.Execute()
-						if status {
+					// Process test results
+					for _, testResult := range testResults {
+						if testResult.Status == processing.TestStatusSuccess {
 							node.TestsPassed++
-						} else {
+							log.Debug().
+								Str("asset", assetName).
+								Str("testName", testResult.TestName).
+								Int64("durationMs", testResult.DurationMs).
+								Msg("Test passed")
+						} else if testResult.Status == processing.TestStatusFailed {
 							node.TestsFailed++
-							if testErr != nil {
-								log.Debug().
-									Str("asset", assetName).
-									Str("testName", testName).
-									Err(testErr).
-									Msg("Test failed")
-							}
+							log.Debug().
+								Str("asset", assetName).
+								Str("testName", testResult.TestName).
+								Err(testResult.Error).
+								Int64("durationMs", testResult.DurationMs).
+								Msg("Test failed")
+						} else if testResult.Status == processing.TestStatusNotFound {
+							log.Warn().
+								Str("asset", assetName).
+								Str("testName", testResult.TestName).
+								Str("message", testResult.Message).
+								Msg("Test not found")
 						}
 					}
 
-					// Calculate test duration
+					// Calculate total test duration
 					testEndTime := time.Now()
 					node.LastTestsDuration = testEndTime.Sub(testStartTime).Milliseconds()
 

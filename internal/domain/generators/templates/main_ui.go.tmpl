@@ -2,11 +2,12 @@ package main
 
 import (
 {{if index .Connections "duckdb" }}
-	_ "github.com/marcboeker/go-duckdb"
+	_ "github.com/marcboeker/go-duckdb/v2"
 {{end}}
 {{if index .Connections "postgres" }}
 	"github.com/jackc/pgx/v5"
 {{end}}
+	"context"
 	"flag"
 	"os"
 	"github.com/rs/zerolog"
@@ -14,6 +15,7 @@ import (
 	modeltests "{{ .Config.Module }}/internal/model_tests"
 	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/dags"
+	"github.com/go-teal/teal/pkg/services/logwriter"
 	"github.com/go-teal/teal/pkg/ui"
 	"{{ .Config.Module }}/internal/assets"
 )
@@ -25,12 +27,20 @@ func main() {
 	logLevel := flag.String("log-level", "info", "Log level: panic, fatal, error, warn, info, debug, trace")
 	flag.Parse()
 
-	// Configure logger based on log output format
-	if *logOutput == "raw" {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	} else {
-		log.Logger = log.Output(os.Stderr)
+	// Create a context for the application
+	ctx := context.Background()
+	
+	// Always use StoringConsoleWriter for UI mode to capture logs per task
+	storingWriter := logwriter.NewStoringConsoleWriter(ctx, os.Stderr)
+	
+	// Configure output format
+	if *logOutput == "json" {
+		storingWriter.SetNoColor(true)
+		storingWriter.SetTimeFormat("")
 	}
+	
+	// Set the global logger to use our storing writer
+	log.Logger = log.Output(storingWriter)
 
 	// Set log level
 	switch *logLevel {
@@ -62,8 +72,8 @@ func main() {
 	// Create DebugDag for UI mode
 	dag := dags.InitDebugDag(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "{{ .Profile.Name }}")
 	
-	// Start UI server with DebugDag
-	server := ui.NewUIServer("{{ .Profile.Name }}", "{{ .Config.Module }}", *port, dag)
+	// Start UI server with DebugDag and log writer
+	server := ui.NewUIServerWithLogWriter("{{ .Profile.Name }}", "{{ .Config.Module }}", *port, dag, storingWriter)
 	if err := server.Start(); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start UI server")
 	}

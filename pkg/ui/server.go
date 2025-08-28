@@ -16,6 +16,7 @@ type UIServer struct {
 	ModuleName       string
 	Port             int
 	debuggingService *debugging.DebuggingService
+	logWriter        interface{} // Store the log writer (interface to avoid import cycle)
 }
 
 func NewUIServer(projectName, moduleName string, port int, dag *dags.DebugDag) *UIServer {
@@ -24,6 +25,16 @@ func NewUIServer(projectName, moduleName string, port int, dag *dags.DebugDag) *
 		ModuleName:       moduleName,
 		Port:             port,
 		debuggingService: debugging.NewDebuggingService(dag),
+	}
+}
+
+func NewUIServerWithLogWriter(projectName, moduleName string, port int, dag *dags.DebugDag, logWriter interface{}) *UIServer {
+	return &UIServer{
+		ProjectName:      projectName,
+		ModuleName:       moduleName,
+		Port:             port,
+		debuggingService: debugging.NewDebuggingService(dag),
+		logWriter:        logWriter,
 	}
 }
 
@@ -60,6 +71,14 @@ func (s *UIServer) Start() error {
 	r.POST("/api/dag/asset/:name/execute", s.handleAssetExecute)
 	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
 	r.POST("/api/dag/reset", s.handleDagReset)
+	
+	// Log endpoints (only available when logWriter is configured)
+	if s.logWriter != nil {
+		r.GET("/api/logs/:taskName", s.handleGetLogs)
+		r.GET("/api/logs", s.handleGetAllLogs)
+		r.DELETE("/api/logs/:taskName", s.handleClearLogs)
+		r.DELETE("/api/logs", s.handleClearAllLogs)
+	}
 
 	addr := fmt.Sprintf(":%d", s.Port)
 	log.Info().Str("address", addr).Msg("UI server listening")
@@ -225,4 +244,110 @@ func (s *UIServer) handleAssetData(c *gin.Context) {
 	}
 	
 	c.JSON(statusCode, response)
+}
+
+
+// Log handler functions
+
+type LogWriter interface {
+	GetLogs(taskName string) []interface{}
+	GetAllLogs() map[string][]interface{}
+	ClearLogs(taskName string)
+	ClearAllLogs()
+}
+
+func (s *UIServer) handleGetLogs(c *gin.Context) {
+	if s.logWriter == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
+		return
+	}
+	
+	taskName := c.Param("taskName")
+	if taskName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskName is required"})
+		return
+	}
+	
+	logWriter, ok := s.logWriter.(LogWriter)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
+		return
+	}
+	
+	logs := logWriter.GetLogs(taskName)
+	c.JSON(http.StatusOK, gin.H{
+		"taskName": taskName,
+		"logs": logs,
+		"count": len(logs),
+	})
+}
+
+func (s *UIServer) handleGetAllLogs(c *gin.Context) {
+	if s.logWriter == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
+		return
+	}
+	
+	logWriter, ok := s.logWriter.(LogWriter)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
+		return
+	}
+	
+	allLogs := logWriter.GetAllLogs()
+	
+	// Calculate total log count
+	totalCount := 0
+	for _, logs := range allLogs {
+		totalCount += len(logs)
+	}
+	
+	c.JSON(http.StatusOK, gin.H{
+		"logs": allLogs,
+		"taskCount": len(allLogs),
+		"totalLogCount": totalCount,
+	})
+}
+
+func (s *UIServer) handleClearLogs(c *gin.Context) {
+	if s.logWriter == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
+		return
+	}
+	
+	taskName := c.Param("taskName")
+	if taskName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskName is required"})
+		return
+	}
+	
+	logWriter, ok := s.logWriter.(LogWriter)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
+		return
+	}
+	
+	logWriter.ClearLogs(taskName)
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Logs cleared for task: %s", taskName),
+		"taskName": taskName,
+	})
+}
+
+func (s *UIServer) handleClearAllLogs(c *gin.Context) {
+	if s.logWriter == nil {
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
+		return
+	}
+	
+	logWriter, ok := s.logWriter.(LogWriter)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
+		return
+	}
+	
+	logWriter.ClearAllLogs()
+	c.JSON(http.StatusOK, gin.H{
+		"message": "All logs cleared successfully",
+	})
 }

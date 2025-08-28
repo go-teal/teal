@@ -13,6 +13,8 @@ with source as (
         t.tx_hash as tx_hash,
         sha256(t.wallet_address || t.currency) as fk_address_id,        
         t.tx_index as tx_index,
+        wallets.currency,
+        wallets.ticker
     from {{ Ref "staging.transactions" }} as t
     inner join {{ Ref "dds.dim_addresses"}} as a 
         on a.wallet_address = t.wallet_address 
@@ -30,8 +32,8 @@ select
     tx_hash,
     fk_address_id,
     tx_index,
-    wallets.currency,
-    wallets.ticker
+    currency,
+    ticker
  from source
 
  {{{- if IsIncremental }}}

@@ -64,8 +64,9 @@ func (r *RawModelAsset) GetUpstreams() []string {
 }
 
 // RunTests implements Asset.
-func (r *RawModelAsset) RunTests(testsMap map[string]ModelTesting) {
+func (r *RawModelAsset) RunTests(testsMap map[string]ModelTesting) []TestResult {
 	log.Warn().Msg("Raw Model Asset does not support tests")
+	return []TestResult{}
 }
 
 func InitRawModelAsset(descriptor *models.RawModelDescriptor) Asset {

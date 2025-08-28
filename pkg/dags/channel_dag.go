@@ -224,7 +224,28 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 					Str("assetName", routine.Name).
 					Msgf("Complete with data: %v", outputData)
 				}
-				routine.Asset.RunTests(routine.testsMap)
+				testResults := routine.Asset.RunTests(routine.testsMap)
+				
+				// Log test results if any tests were run
+				if len(testResults) > 0 {
+					passed := 0
+					failed := 0
+					for _, result := range testResults {
+						if result.Status == processing.TestStatusSuccess {
+							passed++
+						} else if result.Status == processing.TestStatusFailed {
+							failed++
+						}
+					}
+					log.Info().
+						Str("DAG", routine.dag.DagInstanceName).
+						Str("assetName", routine.Name).
+						Int("totalTests", len(testResults)).
+						Int("passed", passed).
+						Int("failed", failed).
+						Msg("Tests executed")
+				}
+				
 				stopTaskTs := time.Now().UnixMilli()
 				log.Info().
 					Str("DAG", routine.dag.DagInstanceName).

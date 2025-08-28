@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/teal/pkg/configs"
@@ -229,23 +230,45 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 }
 
 // RunTests implements Asset.
-func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) {
+func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) []TestResult {
+	results := make([]TestResult, 0)
+	
 	if len(s.descriptor.ModelProfile.Tests) == 0 {
-		return
+		return results
 	}
+	
 	log.Info().Msgf("Testing %s", s.descriptor.Name)
 	for _, testConfig := range s.descriptor.ModelProfile.Tests {
+		startTime := time.Now()
+		result := TestResult{
+			TestName: testConfig.Name,
+		}
+		
 		if testCase, ok := testsMap[testConfig.Name]; ok {
 			status, testName, err := testCase.Execute()
+			result.DurationMs = time.Since(startTime).Milliseconds()
+			
 			if status {
-				log.Info().Str("testCase", testName).Msg("Success")
+				result.Status = TestStatusSuccess
+				result.Message = testName
+				log.Info().Str("testCase", testName).Int64("durationMs", result.DurationMs).Msg("Success")
 			} else {
-				log.Error().Caller().Str("testCase", testName).Err(err).Msg("Failed")
+				result.Status = TestStatusFailed
+				result.Error = err
+				result.Message = testName
+				log.Error().Str("testCase", testName).Err(err).Int64("durationMs", result.DurationMs).Msg("Failed")
 			}
 		} else {
-			log.Warn().Msgf("Test %s not found", testConfig.Name)
+			result.Status = TestStatusNotFound
+			result.DurationMs = time.Since(startTime).Milliseconds()
+			result.Message = fmt.Sprintf("Test %s not found", testConfig.Name)
+			log.Warn().Msg(result.Message)
 		}
+		
+		results = append(results, result)
 	}
+	
+	return results
 }
 
 func (s *SQLModelAsset) createView() error {

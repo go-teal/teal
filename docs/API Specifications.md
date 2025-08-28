@@ -19,6 +19,11 @@ http://localhost:8080
   - [GET /api/dag/asset/:name/data](#get-apidagassetnamedata)
 - [Test Operations](#test-operations)
   - [GET /api/tests](#get-apitests)
+- [Log Operations](#log-operations)
+  - [GET /api/logs/:taskName](#get-apilogstaskname)
+  - [GET /api/logs](#get-apilogs)
+  - [DELETE /api/logs/:taskName](#delete-apilogstaskname)
+  - [DELETE /api/logs](#delete-apilogs)
 
 ---
 
@@ -99,6 +104,10 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
 {
   "taskId": "task_20250125_143022",
   "status": "SUCCESS",
+  "completedAssets": 2,
+  "totalAssets": 2,
+  "failedAssets": 0,
+  "inProgressAssets": 0,
   "tasks": [
     {
       "name": "Executing staging.hello",
@@ -108,10 +117,9 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "endTime": 1737816623500,
       "executionTimeMs": 1500,
       "message": "",
-      "completedAssets": 1,
-      "totalAssets": 1,
-      "failedAssets": 0,
-      "inProgressAssets": 0
+      "totalTests": 1,
+      "passedTests": 1,
+      "failedTests": 0
     },
     {
       "name": "Executing dds.world",
@@ -121,10 +129,9 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "endTime": 1737816625000,
       "executionTimeMs": 1500,
       "message": "",
-      "completedAssets": 1,
-      "totalAssets": 1,
-      "failedAssets": 0,
-      "inProgressAssets": 0
+      "totalTests": 2,
+      "passedTests": 2,
+      "failedTests": 0
     }
   ],
   "lastTaskName": "Executing dds.world"
@@ -136,6 +143,10 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
 {
   "taskId": "task_20250125_143022",
   "status": "PENDING",
+  "completedAssets": 1,
+  "totalAssets": 2,
+  "failedAssets": 0,
+  "inProgressAssets": 1,
   "tasks": [
     {
       "name": "Executing staging.hello",
@@ -144,20 +155,26 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "startTime": 1737816622000,
       "endTime": 1737816623500,
       "executionTimeMs": 1500,
-      "completedAssets": 1,
-      "totalAssets": 1,
-      "failedAssets": 0,
-      "inProgressAssets": 0
+      "totalTests": 1,
+      "passedTests": 1,
+      "failedTests": 0,
+      "testResults": [
+        {
+          "testName": "test_hello_not_empty",
+          "status": "SUCCESS",
+          "durationMs": 45
+        }
+      ]
     },
     {
       "name": "Executing dds.world",
       "state": "IN_PROGRESS",
       "order": 2,
       "startTime": 1737816623500,
-      "completedAssets": 0,
-      "totalAssets": 1,
-      "failedAssets": 0,
-      "inProgressAssets": 1
+      "totalTests": 2,
+      "passedTests": 0,
+      "failedTests": 0,
+      "testResults": []
     }
   ],
   "lastTaskName": "Executing dds.world"
@@ -169,7 +186,11 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
 {
   "taskId": "task_20250125_143022",
   "status": "FAILED",
-  "tasks": [
+  "completedAssets": 0,
+  "totalAssets": 1,
+  "failedAssets": 1,
+  "inProgressAssets": 0,
+  "nodes": [
     {
       "name": "Executing staging.hello",
       "state": "FAILED",
@@ -178,10 +199,10 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "endTime": 1737816623500,
       "executionTimeMs": 1500,
       "message": "SQL execution failed: table not found",
-      "completedAssets": 0,
-      "totalAssets": 1,
-      "failedAssets": 1,
-      "inProgressAssets": 0
+      "totalTests": 1,
+      "passedTests": 0,
+      "failedTests": 1,
+      "testResults": []
     }
   ],
   "lastTaskName": "Executing staging.hello"
@@ -192,18 +213,26 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
 - `taskId` (string, required): Unique identifier for this execution
 - `data` (object, optional): Input data to pass to the DAG
 - `status` (string): Overall execution status - "NOT_STARTED", "IN_PROGRESS", "SUCCESS", "FAILED", "PENDING"
-- `tasks` (array): Array of task execution status objects
-  - `name` (string): Task description
-  - `state` (string): Task state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS"
+- `completedAssets` (integer): Total number of completed assets across all tasks
+- `totalAssets` (integer): Total number of assets in the DAG
+- `failedAssets` (integer): Total number of failed assets
+- `inProgressAssets` (integer): Total number of assets currently executing
+- `nodes` (array): Array of node execution status objects
+  - `name` (string): Node/asset name
+  - `state` (string): Node state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS"
   - `order` (integer): Execution order (1-based)
   - `startTime` (integer, optional): Unix timestamp in milliseconds
   - `endTime` (integer, optional): Unix timestamp in milliseconds
   - `executionTimeMs` (integer): Execution duration in milliseconds
   - `message` (string): Error or status message
-  - `completedAssets` (integer): Number of completed assets
-  - `totalAssets` (integer): Total number of assets
-  - `failedAssets` (integer): Number of failed assets
-  - `inProgressAssets` (integer): Number of assets currently executing
+  - `totalTests` (integer): Total number of tests for this node
+  - `passedTests` (integer): Number of tests that passed
+  - `failedTests` (integer): Number of tests that failed
+  - `testResults` (array, optional): Array of individual test results
+    - `testName` (string): Name of the test
+    - `status` (string): Test status - "SUCCESS", "FAILED", "NOT_FOUND"
+    - `error` (string, optional): Error message if test failed
+    - `durationMs` (integer): Test execution duration in milliseconds
 - `lastTaskName` (string): Name of the last executed task
 
 ---
@@ -219,7 +248,11 @@ Retrieves the current status of a specific task execution.
 {
   "taskId": "task_20250125_143022",
   "status": "SUCCESS",
-  "tasks": [
+  "completedAssets": 1,
+  "totalAssets": 1,
+  "failedAssets": 0,
+  "inProgressAssets": 0,
+  "nodes": [
     {
       "name": "Executing staging.hello",
       "state": "SUCCESS",
@@ -227,10 +260,21 @@ Retrieves the current status of a specific task execution.
       "startTime": 1737816622000,
       "endTime": 1737816623500,
       "executionTimeMs": 1500,
-      "completedAssets": 1,
-      "totalAssets": 1,
-      "failedAssets": 0,
-      "inProgressAssets": 0
+      "totalTests": 2,
+      "passedTests": 2,
+      "failedTests": 0,
+      "testResults": [
+        {
+          "testName": "test_hello_not_empty",
+          "status": "SUCCESS",
+          "durationMs": 45
+        },
+        {
+          "testName": "test_hello_has_greeting",
+          "status": "SUCCESS",
+          "durationMs": 32
+        }
+      ]
     }
   ],
   "lastTaskName": "Executing staging.hello"
@@ -242,7 +286,7 @@ Retrieves the current status of a specific task execution.
 {
   "taskId": "unknown_task",
   "status": "NOT_STARTED",
-  "tasks": [],
+  "nodes": [],
   "lastTaskName": ""
 }
 ```
@@ -501,6 +545,138 @@ Retrieves all test profiles defined in the DAG.
 
 ---
 
+## Log Operations
+
+The log endpoints are only available when the UI server is started with the StoringConsoleWriter logger configured (default in UI mode). These endpoints provide access to structured log data captured during DAG execution, organized by task name.
+
+### GET /api/logs/:taskName
+Retrieves all log entries for a specific task.
+
+**Parameters:**
+- `taskName` (path parameter): The task name to retrieve logs for
+
+**Response: 200 OK**
+```json
+{
+  "taskName": "task_20250125_143022",
+  "logs": [
+    {
+      "level": "info",
+      "time": "2025-01-25T14:30:22Z",
+      "message": "Starting DAG execution",
+      "task_name": "task_20250125_143022",
+      "stage": "initialization"
+    },
+    {
+      "level": "debug",
+      "time": "2025-01-25T14:30:23Z",
+      "message": "Executing asset: staging.hello",
+      "task_name": "task_20250125_143022",
+      "asset": "staging.hello",
+      "connection": "memory_duck"
+    }
+  ],
+  "count": 2
+}
+```
+
+**Response: 501 Not Implemented (Logger not configured)**
+```json
+{
+  "error": "Log writer not configured"
+}
+```
+
+**Field Descriptions:**
+- `taskName` (string): The task name requested
+- `logs` (array): Array of log entry objects with varying fields based on log content
+  - Common fields include: `level`, `time`, `message`, `task_name`
+  - Additional fields vary based on the specific log entry
+- `count` (integer): Total number of log entries for this task
+
+---
+
+### GET /api/logs
+Retrieves all log entries for all tasks.
+
+**Response: 200 OK**
+```json
+{
+  "logs": {
+    "task_20250125_143022": [
+      {
+        "level": "info",
+        "time": "2025-01-25T14:30:22Z",
+        "message": "Starting DAG execution",
+        "task_name": "task_20250125_143022"
+      }
+    ],
+    "task_20250125_142015": [
+      {
+        "level": "error",
+        "time": "2025-01-25T14:20:15Z",
+        "message": "Asset execution failed",
+        "task_name": "task_20250125_142015",
+        "error": "Connection timeout"
+      }
+    ]
+  },
+  "taskCount": 2,
+  "totalLogCount": 2
+}
+```
+
+**Field Descriptions:**
+- `logs` (object): Map of task names to their respective log entries
+  - Keys are task names
+  - Values are arrays of log entry objects
+- `taskCount` (integer): Number of unique tasks with logs
+- `totalLogCount` (integer): Total number of log entries across all tasks
+
+---
+
+### DELETE /api/logs/:taskName
+Clears all log entries for a specific task.
+
+**Parameters:**
+- `taskName` (path parameter): The task name to clear logs for
+
+**Response: 200 OK**
+```json
+{
+  "message": "Logs cleared for task: task_20250125_143022",
+  "taskName": "task_20250125_143022"
+}
+```
+
+**Response: 400 Bad Request**
+```json
+{
+  "error": "taskName is required"
+}
+```
+
+---
+
+### DELETE /api/logs
+Clears all log entries for all tasks.
+
+**Response: 200 OK**
+```json
+{
+  "message": "All logs cleared successfully"
+}
+```
+
+**Response: 501 Not Implemented (Logger not configured)**
+```json
+{
+  "error": "Log writer not configured"
+}
+```
+
+---
+
 ## Error Responses
 
 All endpoints may return the following error responses:
@@ -560,3 +736,5 @@ All endpoints may return the following error responses:
 4. **DataFrame Serialization**: DataFrames are converted to JSON arrays of objects where each object represents a row.
 
 5. **Cross-Database Support**: Assets can use different database connections as specified in their configuration.
+
+6. **Log Storage**: When UI mode is enabled with StoringConsoleWriter (default), all structured log entries are captured in memory organized by task name. Logs are preserved across DAG executions but cleared on server restart. The log writer extracts task names from either the log field `task_name` or from the execution context.

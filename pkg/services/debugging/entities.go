@@ -30,22 +30,22 @@ const (
 )
 
 type DagNodeDTO struct {
-	Name             string              `json:"name"`
-	Downstreams      []string            `json:"downstreams"`
-	Upstreams        []string            `json:"upstreams"`
-	SQLSelectQuery   string              `json:"sqlSelectQuery"`
-	SQLCompiledQuery string              `json:"sqlCompiledQuery"`
-	Materialization  MaterializationType `json:"materialization"`
-	ConnectionType   string              `json:"connectionType"`
-	ConnectionName   string              `json:"connectionName"`
-	IsDataFramed     bool                `json:"isDataFramed"`
-	PersistInputs    bool                `json:"persistInputs"`
-	Tests            []string            `json:"tests"`
-	State                  NodeState           `json:"state"`
-	TotalTests             int                 `json:"totalTests"`
-	SuccessfulTests        int                 `json:"successfulTests"`
-	LastExecutionDuration  int64               `json:"lastExecutionDuration"` // Duration in milliseconds
-	LastTestsDuration      int64               `json:"lastTestsDuration"`     // Duration of tests execution in milliseconds
+	Name                  string              `json:"name"`
+	Downstreams           []string            `json:"downstreams"`
+	Upstreams             []string            `json:"upstreams"`
+	SQLSelectQuery        string              `json:"sqlSelectQuery"`
+	SQLCompiledQuery      string              `json:"sqlCompiledQuery"`
+	Materialization       MaterializationType `json:"materialization"`
+	ConnectionType        string              `json:"connectionType"`
+	ConnectionName        string              `json:"connectionName"`
+	IsDataFramed          bool                `json:"isDataFramed"`
+	PersistInputs         bool                `json:"persistInputs"`
+	Tests                 []string            `json:"tests"`
+	State                 NodeState           `json:"state"`
+	TotalTests            int                 `json:"totalTests"`
+	SuccessfulTests       int                 `json:"successfulTests"`
+	LastExecutionDuration int64               `json:"lastExecutionDuration"` // Duration in milliseconds
+	LastTestsDuration     int64               `json:"lastTestsDuration"`     // Duration of tests execution in milliseconds
 }
 
 type TestProfileDTO struct {
@@ -66,25 +66,37 @@ const (
 	DagExecutionStatusPending    DagExecutionStatus = "PENDING"
 )
 
-type TaskStatusDTO struct {
-	Name             string    `json:"name"`
-	State            NodeState `json:"state"`
-	Order            int       `json:"order"`
-	StartTime        *int64    `json:"startTime,omitempty"`        // Unix timestamp in milliseconds
-	EndTime          *int64    `json:"endTime,omitempty"`          // Unix timestamp in milliseconds
-	ExecutionTimeMs  int64     `json:"executionTimeMs,omitempty"`
-	Message          string    `json:"message,omitempty"`
-	CompletedAssets  int       `json:"completedAssets"`
-	TotalAssets      int       `json:"totalAssets"`
-	FailedAssets     int       `json:"failedAssets"`
-	InProgressAssets int       `json:"inProgressAssets"`
+// TestResultDTO represents a test result in API responses
+type TestResultDTO struct {
+	TestName   string `json:"testName"`
+	Status     string `json:"status"` // SUCCESS, FAILED, NOT_FOUND
+	ErrorMsg   string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs"`
+}
+
+type NodeStatusDTO struct {
+	Name            string          `json:"name"`
+	State           NodeState       `json:"state"`
+	Order           int             `json:"order"`
+	StartTime       *int64          `json:"startTime,omitempty"` // Unix timestamp in milliseconds
+	EndTime         *int64          `json:"endTime,omitempty"`   // Unix timestamp in milliseconds
+	ExecutionTimeMs int64           `json:"executionTimeMs,omitempty"`
+	Message         string          `json:"message,omitempty"`
+	TotalTests      int             `json:"totalTests"`
+	PassedTests     int             `json:"passedTests"`
+	FailedTests     int             `json:"failedTests"`
+	TestResults     []TestResultDTO `json:"testResults,omitempty"`
 }
 
 type DagExecutionResponseDTO struct {
-	TaskId       string             `json:"taskId"`
-	Status       DagExecutionStatus `json:"status"`
-	Tasks        []TaskStatusDTO    `json:"tasks"`
-	LastTaskName string             `json:"lastTaskName"`
+	TaskId           string             `json:"taskId"`
+	Status           DagExecutionStatus `json:"status"`
+	NodesStatus      []NodeStatusDTO    `json:"nodes"`
+	LastTaskName     string             `json:"lastTaskName"`
+	CompletedAssets  int                `json:"completedAssets"`
+	TotalAssets      int                `json:"totalAssets"`
+	FailedAssets     int                `json:"failedAssets"`
+	InProgressAssets int                `json:"inProgressAssets"`
 }
 
 type DagRunRequestDTO struct {
@@ -92,15 +104,17 @@ type DagRunRequestDTO struct {
 	Data   map[string]interface{} `json:"data"`
 }
 
+// TaskSummaryDTO represents the summary of an entire task execution (identified by TaskId)
+// It contains aggregate counts for all assets in the DAG execution
 type TaskSummaryDTO struct {
-	TaskId          string             `json:"taskId"`
-	Status          DagExecutionStatus `json:"status"`
-	StartTime       *int64             `json:"startTime,omitempty"`
-	EndTime         *int64             `json:"endTime,omitempty"`
-	TotalAssets     int                `json:"totalAssets"`
-	CompletedAssets int                `json:"completedAssets"`
-	FailedAssets    int                `json:"failedAssets"`
-	InProgressAssets int               `json:"inProgressAssets"`
+	TaskId           string             `json:"taskId"`
+	Status           DagExecutionStatus `json:"status"`
+	StartTime        *int64             `json:"startTime,omitempty"`
+	EndTime          *int64             `json:"endTime,omitempty"`
+	TotalAssets      int                `json:"totalAssets"`
+	CompletedAssets  int                `json:"completedAssets"`
+	FailedAssets     int                `json:"failedAssets"`
+	InProgressAssets int                `json:"inProgressAssets"`
 }
 
 type TaskListResponseDTO struct {
@@ -130,8 +144,8 @@ type AssetDataResponseDTO struct {
 	DataType     string      `json:"dataType"` // "dataframe", "map", "string", etc.
 	IsDataFramed bool        `json:"isDataFramed"`
 	Data         interface{} `json:"data,omitempty"`
-	RowCount     int         `json:"rowCount,omitempty"`     // For dataframes
-	ColumnCount  int         `json:"columnCount,omitempty"`  // For dataframes
-	Columns      []string    `json:"columns,omitempty"`      // For dataframes
+	RowCount     int         `json:"rowCount,omitempty"`    // For dataframes
+	ColumnCount  int         `json:"columnCount,omitempty"` // For dataframes
+	Columns      []string    `json:"columns,omitempty"`     // For dataframes
 	Error        string      `json:"error,omitempty"`
 }
