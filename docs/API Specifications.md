@@ -20,9 +20,9 @@ http://localhost:8080
 - [Test Operations](#test-operations)
   - [GET /api/tests](#get-apitests)
 - [Log Operations](#log-operations)
-  - [GET /api/logs/:taskName](#get-apilogstaskname)
+  - [GET /api/logs/:taskId](#get-apilogstaskid)
   - [GET /api/logs](#get-apilogs)
-  - [DELETE /api/logs/:taskName](#delete-apilogstaskname)
+  - [DELETE /api/logs/:taskId](#delete-apilogstaskid)
   - [DELETE /api/logs](#delete-apilogs)
 
 ---
@@ -547,31 +547,31 @@ Retrieves all test profiles defined in the DAG.
 
 ## Log Operations
 
-The log endpoints are only available when the UI server is started with the StoringConsoleWriter logger configured (default in UI mode). These endpoints provide access to structured log data captured during DAG execution, organized by task name.
+The log endpoints are only available when the UI server is started with the StoringConsoleWriter logger configured (default in UI mode). These endpoints provide access to structured log data captured during DAG execution, organized by task ID.
 
-### GET /api/logs/:taskName
+### GET /api/logs/:taskId
 Retrieves all log entries for a specific task.
 
 **Parameters:**
-- `taskName` (path parameter): The task name to retrieve logs for
+- `taskId` (path parameter): The task ID to retrieve logs for
 
 **Response: 200 OK**
 ```json
 {
-  "taskName": "task_20250125_143022",
+  "taskId": "task_20250125_143022",
   "logs": [
     {
       "level": "info",
       "time": "2025-01-25T14:30:22Z",
       "message": "Starting DAG execution",
-      "task_name": "task_20250125_143022",
+      "taskId": "task_20250125_143022",
       "stage": "initialization"
     },
     {
       "level": "debug",
       "time": "2025-01-25T14:30:23Z",
       "message": "Executing asset: staging.hello",
-      "task_name": "task_20250125_143022",
+      "taskId": "task_20250125_143022",
       "asset": "staging.hello",
       "connection": "memory_duck"
     }
@@ -588,9 +588,9 @@ Retrieves all log entries for a specific task.
 ```
 
 **Field Descriptions:**
-- `taskName` (string): The task name requested
+- `taskId` (string): The task ID requested
 - `logs` (array): Array of log entry objects with varying fields based on log content
-  - Common fields include: `level`, `time`, `message`, `task_name`
+  - Common fields include: `level`, `time`, `message`, `taskId`
   - Additional fields vary based on the specific log entry
 - `count` (integer): Total number of log entries for this task
 
@@ -608,7 +608,7 @@ Retrieves all log entries for all tasks.
         "level": "info",
         "time": "2025-01-25T14:30:22Z",
         "message": "Starting DAG execution",
-        "task_name": "task_20250125_143022"
+        "taskId": "task_20250125_143022"
       }
     ],
     "task_20250125_142015": [
@@ -616,7 +616,7 @@ Retrieves all log entries for all tasks.
         "level": "error",
         "time": "2025-01-25T14:20:15Z",
         "message": "Asset execution failed",
-        "task_name": "task_20250125_142015",
+        "taskId": "task_20250125_142015",
         "error": "Connection timeout"
       }
     ]
@@ -627,32 +627,32 @@ Retrieves all log entries for all tasks.
 ```
 
 **Field Descriptions:**
-- `logs` (object): Map of task names to their respective log entries
-  - Keys are task names
+- `logs` (object): Map of task IDs to their respective log entries
+  - Keys are task IDs
   - Values are arrays of log entry objects
 - `taskCount` (integer): Number of unique tasks with logs
 - `totalLogCount` (integer): Total number of log entries across all tasks
 
 ---
 
-### DELETE /api/logs/:taskName
+### DELETE /api/logs/:taskId
 Clears all log entries for a specific task.
 
 **Parameters:**
-- `taskName` (path parameter): The task name to clear logs for
+- `taskId` (path parameter): The task ID to clear logs for
 
 **Response: 200 OK**
 ```json
 {
   "message": "Logs cleared for task: task_20250125_143022",
-  "taskName": "task_20250125_143022"
+  "taskId": "task_20250125_143022"
 }
 ```
 
 **Response: 400 Bad Request**
 ```json
 {
-  "error": "taskName is required"
+  "error": "taskId is required"
 }
 ```
 
@@ -737,4 +737,4 @@ All endpoints may return the following error responses:
 
 5. **Cross-Database Support**: Assets can use different database connections as specified in their configuration.
 
-6. **Log Storage**: When UI mode is enabled with StoringConsoleWriter (default), all structured log entries are captured in memory organized by task name. Logs are preserved across DAG executions but cleared on server restart. The log writer extracts task names from either the log field `task_name` or from the execution context.
+6. **Log Storage**: When UI mode is enabled with StoringConsoleWriter (default), all structured log entries are captured in memory organized by task ID. Logs are preserved across DAG executions but cleared on server restart. The log writer extracts task IDs from either the log field `taskId` or from the execution context.

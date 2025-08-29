@@ -37,27 +37,25 @@ func main() {
 	}
 
 	// Set log level
-	switch *logLevel {
-	case "panic":
-		zerolog.SetGlobalLevel(zerolog.PanicLevel)
-	case "fatal":
-		zerolog.SetGlobalLevel(zerolog.FatalLevel)
-	case "error":
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	case "warn":
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	case "info":
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	case "debug":
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "trace":
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	default:
+	logLevels := map[string]zerolog.Level{
+		"panic": zerolog.PanicLevel,
+		"fatal": zerolog.FatalLevel,
+		"error": zerolog.ErrorLevel,
+		"warn":  zerolog.WarnLevel,
+		"info":  zerolog.InfoLevel,
+		"debug": zerolog.DebugLevel,
+		"trace": zerolog.TraceLevel,
+	}
+	
+	if level, ok := logLevels[*logLevel]; ok {
+		zerolog.SetGlobalLevel(level)
+	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
 	log.Info().Msg("Starting {{ .Profile.Name }}")
 	core.GetInstance().Init("config.yaml", ".")
+	core.GetInstance().ConnectAll()
 	defer core.GetInstance().Shutdown()
 	config := core.GetInstance().Config
 

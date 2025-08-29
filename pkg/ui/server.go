@@ -39,9 +39,9 @@ func NewUIServerWithLogWriter(projectName, moduleName string, port int, dag *dag
 }
 
 type DagResponseDTO struct {
-	ProjectName     string                  `json:"projectName"`
-	ModuleName      string                  `json:"moduleName"`
-	DagInstanceName string                  `json:"dagInstanceName"`
+	ProjectName     string                 `json:"projectName"`
+	ModuleName      string                 `json:"moduleName"`
+	DagInstanceName string                 `json:"dagInstanceName"`
 	Nodes           []debugging.DagNodeDTO `json:"nodes"`
 }
 
@@ -55,7 +55,7 @@ func (s *UIServer) Start() error {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
-	
+
 	// Configure CORS to allow all origins
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
@@ -71,12 +71,12 @@ func (s *UIServer) Start() error {
 	r.POST("/api/dag/asset/:name/execute", s.handleAssetExecute)
 	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
 	r.POST("/api/dag/reset", s.handleDagReset)
-	
+
 	// Log endpoints (only available when logWriter is configured)
 	if s.logWriter != nil {
-		r.GET("/api/logs/:taskName", s.handleGetLogs)
+		r.GET("/api/logs/:taskId", s.handleGetLogs)
 		r.GET("/api/logs", s.handleGetAllLogs)
-		r.DELETE("/api/logs/:taskName", s.handleClearLogs)
+		r.DELETE("/api/logs/:taskId", s.handleClearLogs)
 		r.DELETE("/api/logs", s.handleClearAllLogs)
 	}
 
@@ -111,7 +111,7 @@ func (s *UIServer) handleTestProfiles(c *gin.Context) {
 
 func (s *UIServer) handleDagRun(c *gin.Context) {
 	var request debugging.DagRunRequestDTO
-	
+
 	// Parse request body
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
@@ -126,10 +126,10 @@ func (s *UIServer) handleDagRun(c *gin.Context) {
 
 	// Execute DAG with timeout
 	responseChan := s.debuggingService.ExecuteDag(request.TaskId, request.Data)
-	
+
 	// Wait for response (will timeout after 10 seconds as configured in ExecuteDag)
 	response := <-responseChan
-	
+
 	// Return appropriate status code based on execution status
 	statusCode := http.StatusOK
 	if response.Status == debugging.DagExecutionStatusFailed {
@@ -137,27 +137,27 @@ func (s *UIServer) handleDagRun(c *gin.Context) {
 	} else if response.Status == debugging.DagExecutionStatusPending {
 		statusCode = http.StatusAccepted // 202 for async operations still in progress
 	}
-	
+
 	c.JSON(statusCode, response)
 }
 
 func (s *UIServer) handleDagStatus(c *gin.Context) {
 	taskId := c.Param("taskId")
-	
+
 	if taskId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
 		return
 	}
-	
+
 	// Get current task status
 	status := s.debuggingService.GetTaskStatus(taskId)
-	
+
 	// Return appropriate status code based on execution status
 	statusCode := http.StatusOK
 	if status.Status == debugging.DagExecutionStatusNotStarted {
 		statusCode = http.StatusNotFound
 	}
-	
+
 	c.JSON(statusCode, status)
 }
 
@@ -168,32 +168,32 @@ func (s *UIServer) handleDagTasks(c *gin.Context) {
 
 func (s *UIServer) handleAssetExecute(c *gin.Context) {
 	assetName := c.Param("name")
-	
+
 	if assetName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
 		return
 	}
-	
+
 	var request debugging.AssetExecuteRequestDTO
-	
+
 	// Parse request body
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
 		return
 	}
-	
+
 	// Validate taskId
 	if request.TaskId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
 		return
 	}
-	
+
 	// Execute asset with timeout
 	responseChan := s.debuggingService.ExecuteAsset(assetName, request.TaskId)
-	
+
 	// Wait for response (will timeout after 10 seconds as configured in ExecuteAsset)
 	response := <-responseChan
-	
+
 	// Return appropriate status code based on execution status
 	statusCode := http.StatusOK
 	if response.Status == debugging.NodeStateFailed {
@@ -201,40 +201,40 @@ func (s *UIServer) handleAssetExecute(c *gin.Context) {
 	} else if response.Status == debugging.NodeStateInProgress {
 		statusCode = http.StatusAccepted // 202 for async operations still in progress
 	}
-	
+
 	c.JSON(statusCode, response)
 }
 
 func (s *UIServer) handleDagReset(c *gin.Context) {
 	err := s.debuggingService.ResetDagState()
-	
+
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to reset DAG state")
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to reset DAG state",
+			"error":   "Failed to reset DAG state",
 			"details": err.Error(),
 		})
 		return
 	}
-	
+
 	log.Info().Msg("DAG state reset successfully")
 	c.JSON(http.StatusOK, gin.H{
 		"message": "DAG state reset successfully",
-		"status": "SUCCESS",
+		"status":  "SUCCESS",
 	})
 }
 
 func (s *UIServer) handleAssetData(c *gin.Context) {
 	assetName := c.Param("name")
-	
+
 	if assetName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
 		return
 	}
-	
+
 	// Get asset data
 	response := s.debuggingService.GetAssetData(assetName)
-	
+
 	// Return appropriate status code based on whether data exists
 	statusCode := http.StatusOK
 	if response.Error != "" {
@@ -242,17 +242,16 @@ func (s *UIServer) handleAssetData(c *gin.Context) {
 	} else if !response.HasData {
 		statusCode = http.StatusNoContent
 	}
-	
+
 	c.JSON(statusCode, response)
 }
-
 
 // Log handler functions
 
 type LogWriter interface {
-	GetLogs(taskName string) []interface{}
+	GetLogs(taskId string) []interface{}
 	GetAllLogs() map[string][]interface{}
-	ClearLogs(taskName string)
+	ClearLogs(taskId string)
 	ClearAllLogs()
 }
 
@@ -261,24 +260,24 @@ func (s *UIServer) handleGetLogs(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
 		return
 	}
-	
-	taskName := c.Param("taskName")
-	if taskName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "taskName is required"})
+
+	taskId := c.Param("taskId")
+	if taskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
 		return
 	}
-	
+
 	logWriter, ok := s.logWriter.(LogWriter)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
 		return
 	}
-	
-	logs := logWriter.GetLogs(taskName)
+
+	logs := logWriter.GetLogs(taskId)
 	c.JSON(http.StatusOK, gin.H{
-		"taskName": taskName,
-		"logs": logs,
-		"count": len(logs),
+		"taskId": taskId,
+		"logs":   logs,
+		"count":  len(logs),
 	})
 }
 
@@ -287,24 +286,24 @@ func (s *UIServer) handleGetAllLogs(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
 		return
 	}
-	
+
 	logWriter, ok := s.logWriter.(LogWriter)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
 		return
 	}
-	
+
 	allLogs := logWriter.GetAllLogs()
-	
+
 	// Calculate total log count
 	totalCount := 0
 	for _, logs := range allLogs {
 		totalCount += len(logs)
 	}
-	
+
 	c.JSON(http.StatusOK, gin.H{
-		"logs": allLogs,
-		"taskCount": len(allLogs),
+		"logs":          allLogs,
+		"taskCount":     len(allLogs),
 		"totalLogCount": totalCount,
 	})
 }
@@ -314,23 +313,23 @@ func (s *UIServer) handleClearLogs(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
 		return
 	}
-	
-	taskName := c.Param("taskName")
-	if taskName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "taskName is required"})
+
+	taskId := c.Param("taskId")
+	if taskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
 		return
 	}
-	
+
 	logWriter, ok := s.logWriter.(LogWriter)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
 		return
 	}
-	
-	logWriter.ClearLogs(taskName)
+
+	logWriter.ClearLogs(taskId)
 	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Logs cleared for task: %s", taskName),
-		"taskName": taskName,
+		"message": fmt.Sprintf("Logs cleared for task: %s", taskId),
+		"taskId":  taskId,
 	})
 }
 
@@ -339,13 +338,13 @@ func (s *UIServer) handleClearAllLogs(c *gin.Context) {
 		c.JSON(http.StatusNotImplemented, gin.H{"error": "Log writer not configured"})
 		return
 	}
-	
+
 	logWriter, ok := s.logWriter.(LogWriter)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid log writer type"})
 		return
 	}
-	
+
 	logWriter.ClearAllLogs()
 	c.JSON(http.StatusOK, gin.H{
 		"message": "All logs cleared successfully",

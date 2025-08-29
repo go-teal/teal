@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-teal/teal/pkg/configs"
+	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/go-teal/teal/pkg/processing"
 	"github.com/rs/zerolog/log"
@@ -81,16 +82,16 @@ func InitDebugDag(dagGraph [][]string,
 func (d *DebugDag) build() {
 	// First pass: Create all nodes
 	for _, taskGroup := range d.DagGraph {
-		for _, taskName := range taskGroup {
-			asset, exists := d.AssetsMap[taskName]
+		for _, assetName := range taskGroup {
+			asset, exists := d.AssetsMap[assetName]
 			if !exists {
-				log.Warn().Str("taskName", taskName).Msg("Asset not found for task")
+				log.Warn().Str("assetName", assetName).Msg("Asset not found for task")
 				continue
 			}
 
 			// Create debug service node
 			node := &DagAssetDebugService{
-				Name:        taskName,
+				Name:        assetName,
 				Asset:       asset,
 				Upstreams:   make([]*DagAssetDebugService, 0),
 				Downstreams: make([]*DagAssetDebugService, 0),
@@ -121,13 +122,13 @@ func (d *DebugDag) build() {
 				}
 			}
 
-			d.NodeMap[taskName] = node
+			d.NodeMap[assetName] = node
 		}
 	}
 
 	// Second pass: Connect nodes with pointers based on upstream/downstream relationships
-	for taskName, node := range d.NodeMap {
-		asset := d.AssetsMap[taskName]
+	for assetName, node := range d.NodeMap {
+		asset := d.AssetsMap[assetName]
 
 		// Connect to upstream nodes
 		for _, upstreamName := range asset.GetUpstreams() {
@@ -137,7 +138,7 @@ func (d *DebugDag) build() {
 				upstreamNode.Downstreams = append(upstreamNode.Downstreams, node)
 			} else {
 				log.Warn().
-					Str("node", taskName).
+					Str("assetName", assetName).
 					Str("upstream", upstreamName).
 					Msg("Upstream node not found")
 			}
@@ -170,11 +171,13 @@ func (d *DebugDag) Run() *sync.WaitGroup {
 }
 
 // Push implements DAG.Push - Executes assets sequentially according to dagGraph
-func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[string]interface{}) chan map[string]interface{} {
-	log.Info().Str("taskName", taskName).Msg("DebugDag.Push() starting sequential execution")
+func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[string]interface{}) chan map[string]interface{} {
+	log.Info().Str("taskId", taskId).Msg("DebugDag.Push() starting sequential execution")
 
 	// Execute in a goroutine to not block
 	go func() {
+		core.GetInstance().ConnectAll()
+		defer core.GetInstance().Shutdown()
 		d.mu.Lock()
 		defer d.mu.Unlock()
 
@@ -202,15 +205,14 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 
 		// Execute assets according to dagGraph order (level by level)
 		for levelIdx, taskGroup := range d.DagGraph {
-			log.Debug().Int("level", levelIdx).Int("tasks", len(taskGroup)).Msg("Executing DAG level")
+			log.Info().Str("taskId", taskId).Int("level", levelIdx).Int("tasks", len(taskGroup)).Msg("Executing DAG level")
 
 			for _, assetName := range taskGroup {
 				node, exists := d.NodeMap[assetName]
 				if !exists {
-					log.Error().Caller().Str("asset", assetName).Msg("Asset not found in NodeMap")
+					log.Error().Caller().Str("taskId", taskId).Str("asset", assetName).Msg("Asset not found in NodeMap")
 					continue
 				}
-
 
 				// Prepare input data from upstream results
 				inputData := make(map[string]interface{})
@@ -226,7 +228,7 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 				}
 
 				// Execute the asset
-				log.Info().Str("asset", assetName).Msg("Executing asset")
+				log.Info().Str("taskId", taskId).Str("asset", assetName).Msg("Executing asset")
 				node.State = NodeStateInProgress
 
 				startTime := time.Now()
@@ -240,6 +242,7 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 					node.State = NodeStateFailed
 					node.LastError = err
 					log.Error().Caller().
+						Str("taskId", taskId).
 						Str("asset", assetName).
 						Int64("durationMs", node.LastExecutionDuration).
 						Err(err).
@@ -251,6 +254,7 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 				node.LastResult = result
 				node.State = NodeStateSuccess
 				log.Info().
+					Str("taskId", taskId).
 					Str("asset", assetName).
 					Int64("durationMs", node.LastExecutionDuration).
 					Msg("Asset executed successfully")
@@ -261,14 +265,14 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 					node.TestsPassed = 0
 					node.TestsFailed = 0
 
-					log.Info().Str("asset", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
+					log.Info().Str("taskId", taskId).Str("asset", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
 
 					// Track test execution time
 					testStartTime := time.Now()
 
 					// Execute tests and get results
 					testResults := node.Asset.RunTests(d.TestsMap)
-					
+
 					// Store test results for later retrieval
 					node.TestResults = testResults
 
@@ -276,14 +280,16 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 					for _, testResult := range testResults {
 						if testResult.Status == processing.TestStatusSuccess {
 							node.TestsPassed++
-							log.Debug().
+							log.Info().
+								Str("taskId", taskId).
 								Str("asset", assetName).
 								Str("testName", testResult.TestName).
 								Int64("durationMs", testResult.DurationMs).
 								Msg("Test passed")
 						} else if testResult.Status == processing.TestStatusFailed {
 							node.TestsFailed++
-							log.Debug().
+							log.Warn().
+								Str("taskId", taskId).
 								Str("asset", assetName).
 								Str("testName", testResult.TestName).
 								Err(testResult.Error).
@@ -291,6 +297,7 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 								Msg("Test failed")
 						} else if testResult.Status == processing.TestStatusNotFound {
 							log.Warn().
+								Str("taskId", taskId).
 								Str("asset", assetName).
 								Str("testName", testResult.TestName).
 								Str("message", testResult.Message).
@@ -306,6 +313,7 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 					if node.TestsFailed > 0 {
 						node.State = NodeStateFailed
 						log.Warn().
+							Str("taskId", taskId).
 							Str("asset", assetName).
 							Int("failed", node.TestsFailed).
 							Int("passed", node.TestsPassed).
@@ -314,6 +322,7 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 					} else {
 						node.State = NodeStateSuccess
 						log.Info().
+							Str("taskId", taskId).
 							Str("asset", assetName).
 							Int("passed", node.TestsPassed).
 							Int64("testDurationMs", node.LastTestsDuration).
@@ -334,9 +343,9 @@ func (d *DebugDag) Push(taskName string, data interface{}, resultChan chan map[s
 		// Send results back through the channel
 		select {
 		case resultChan <- finalResults:
-			log.Info().Msg("Results sent to result channel")
+			log.Info().Str("taskId", taskId).Msg("Results sent to result channel")
 		default:
-			log.Warn().Msg("Result channel not ready, results not sent")
+			log.Warn().Str("taskId", taskId).Msg("Result channel not ready, results not sent")
 		}
 	}()
 

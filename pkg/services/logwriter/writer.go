@@ -12,7 +12,7 @@ import (
 
 type contextKey string
 
-const TaskNameKey contextKey = "taskName"
+const TaskIdKey contextKey = "taskId"
 
 type StoringConsoleWriter struct {
 	consoleWriter zerolog.ConsoleWriter
@@ -49,10 +49,10 @@ func (w *StoringConsoleWriter) Write(p []byte) (n int, err error) {
 
 func (w *StoringConsoleWriter) storeLog(logData map[string]interface{}) {
 	taskName := w.extractTaskName(logData)
-	
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	
+
 	if _, exists := w.storage[taskName]; !exists {
 		w.storage[taskName] = make([]interface{}, 0)
 	}
@@ -63,54 +63,54 @@ func (w *StoringConsoleWriter) extractTaskName(logData map[string]interface{}) s
 	if taskName, ok := logData["task_name"].(string); ok {
 		return taskName
 	}
-	
+
 	if w.ctx != nil {
-		if taskName, ok := w.ctx.Value(TaskNameKey).(string); ok {
+		if taskName, ok := w.ctx.Value(TaskIdKey).(string); ok {
 			return taskName
 		}
 	}
-	
+
 	return "default"
 }
 
-func (w *StoringConsoleWriter) GetLogs(taskName string) []interface{} {
+func (w *StoringConsoleWriter) GetLogs(taskId string) []interface{} {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	
-	if logs, exists := w.storage[taskName]; exists {
+
+	if logs, exists := w.storage[taskId]; exists {
 		result := make([]interface{}, len(logs))
 		copy(result, logs)
 		return result
 	}
-	
+
 	return []interface{}{}
 }
 
 func (w *StoringConsoleWriter) GetAllLogs() map[string][]interface{} {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	
+
 	result := make(map[string][]interface{})
-	for taskName, logs := range w.storage {
+	for taskId, logs := range w.storage {
 		logsCopy := make([]interface{}, len(logs))
 		copy(logsCopy, logs)
-		result[taskName] = logsCopy
+		result[taskId] = logsCopy
 	}
-	
+
 	return result
 }
 
-func (w *StoringConsoleWriter) ClearLogs(taskName string) {
+func (w *StoringConsoleWriter) ClearLogs(taskId string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	
-	delete(w.storage, taskName)
+
+	delete(w.storage, taskId)
 }
 
 func (w *StoringConsoleWriter) ClearAllLogs() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	
+
 	w.storage = make(map[string][]interface{})
 }
 
@@ -150,11 +150,11 @@ func (mw *MultiWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func WithTaskName(ctx context.Context, taskName string) context.Context {
-	return context.WithValue(ctx, TaskNameKey, taskName)
+func WithTaskName(ctx context.Context, taskId string) context.Context {
+	return context.WithValue(ctx, TaskIdKey, taskId)
 }
 
 func GetTaskName(ctx context.Context) (string, bool) {
-	taskName, ok := ctx.Value(TaskNameKey).(string)
+	taskName, ok := ctx.Value(TaskIdKey).(string)
 	return taskName, ok
 }

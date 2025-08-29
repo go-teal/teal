@@ -43,7 +43,9 @@ func (c *Core) Init(configFileName string, projectPath string) {
 
 	c.Config = config
 	c.Profile = profile
+}
 
+func (c *Core) ConnectAll() {
 	for _, connectionConfig := range c.Config.Connections {
 		preLoadEnvs(connectionConfig)
 		dbConnection, err := drivers.EstablishDBConnection(connectionConfig)

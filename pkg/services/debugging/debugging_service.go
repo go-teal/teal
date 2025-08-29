@@ -237,7 +237,7 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 					taskStatus.TotalTests = len(node.Tests)
 					taskStatus.PassedTests = node.TestsPassed
 					taskStatus.FailedTests = node.TestsFailed
-					
+
 					// Add test results
 					if len(node.TestResults) > 0 {
 						taskStatus.TestResults = make([]TestResultDTO, len(node.TestResults))
@@ -324,7 +324,7 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 	dagResultChan := make(chan map[string]interface{}, 1)
 
 	// Start the DAG execution
-	s.dag.Push("", data, dagResultChan)
+	s.dag.Push(taskId, data, dagResultChan)
 
 	// Monitor execution in a goroutine
 	go func() {
