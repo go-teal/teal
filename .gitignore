@@ -24,3 +24,6 @@ go.work
 /bin/teal
 .DS_Store
 *.duckdb
+
+# Scaffold build artifacts
+scaffold/bin/
