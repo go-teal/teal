@@ -29,6 +29,7 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 		generators.InitGenMain(config, projectProfile),    // Production main.go
 		generators.InitGenMainUI(config, projectProfile),  // UI debugging main.go
 		generators.InitGenGoMod(config, projectProfile),
+		generators.InitGenMakefile(config, projectProfile), // Makefile
 	}
 
 	services.CombineProfiles(config, projectProfile)

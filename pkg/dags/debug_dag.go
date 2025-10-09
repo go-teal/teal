@@ -8,6 +8,7 @@ import (
 	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/go-teal/teal/pkg/processing"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -15,11 +16,12 @@ import (
 type NodeState string
 
 const (
-	NodeStateInitial    NodeState = "INITIAL"
-	NodeStateInProgress NodeState = "IN_PROGRESS"
-	NodeStateTesting    NodeState = "TESTING"
-	NodeStateFailed     NodeState = "FAILED"
-	NodeStateSuccess    NodeState = "SUCCESS"
+	NodeStateInitial       NodeState = "INITIAL"
+	NodeStateInProgress    NodeState = "IN_PROGRESS"
+	NodeStateTesting       NodeState = "TESTING"
+	NodeStateFailed        NodeState = "FAILED"
+	NodeStateSuccess       NodeState = "SUCCESS"
+	NodeStateTestsFailed   NodeState = "TESTS_FAILED"  // Asset succeeded but tests failed
 )
 
 // DagAssetDebugService represents a node in the debug DAG with pointer-based connections
@@ -45,6 +47,7 @@ type DagAssetDebugService struct {
 type DebugDag struct {
 	InnerDag        DAG // Keep for compatibility but will be nil
 	DagInstanceName string
+	DagInstanceUUID string
 	DagGraph        [][]string
 	AssetsMap       map[string]processing.Asset
 	TestsMap        map[string]processing.ModelTesting
@@ -52,6 +55,8 @@ type DebugDag struct {
 	NodeMap         map[string]*DagAssetDebugService // Map of asset name to debug service node
 	RootNodes       []*DagAssetDebugService          // Nodes with no upstreams
 	LeafNodes       []*DagAssetDebugService          // Nodes with no downstreams
+	RootTestResults []processing.TestResult          // Results from root tests
+	TaskUUIDMap     map[string]string                // Map of taskId to taskUUID
 	mu              sync.RWMutex                     // Mutex for thread-safe access
 }
 
@@ -65,6 +70,7 @@ func InitDebugDag(dagGraph [][]string,
 	dag := &DebugDag{
 		InnerDag:        nil, // No inner DAG for debug mode
 		DagInstanceName: name,
+		DagInstanceUUID: uuid.New().String(),
 		DagGraph:        dagGraph,
 		AssetsMap:       assetsMap,
 		TestsMap:        testsMap,
@@ -72,6 +78,7 @@ func InitDebugDag(dagGraph [][]string,
 		NodeMap:         make(map[string]*DagAssetDebugService),
 		RootNodes:       make([]*DagAssetDebugService, 0),
 		LeafNodes:       make([]*DagAssetDebugService, 0),
+		TaskUUIDMap:     make(map[string]string),
 	}
 
 	dag.build()
@@ -172,7 +179,13 @@ func (d *DebugDag) Run() *sync.WaitGroup {
 
 // Push implements DAG.Push - Executes assets sequentially according to dagGraph
 func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[string]interface{}) chan map[string]interface{} {
-	log.Info().Str("taskId", taskId).Msg("DebugDag.Push() starting sequential execution")
+	taskUUID := uuid.New().String()
+	log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("DebugDag.Push() starting sequential execution")
+
+	// Store the taskUUID mapping
+	d.mu.Lock()
+	d.TaskUUIDMap[taskId] = taskUUID
+	d.mu.Unlock()
 
 	// Execute in a goroutine to not block
 	go func() {
@@ -205,12 +218,12 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 
 		// Execute assets according to dagGraph order (level by level)
 		for levelIdx, taskGroup := range d.DagGraph {
-			log.Info().Str("taskId", taskId).Int("level", levelIdx).Int("tasks", len(taskGroup)).Msg("Executing DAG level")
+			log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Int("level", levelIdx).Int("tasks", len(taskGroup)).Msg("Executing DAG level")
 
 			for _, assetName := range taskGroup {
 				node, exists := d.NodeMap[assetName]
 				if !exists {
-					log.Error().Caller().Str("taskId", taskId).Str("asset", assetName).Msg("Asset not found in NodeMap")
+					log.Error().Caller().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("asset", assetName).Msg("Asset not found in NodeMap")
 					continue
 				}
 
@@ -228,12 +241,19 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 				}
 
 				// Execute the asset
-				log.Info().Str("taskId", taskId).Str("asset", assetName).Msg("Executing asset")
+				log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("asset", assetName).Msg("Executing asset")
 				node.State = NodeStateInProgress
 
 				startTime := time.Now()
 				node.StartTime = &startTime
-				result, err := node.Asset.Execute(inputData)
+				// Create TaskContext
+				ctx := &processing.TaskContext{
+					TaskID:       taskId,
+					TaskUUID:     taskUUID,
+					InstanceName: d.DagInstanceName,
+					InstanceUUID: d.DagInstanceUUID,
+				}
+				result, err := node.Asset.Execute(ctx, inputData)
 				endTime := time.Now()
 				node.EndTime = &endTime
 				node.LastExecutionDuration = endTime.Sub(startTime).Milliseconds()
@@ -265,13 +285,13 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					node.TestsPassed = 0
 					node.TestsFailed = 0
 
-					log.Info().Str("taskId", taskId).Str("asset", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
+					log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("asset", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
 
 					// Track test execution time
 					testStartTime := time.Now()
 
 					// Execute tests and get results
-					testResults := node.Asset.RunTests(d.TestsMap)
+					testResults := node.Asset.RunTests(ctx, d.TestsMap)
 
 					// Store test results for later retrieval
 					node.TestResults = testResults
@@ -282,6 +302,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 							node.TestsPassed++
 							log.Info().
 								Str("taskId", taskId).
+								Str("taskUUID", taskUUID).
 								Str("asset", assetName).
 								Str("testName", testResult.TestName).
 								Int64("durationMs", testResult.DurationMs).
@@ -290,6 +311,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 							node.TestsFailed++
 							log.Warn().
 								Str("taskId", taskId).
+								Str("taskUUID", taskUUID).
 								Str("asset", assetName).
 								Str("testName", testResult.TestName).
 								Err(testResult.Error).
@@ -298,6 +320,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 						} else if testResult.Status == processing.TestStatusNotFound {
 							log.Warn().
 								Str("taskId", taskId).
+								Str("taskUUID", taskUUID).
 								Str("asset", assetName).
 								Str("testName", testResult.TestName).
 								Str("message", testResult.Message).
@@ -311,12 +334,22 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 
 					// Update final state based on test results
 					if node.TestsFailed > 0 {
-						node.State = NodeStateFailed
+						node.State = NodeStateTestsFailed  // Use TESTS_FAILED instead of FAILED
+						
+						// Collect failed test names
+						var failedTestNames []string
+						for _, tr := range node.TestResults {
+							if tr.Status == processing.TestStatusFailed {
+								failedTestNames = append(failedTestNames, tr.TestName)
+							}
+						}
+						
 						log.Warn().
 							Str("taskId", taskId).
 							Str("asset", assetName).
 							Int("failed", node.TestsFailed).
 							Int("passed", node.TestsPassed).
+							Strs("failedTests", failedTestNames).
 							Int64("testDurationMs", node.LastTestsDuration).
 							Msg("Some tests failed")
 					} else {
@@ -340,12 +373,52 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 			}
 		}
 
+		// Execute root tests after all DAG tasks are complete
+		if d.TestsMap != nil {
+			log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Executing root tests")
+			d.RootTestResults = []processing.TestResult{} // Reset root test results
+			
+			for testName, testCase := range d.TestsMap {
+				// Only run tests with "root." prefix
+				if len(testName) >= 5 && testName[:5] == "root." {
+					startTime := time.Now()
+					// Create TaskContext for root tests
+					rootCtx := &processing.TaskContext{
+						TaskID:       taskId,
+						TaskUUID:     taskUUID,
+						InstanceName: d.DagInstanceName,
+						InstanceUUID: d.DagInstanceUUID,
+					}
+					status, executedTestName, err := testCase.Execute(rootCtx)
+					duration := time.Since(startTime).Milliseconds()
+					
+					testResult := processing.TestResult{
+						TestName:   executedTestName,
+						DurationMs: duration,
+					}
+					
+					if status {
+						testResult.Status = processing.TestStatusSuccess
+						testResult.Message = "Root test passed"
+						log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Int64("durationMs", duration).Msg("Root test passed")
+					} else {
+						testResult.Status = processing.TestStatusFailed
+						testResult.Error = err
+						testResult.Message = "Root test failed"
+						log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Int64("durationMs", duration).Err(err).Msg("Root test failed")
+					}
+					
+					d.RootTestResults = append(d.RootTestResults, testResult)
+				}
+			}
+		}
+
 		// Send results back through the channel
 		select {
 		case resultChan <- finalResults:
-			log.Info().Str("taskId", taskId).Msg("Results sent to result channel")
+			log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Results sent to result channel")
 		default:
-			log.Warn().Str("taskId", taskId).Msg("Result channel not ready, results not sent")
+			log.Warn().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Result channel not ready, results not sent")
 		}
 	}()
 
@@ -355,6 +428,13 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 // Stop implements DAG.Stop
 func (d *DebugDag) Stop() {
 	log.Debug().Msg("DebugDag stopped")
+}
+
+// GetTaskUUID returns the UUID for a given taskId
+func (d *DebugDag) GetTaskUUID(taskId string) string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.TaskUUIDMap[taskId]
 }
 
 // GetNode returns a debug service node by name

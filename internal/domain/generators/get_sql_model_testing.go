@@ -3,6 +3,7 @@ package generators
 import (
 	"bytes"
 	_ "embed"
+	"encoding/base64"
 	"os"
 	"text/template"
 
@@ -34,6 +35,12 @@ func (g *GenSQLModelTest) GetFullPath() string {
 func (g *GenSQLModelTest) RenderToFile() error {
 	dirName := g.config.ProjectPath + "/internal/model_tests/"
 	utils.CreateDir(dirName)
+
+	// Base64 encode the description to avoid issues with special characters in templates
+	if g.testConfig.TestProfile != nil && g.testConfig.TestProfile.Description != "" {
+		encoded := base64.StdEncoding.EncodeToString([]byte(g.testConfig.TestProfile.Description))
+		g.testConfig.TestProfile.Description = encoded
+	}
 
 	goTempl, err := template.New(g.GetFileName()).Parse(dwhModelTestTemplate)
 	if err != nil {

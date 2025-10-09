@@ -120,10 +120,10 @@ func (d *DuckDBEngine) Commit(tx interface{}) error {
 
 // Exec implements DBEngine.
 func (d *DuckDBEngine) Exec(tx interface{}, sqlQuery string) error {
-	log.Debug().Msg(sqlQuery)
+	log.Debug().Str("sql", sqlQuery).Msg("Executing SQL query")
 	_, result := tx.(*sql.Tx).Exec(sqlQuery)
 	if result != nil {
-		log.Error().Caller().Msg(sqlQuery)
+		log.Error().Caller().Str("sql", sqlQuery).Err(result).Msg("SQL execution failed")
 	}
 	return result
 }

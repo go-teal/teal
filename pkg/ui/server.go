@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/services/debugging"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -65,6 +66,7 @@ func (s *UIServer) Start() error {
 
 	r.GET("/api/dag", s.handleDagData)
 	r.GET("/api/tests", s.handleTestProfiles)
+	r.GET("/api/tests/:taskId", s.handleTestResultsForTask)
 	r.POST("/api/dag/run", s.handleDagRun)
 	r.GET("/api/dag/status/:taskId", s.handleDagStatus)
 	r.GET("/api/dag/tasks", s.handleDagTasks)
@@ -88,7 +90,7 @@ func (s *UIServer) Start() error {
 func (s *UIServer) handleDagData(c *gin.Context) {
 	nodes := s.debuggingService.GetDagNodes()
 
-	if nodes == nil || len(nodes) == 0 {
+	if len(nodes) == 0 {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DAG not initialized or empty"})
 		return
 	}
@@ -106,6 +108,22 @@ func (s *UIServer) handleTestProfiles(c *gin.Context) {
 
 	c.JSON(http.StatusOK, TestProfilesResponseDTO{
 		Tests: tests,
+	})
+}
+
+func (s *UIServer) handleTestResultsForTask(c *gin.Context) {
+	taskId := c.Param("taskId")
+
+	if taskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+
+	tests := s.debuggingService.GetTestResultsForTask(taskId)
+
+	c.JSON(http.StatusOK, gin.H{
+		"taskId": taskId,
+		"tests":  tests,
 	})
 }
 
@@ -130,11 +148,10 @@ func (s *UIServer) handleDagRun(c *gin.Context) {
 	// Wait for response (will timeout after 10 seconds as configured in ExecuteDag)
 	response := <-responseChan
 
-	// Return appropriate status code based on execution status
+	// Always return 200 OK regardless of test failures
+	// Only return error status for actual DAG execution failures (not test failures)
 	statusCode := http.StatusOK
-	if response.Status == debugging.DagExecutionStatusFailed {
-		statusCode = http.StatusInternalServerError
-	} else if response.Status == debugging.DagExecutionStatusPending {
+	if response.Status == debugging.DagExecutionStatusPending {
 		statusCode = http.StatusAccepted // 202 for async operations still in progress
 	}
 
@@ -170,6 +187,7 @@ func (s *UIServer) handleAssetExecute(c *gin.Context) {
 	assetName := c.Param("name")
 
 	if assetName == "" {
+		// Still return 400 for bad request parameters
 		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
 		return
 	}
@@ -178,30 +196,41 @@ func (s *UIServer) handleAssetExecute(c *gin.Context) {
 
 	// Parse request body
 	if err := c.ShouldBindJSON(&request); err != nil {
+		// Still return 400 for bad request format
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
 		return
 	}
 
 	// Validate taskId
 	if request.TaskId == "" {
+		// Still return 400 for missing required parameters
 		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
 		return
 	}
 
+	// Generate taskUUID if not provided
+	taskUUID := request.TaskUUID
+	if taskUUID == "" {
+		taskUUID = uuid.New().String()
+	}
+
 	// Execute asset with timeout
-	responseChan := s.debuggingService.ExecuteAsset(assetName, request.TaskId)
+	responseChan := s.debuggingService.ExecuteAsset(assetName, request.TaskId, taskUUID)
 
 	// Wait for response (will timeout after 10 seconds as configured in ExecuteAsset)
 	response := <-responseChan
 
-	// Return appropriate status code based on execution status
+	// Always return 200 or 202, even if the execution failed
+	// The failure status is included in the DTO response
 	statusCode := http.StatusOK
-	if response.Status == debugging.NodeStateFailed {
-		statusCode = http.StatusInternalServerError
-	} else if response.Status == debugging.NodeStateInProgress {
-		statusCode = http.StatusAccepted // 202 for async operations still in progress
+
+	// Return 202 Accepted only if the operation is still in progress
+	if response.Status == debugging.NodeStateInProgress {
+		statusCode = http.StatusAccepted
 	}
 
+	// For all other states (including failures), return 200 OK
+	// The actual execution status is in the response DTO
 	c.JSON(statusCode, response)
 }
 
@@ -232,15 +261,22 @@ func (s *UIServer) handleAssetData(c *gin.Context) {
 		return
 	}
 
-	// Get asset data
-	response := s.debuggingService.GetAssetData(assetName)
+	// Get taskId from query parameter
+	taskId := c.Query("taskId")
+	if taskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required as query parameter"})
+		return
+	}
 
-	// Return appropriate status code based on whether data exists
+	// Get asset data for the specific task
+	response := s.debuggingService.GetAssetData(taskId, assetName)
+
+	// Always return 200 or 202, similar to handleAssetExecute
 	statusCode := http.StatusOK
-	if response.Error != "" {
-		statusCode = http.StatusNotFound
-	} else if !response.HasData {
-		statusCode = http.StatusNoContent
+
+	// Return 202 if still in progress
+	if response.Status == debugging.NodeStateInProgress {
+		statusCode = http.StatusAccepted
 	}
 
 	c.JSON(statusCode, response)

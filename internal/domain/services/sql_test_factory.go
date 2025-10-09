@@ -85,6 +85,9 @@ func initTestConfig(
 			panic(err)
 		}
 		globalTestProfile.Connection = newTestPrifile.Connection
+		if newTestPrifile.Description != "" {
+			globalTestProfile.Description = newTestPrifile.Description
+		}
 	}
 
 	var sqlByteBuffer bytes.Buffer

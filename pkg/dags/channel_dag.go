@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/go-teal/teal/pkg/processing"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
@@ -26,6 +27,7 @@ type DagRoutine struct {
 
 type ChannelDag struct {
 	DagInstanceName      string
+	DagInstanceUUID      string
 	dagGrpah             [][]string
 	assetsMap            map[string]processing.Asset
 	testsMap             map[string]processing.ModelTesting
@@ -46,6 +48,7 @@ type taskResult struct {
 func InitChannelDag(dagGrpah [][]string, assetsMap map[string]processing.Asset, config *configs.Config, name string) DAG {
 	dag := ChannelDag{
 		DagInstanceName:      name,
+		DagInstanceUUID:      uuid.New().String(),
 		dagGrpah:             dagGrpah,
 		assetsMap:            assetsMap,
 		dagRoutineMap:        make(map[string]*DagRoutine, len(assetsMap)),
@@ -63,6 +66,7 @@ func InitChannelDagWithTests(dagGrpah [][]string,
 	name string) DAG {
 	dag := ChannelDag{
 		DagInstanceName:      name,
+		DagInstanceUUID:      uuid.New().String(),
 		dagGrpah:             dagGrpah,
 		assetsMap:            assetsMap,
 		testsMap:             testsMap,
@@ -101,6 +105,7 @@ func (dag *ChannelDag) Run() *sync.WaitGroup {
 
 type TransitionTask struct {
 	TaskID       string
+	TaskUUID     string
 	Data         interface{}
 	StopSignal   bool
 	IngoreSignal bool
@@ -141,6 +146,7 @@ func initDagRoutine(dag *ChannelDag,
 }
 
 func (dag *ChannelDag) Push(taskId string, data interface{}, resultChan chan map[string]interface{}) chan map[string]interface{} {
+	taskUUID := uuid.New().String()
 
 	if resultChan != nil {
 		dag.completeTasksResults[taskId] = &taskResult{
@@ -151,10 +157,10 @@ func (dag *ChannelDag) Push(taskId string, data interface{}, resultChan chan map
 		dag.completeTasksResults[taskId].remainingTasksNumber.Store(int32(dag.numberOfFinalTasks))
 	}
 
-	log.Debug().Str("DAG", dag.DagInstanceName).Str("taskId", taskId).Int("results", dag.numberOfFinalTasks).Msg("New task has been registred")
+	log.Debug().Str("DAG", dag.DagInstanceName).Str("taskId", taskId).Str("taskUUID", taskUUID).Int("results", dag.numberOfFinalTasks).Msg("New task has been registred")
 	for _, assetName := range dag.dagGrpah[0] {
 		routine := dag.dagRoutineMap[assetName]
-		dag.propagateTask(taskId, "", false, false, routine.InputChannels, data)
+		dag.propagateTask(taskId, taskUUID, "", false, false, routine.InputChannels, data)
 	}
 	return resultChan
 }
@@ -164,7 +170,7 @@ func (dag *ChannelDag) Stop() {
 
 	for _, assetName := range dag.dagGrpah[0] {
 		routine := dag.dagRoutineMap[assetName]
-		dag.propagateTask(STOP_TASK_ID, "", true, false, routine.InputChannels, nil)
+		dag.propagateTask(STOP_TASK_ID, "", "", true, false, routine.InputChannels, nil)
 	}
 }
 
@@ -179,6 +185,7 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 		params := make(map[string]interface{}, len(routine.InputChannels))
 		var ignore bool
 		var taskId string
+		var taskUUID string
 		for channelName, inputChannel := range routine.InputChannels {
 			inputTask := <-inputChannel
 			log.Debug().
@@ -187,7 +194,7 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 				Str("assetName", routine.Name).
 				Str("taskId", inputTask.TaskID).Msg("task received")
 			if inputTask.StopSignal {
-				routine.dag.propagateTask(inputTask.TaskID, routine.Name, true, true, routine.OutPutChannels, nil)
+				routine.dag.propagateTask(inputTask.TaskID, inputTask.TaskUUID, routine.Name, true, true, routine.OutPutChannels, nil)
 				log.Debug().
 					Str("DAG", routine.dag.DagInstanceName).
 					Str("channelName", channelName).
@@ -200,6 +207,7 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 			}
 			params[channelName] = inputTask.Data
 			taskId = inputTask.TaskID
+			taskUUID = inputTask.TaskUUID
 		}
 
 		if !ignore {
@@ -209,7 +217,14 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 				Str("taskId", taskId).
 				Msg("Executing asset...")
 			startTaskTs := time.Now().UnixMilli()
-			outputData, err := routine.Asset.Execute(params)
+			// Create TaskContext
+			ctx := &processing.TaskContext{
+				TaskID:       taskId,
+				TaskUUID:     taskUUID,
+				InstanceName: routine.dag.DagInstanceName,
+				InstanceUUID: routine.dag.DagInstanceUUID,
+			}
+			outputData, err := routine.Asset.Execute(ctx, params)
 			stopTaskTs := time.Now().UnixMilli()
 			if err != nil {
 				log.Error().Caller().Stack().
@@ -219,7 +234,7 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 					Float64("durationSec", float64(stopTaskTs-startTaskTs)/1000.0).
 					Err(err).
 					Msg("Asset Error")
-				routine.dag.propagateTask(taskId, routine.Name, false, true, routine.OutPutChannels, nil)
+				routine.dag.propagateTask(taskId, taskUUID, routine.Name, false, true, routine.OutPutChannels, nil)
 			} else {
 				if outputData != nil {
 					log.Debug().
@@ -228,16 +243,17 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 						Str("taskId", taskId).
 						Msgf("Complete with data: %v", outputData)
 				}
-				testResults := routine.Asset.RunTests(routine.testsMap)
+				testResults := routine.Asset.RunTests(ctx, routine.testsMap)
 
 				// Log test results if any tests were run
 				if len(testResults) > 0 {
 					passed := 0
 					failed := 0
 					for _, result := range testResults {
-						if result.Status == processing.TestStatusSuccess {
+						switch result.Status {
+						case processing.TestStatusSuccess:
 							passed++
-						} else if result.Status == processing.TestStatusFailed {
+						case processing.TestStatusFailed:
 							failed++
 						}
 					}
@@ -258,7 +274,7 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 					Str("taskId", taskId).
 					Float64("durationSec", float64(stopTaskTs-startTaskTs)/1000.0).
 					Msg("Asset complete")
-				routine.dag.propagateTask(taskId, routine.Name, false, false, routine.OutPutChannels, outputData)
+				routine.dag.propagateTask(taskId, taskUUID, routine.Name, false, false, routine.OutPutChannels, outputData)
 			}
 		} else {
 			log.Warn().
@@ -266,13 +282,13 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 				Str("assetName", routine.Name).
 				Str("taskId", taskId).
 				Msg("Task has been ingored")
-			routine.dag.propagateTask(taskId, routine.Name, false, true, routine.OutPutChannels, nil)
+			routine.dag.propagateTask(taskId, taskUUID, routine.Name, false, true, routine.OutPutChannels, nil)
 		}
 	}
 
 }
 
-func (dag *ChannelDag) propagateTask(taskId string, assetName string, stop bool, ingore bool, channels map[string]chan *TransitionTask, data interface{}) {
+func (dag *ChannelDag) propagateTask(taskId string, taskUUID string, assetName string, stop bool, ingore bool, channels map[string]chan *TransitionTask, data interface{}) {
 
 	if channels == nil {
 		log.Debug().
@@ -291,7 +307,32 @@ func (dag *ChannelDag) propagateTask(taskId string, assetName string, stop bool,
 						Str("DAG", dag.DagInstanceName).
 						Str("assetName", assetName).
 						Str("taskId", taskId).
+						Str("taskUUID", taskUUID).
 						Msg("Task complete")
+
+					// Execute root tests after all DAG tasks are complete
+					if dag.testsMap != nil {
+						log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Executing root tests")
+						// Create TaskContext for root tests
+						rootCtx := &processing.TaskContext{
+							TaskID:       taskId,
+							TaskUUID:     taskUUID,
+							InstanceName: dag.DagInstanceName,
+							InstanceUUID: dag.DagInstanceUUID,
+						}
+						for testName, testCase := range dag.testsMap {
+							// Only run tests with "root." prefix
+							if len(testName) >= 5 && testName[:5] == "root." {
+								status, executedTestName, err := testCase.Execute(rootCtx)
+								if status {
+									log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Msg("Root test passed")
+								} else {
+									log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Err(err).Msg("Root test failed")
+								}
+							}
+						}
+					}
+
 					resultTask.resultChan <- resultTask.results
 					delete(dag.completeTasksResults, taskId)
 				}
@@ -303,6 +344,7 @@ func (dag *ChannelDag) propagateTask(taskId string, assetName string, stop bool,
 	for _, output := range channels {
 		output <- &TransitionTask{
 			TaskID:       taskId,
+			TaskUUID:     taskUUID,
 			StopSignal:   stop,
 			IngoreSignal: ingore,
 			Data:         data,

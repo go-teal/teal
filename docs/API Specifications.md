@@ -55,7 +55,8 @@ Retrieves the complete DAG structure with all nodes and their relationships.
       "totalTests": 1,
       "successfulTests": 0,
       "lastExecutionDuration": 0,
-      "lastTestsDuration": 0
+      "lastTestsDuration": 0,
+      "taskGroupIndex": 0
     }
   ]
 }
@@ -77,11 +78,12 @@ Retrieves the complete DAG structure with all nodes and their relationships.
   - `isDataFramed` (boolean): Whether data is passed as DataFrame
   - `persistInputs` (boolean): Whether to persist input data
   - `tests` (array): Names of tests associated with this node
-  - `state` (string): Current execution state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS"
+  - `state` (string): Current execution state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS", "TESTS_FAILED"
   - `totalTests` (integer): Total number of tests for this node
   - `successfulTests` (integer): Number of tests that passed
   - `lastExecutionDuration` (integer): Last execution time in milliseconds
   - `lastTestsDuration` (integer): Last test execution time in milliseconds
+  - `taskGroupIndex` (integer): Index of the task group (execution stage) in the DAG (0-based)
 
 ---
 
@@ -108,9 +110,23 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
   "totalAssets": 2,
   "failedAssets": 0,
   "inProgressAssets": 0,
+  "rootTestResults": [
+    {
+      "testName": "root.test_data_integrity",
+      "status": "SUCCESS",
+      "errorMsg": "",
+      "durationMs": 125
+    },
+    {
+      "testName": "root.test_final_validation",
+      "status": "SUCCESS",
+      "errorMsg": "",
+      "durationMs": 89
+    }
+  ],
   "tasks": [
     {
-      "name": "Executing staging.hello",
+      "name": "staging.hello",
       "state": "SUCCESS",
       "order": 1,
       "startTime": 1737816622000,
@@ -122,7 +138,7 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "failedTests": 0
     },
     {
-      "name": "Executing dds.world",
+      "name": "dds.world",
       "state": "SUCCESS",
       "order": 2,
       "startTime": 1737816623500,
@@ -134,7 +150,57 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "failedTests": 0
     }
   ],
-  "lastTaskName": "Executing dds.world"
+  "lastTaskName": "dds.world"
+}
+```
+
+**Response: 200 OK (Tests Failed)**
+```json
+{
+  "taskId": "task_20250125_143023",
+  "status": "TESTS_FAILED",
+  "completedAssets": 2,
+  "totalAssets": 2,
+  "failedAssets": 0,
+  "inProgressAssets": 0,
+  "tasks": [
+    {
+      "name": "staging.hello",
+      "state": "TESTS_FAILED",
+      "order": 1,
+      "startTime": 1737816622000,
+      "endTime": 1737816625500,
+      "executionTimeMs": 1500,
+      "testExecutionTimeMs": 2000,
+      "totalTests": 2,
+      "passedTests": 1,
+      "failedTests": 1,
+      "message": "",
+      "testResults": [
+        {
+          "testName": "test_hello_not_null",
+          "status": "SUCCESS",
+          "durationMs": 500
+        },
+        {
+          "testName": "test_hello_valid",
+          "status": "FAILED",
+          "error": "Test failed: found 3 rows",
+          "durationMs": 1500
+        }
+      ]
+    },
+    {
+      "name": "dds.world",
+      "state": "SUCCESS",
+      "order": 2,
+      "startTime": 1737816625600,
+      "endTime": 1737816627000,
+      "executionTimeMs": 1400,
+      "message": ""
+    }
+  ],
+  "lastTaskName": "dds.world"
 }
 ```
 
@@ -149,7 +215,7 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
   "inProgressAssets": 1,
   "tasks": [
     {
-      "name": "Executing staging.hello",
+      "name": "staging.hello",
       "state": "SUCCESS",
       "order": 1,
       "startTime": 1737816622000,
@@ -167,7 +233,7 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       ]
     },
     {
-      "name": "Executing dds.world",
+      "name": "dds.world",
       "state": "IN_PROGRESS",
       "order": 2,
       "startTime": 1737816623500,
@@ -177,7 +243,7 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "testResults": []
     }
   ],
-  "lastTaskName": "Executing dds.world"
+  "lastTaskName": "dds.world"
 }
 ```
 
@@ -192,7 +258,7 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
   "inProgressAssets": 0,
   "nodes": [
     {
-      "name": "Executing staging.hello",
+      "name": "staging.hello",
       "state": "FAILED",
       "order": 1,
       "startTime": 1737816622000,
@@ -205,21 +271,26 @@ Triggers DAG execution with optional input data. Returns within 10 seconds with 
       "testResults": []
     }
   ],
-  "lastTaskName": "Executing staging.hello"
+  "lastTaskName": "staging.hello"
 }
 ```
 
 **Field Descriptions:**
 - `taskId` (string, required): Unique identifier for this execution
 - `data` (object, optional): Input data to pass to the DAG
-- `status` (string): Overall execution status - "NOT_STARTED", "IN_PROGRESS", "SUCCESS", "FAILED", "PENDING"
+- `status` (string): Overall execution status - "NOT_STARTED", "IN_PROGRESS", "SUCCESS", "FAILED", "PENDING", "TESTS_FAILED"
 - `completedAssets` (integer): Total number of completed assets across all tasks
 - `totalAssets` (integer): Total number of assets in the DAG
 - `failedAssets` (integer): Total number of failed assets
 - `inProgressAssets` (integer): Total number of assets currently executing
+- `rootTestResults` (array, optional): Array of root test execution results (tests with "root." prefix executed after DAG completion)
+  - `testName` (string): Name of the root test
+  - `status` (string): Test status - "SUCCESS", "FAILED", "NOT_FOUND"
+  - `errorMsg` (string): Error message if test failed
+  - `durationMs` (integer): Test execution duration in milliseconds
 - `nodes` (array): Array of node execution status objects
   - `name` (string): Node/asset name
-  - `state` (string): Node state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS"
+  - `state` (string): Node state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS", "TESTS_FAILED"
   - `order` (integer): Execution order (1-based)
   - `startTime` (integer, optional): Unix timestamp in milliseconds
   - `endTime` (integer, optional): Unix timestamp in milliseconds
@@ -252,9 +323,17 @@ Retrieves the current status of a specific task execution.
   "totalAssets": 1,
   "failedAssets": 0,
   "inProgressAssets": 0,
+  "rootTestResults": [
+    {
+      "testName": "root.test_data_integrity",
+      "status": "SUCCESS",
+      "errorMsg": "",
+      "durationMs": 125
+    }
+  ],
   "nodes": [
     {
-      "name": "Executing staging.hello",
+      "name": "staging.hello",
       "state": "SUCCESS",
       "order": 1,
       "startTime": 1737816622000,
@@ -277,7 +356,7 @@ Retrieves the current status of a specific task execution.
       ]
     }
   ],
-  "lastTaskName": "Executing staging.hello"
+  "lastTaskName": "staging.hello"
 }
 ```
 
@@ -421,7 +500,7 @@ Executes a specific asset within the DAG context. Returns within 10 seconds.
 **Field Descriptions:**
 - `taskId` (string, required): Task ID for tracking
 - `assetName` (string): Name of the asset being executed
-- `status` (string): Execution status - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS"
+- `status` (string): Execution status - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS", "TESTS_FAILED"
 - `startTime` (integer, optional): Unix timestamp in milliseconds
 - `endTime` (integer, optional): Unix timestamp in milliseconds
 - `executionTimeMs` (integer): Execution duration in milliseconds
@@ -521,15 +600,13 @@ Retrieves all test profiles defined in the DAG.
       "name": "test_hello_exists",
       "sql": "SELECT * FROM staging.hello WHERE greeting IS NULL",
       "connectionName": "memory_duck",
-      "connectionType": "duckdb",
-      "status": "INITIAL"
+      "connectionType": "duckdb"
     },
     {
       "name": "test_world_count",
       "sql": "SELECT * FROM dds.world WHERE count < 0",
       "connectionName": "memory_duck",
-      "connectionType": "duckdb",
-      "status": "SUCCESS"
+      "connectionType": "duckdb"
     }
   ]
 }
@@ -541,7 +618,43 @@ Retrieves all test profiles defined in the DAG.
   - `sql` (string): SQL query that should return zero rows to pass
   - `connectionName` (string): Database connection to use
   - `connectionType` (string): Type of database connection
-  - `status` (string): Test execution status - "INITIAL", "IN_PROGRESS", "FAILED", "SUCCESS"
+
+---
+
+### GET /api/tests/:taskId
+Retrieves test execution results for a specific task execution.
+
+**Parameters:**
+- `taskId` (string, required): The task ID from DAG execution
+
+**Response: 200 OK**
+```json
+{
+  "taskId": "task_20250125_143023",
+  "tests": [
+    {
+      "name": "test_hello_exists",
+      "sql": "SELECT * FROM staging.hello WHERE greeting IS NULL",
+      "connectionName": "memory_duck",
+      "connectionType": "duckdb"
+    },
+    {
+      "name": "test_world_count",
+      "sql": "SELECT * FROM dds.world WHERE count < 0",
+      "connectionName": "memory_duck",
+      "connectionType": "duckdb"
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `taskId` (string): The task ID for this test execution
+- `tests` (array): Array of test profiles for this specific task execution
+  - `name` (string): Unique test identifier
+  - `sql` (string): SQL query that was executed
+  - `connectionName` (string): Database connection used
+  - `connectionType` (string): Type of database connection
 
 ---
 
@@ -702,15 +815,17 @@ All endpoints may return the following error responses:
 - `INITIAL` - Not yet executed
 - `IN_PROGRESS` - Currently executing
 - `TESTING` - Running tests
-- `FAILED` - Execution failed
-- `SUCCESS` - Execution successful
+- `FAILED` - Asset execution failed
+- `SUCCESS` - Execution successful (all tests passed)
+- `TESTS_FAILED` - Asset executed successfully but one or more tests failed
 
 ### DAG Execution Status
 - `NOT_STARTED` - Execution not initiated
 - `IN_PROGRESS` - Currently executing
-- `SUCCESS` - All assets executed successfully
-- `FAILED` - One or more assets failed
+- `SUCCESS` - All assets and tests executed successfully
+- `FAILED` - One or more assets failed execution
 - `PENDING` - Execution ongoing (returned after timeout)
+- `TESTS_FAILED` - All assets executed successfully but one or more tests failed
 
 ### Test Status
 - `INITIAL` - Test not yet run

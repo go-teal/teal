@@ -48,7 +48,7 @@ func (s *SQLModelAsset) GetUpstreams() []string {
 }
 
 // Execute implements Asset.
-func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, error) {
+func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) (interface{}, error) {
 
 	var data *dataframe.DataFrame
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
@@ -57,10 +57,11 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 	defer dbConnection.ConcurrencyUnlock()
 
 	log.Debug().
+		Str("taskId", ctx.TaskID).
 		Str("s.descriptor.Name", s.descriptor.Name).
 		Str("s.descriptor.ModelProfile.Connection", s.descriptor.ModelProfile.Connection).
 		Msg("Executing asset")
-	log.Debug().Str("s.descriptor.Name", s.descriptor.Name).Msgf("input params: %v", input)
+	log.Debug().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("s.descriptor.Name", s.descriptor.Name).Msgf("input params: %v", input)
 
 	tx, err := dbConnection.Begin()
 	if err != nil {
@@ -75,12 +76,14 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	if !isSchemaExists {
 		splitted := strings.Split(s.descriptor.Name, ".")
-		log.Info().Msgf("Schema %s does not exist", splitted[0])
+		log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msgf("Schema %s does not exist", splitted[0])
 		// TODO: Move this to the driver
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
 			defer dbConnection.Rallback(tx)
 			log.Error().Caller().
+				Str("taskId", ctx.TaskID).
+				Str("taskUUID", ctx.TaskUUID).
 				Err(err).
 				Msg("Failed to create schema")
 
@@ -94,6 +97,8 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 
 	if err != nil {
 		log.Error().Caller().
+			Str("taskId", ctx.TaskID).
+			Str("taskUUID", ctx.TaskUUID).
 			Err(err).
 			Msg("Failed to create schema or table")
 		defer dbConnection.Rallback(tx)
@@ -106,22 +111,24 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			err := s.persistInputs(input)
 			if err != nil {
 				log.Error().Caller().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
 			}
 		}
 		if s.descriptor.ModelProfile.IsDataFramed {
-			data, err = s.getDataFrame()
+			data, err = s.getDataFrame(ctx)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		if !isTableExists {
-			err = s.createTable()
+			err = s.createTable(ctx)
 		} else {
-			err = s.insertToTable()
+			err = s.insertToTable(ctx)
 		}
 
 	case configs.MAT_TABLE:
@@ -137,16 +144,16 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 				}
 			}
 			if s.descriptor.ModelProfile.IsDataFramed {
-				log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-				data, err = s.getDataFrame()
+				log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+				data, err = s.getDataFrame(ctx)
 				if err != nil {
 					return nil, err
 				}
 			}
-			err = s.createTable()
+			err = s.createTable(ctx)
 		} else {
 			if err = s.truncateTable(); err == nil {
-				log.Debug().Msg("table has been truncated")
+				log.Debug().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("table has been truncated")
 				if s.descriptor.ModelProfile.PersistInputs {
 					err := s.persistInputs(input)
 					if err != nil {
@@ -157,23 +164,27 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 					}
 				}
 				if s.descriptor.ModelProfile.IsDataFramed {
-					log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-					data, err = s.getDataFrame()
+					log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+					data, err = s.getDataFrame(ctx)
 					if err != nil {
 						return nil, err
 					}
 				}
-				err = s.insertToTable()
+				err = s.insertToTable(ctx)
 
 				if err != nil {
 					defer dbConnection.Rallback(tx)
 					log.Error().Caller().
+						Str("taskId", ctx.TaskID).
+						Str("taskUUID", ctx.TaskUUID).
 						Err(err).
 						Msg("Failed to insert to table")
 					return nil, err
 				}
 			} else {
 				log.Error().Caller().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
 					Err(err).
 					Msg("Failed to truncate table")
 				return nil, err
@@ -186,6 +197,8 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			if err != nil {
 				defer dbConnection.Rallback(tx)
 				log.Error().Caller().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -193,14 +206,14 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		}
 
 		if s.descriptor.ModelProfile.IsDataFramed {
-			log.Warn().Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-			data, err = s.getDataFrame()
+			log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+			data, err = s.getDataFrame(ctx)
 			if err != nil {
 				return nil, err
 			}
 		}
 		if !isTableExists {
-			err = s.createView()
+			err = s.createView(ctx)
 		}
 	case configs.MAT_CUSTOM:
 
@@ -208,6 +221,8 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 			err := s.persistInputs(input)
 			if err != nil {
 				log.Error().Caller().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -215,12 +230,12 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 		}
 
 		if s.descriptor.ModelProfile.IsDataFramed {
-			data, err = s.getDataFrame()
+			data, err = s.getDataFrame(ctx)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			err = s.customQuery()
+			err = s.customQuery(ctx)
 		}
 	case configs.MAT_RAW:
 		panic("SQL Model can not be raw")
@@ -230,14 +245,14 @@ func (s *SQLModelAsset) Execute(input map[string]interface{}) (interface{}, erro
 }
 
 // RunTests implements Asset.
-func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) []TestResult {
+func (s *SQLModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTesting) []TestResult {
 	results := make([]TestResult, 0)
 	
 	if len(s.descriptor.ModelProfile.Tests) == 0 {
 		return results
 	}
 	
-	log.Info().Msgf("Testing %s", s.descriptor.Name)
+	log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msgf("Testing %s", s.descriptor.Name)
 	for _, testConfig := range s.descriptor.ModelProfile.Tests {
 		startTime := time.Now()
 		result := TestResult{
@@ -245,24 +260,24 @@ func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) []TestResult 
 		}
 		
 		if testCase, ok := testsMap[testConfig.Name]; ok {
-			status, testName, err := testCase.Execute()
+			status, testName, err := testCase.Execute(ctx)
 			result.DurationMs = time.Since(startTime).Milliseconds()
 			
 			if status {
 				result.Status = TestStatusSuccess
 				result.Message = testName
-				log.Info().Str("testCase", testName).Int64("durationMs", result.DurationMs).Msg("Success")
+				log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testCase", testName).Int64("durationMs", result.DurationMs).Msg("Success")
 			} else {
 				result.Status = TestStatusFailed
 				result.Error = err
 				result.Message = testName
-				log.Error().Str("testCase", testName).Err(err).Int64("durationMs", result.DurationMs).Msg("Failed")
+				log.Error().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testCase", testName).Err(err).Int64("durationMs", result.DurationMs).Msg("Failed")
 			}
 		} else {
 			result.Status = TestStatusNotFound
 			result.DurationMs = time.Since(startTime).Milliseconds()
 			result.Message = fmt.Sprintf("Test %s not found", testConfig.Name)
-			log.Warn().Msg(result.Message)
+			log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg(result.Message)
 		}
 		
 		results = append(results, result)
@@ -271,7 +286,7 @@ func (s *SQLModelAsset) RunTests(testsMap map[string]ModelTesting) []TestResult 
 	return results
 }
 
-func (s *SQLModelAsset) createView() error {
+func (s *SQLModelAsset) createView(ctx *TaskContext) error {
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
 
 	tx, err := dbConnection.Begin()
@@ -285,18 +300,21 @@ func (s *SQLModelAsset) createView() error {
 
 	var sqlQuery bytes.Buffer
 	createViewSQLTemplate, err := template.New("createViewSQLTemplate").
-		Funcs(FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions)).
+		Funcs(MergeTemplateFuncs(
+			FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions),
+			FromTaskContext(ctx),
+		)).
 		Parse(s.descriptor.CreateViewSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msgf("parse view SQL %s", s.descriptor.CreateViewSQL)
+		log.Error().Caller().Stack().Err(err).Str("sql", s.descriptor.CreateViewSQL).Msg("Failed to parse view SQL")
 		return err
 	}
 
 	err = createViewSQLTemplate.Execute(&sqlQuery, nil)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msgf("Render view SQL %s", sqlQuery.String())
+		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery.String()).Msg("Failed to render view SQL")
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery.String())
@@ -308,7 +326,7 @@ func (s *SQLModelAsset) createView() error {
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) createTable() error {
+func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
 
@@ -326,11 +344,14 @@ func (s *SQLModelAsset) createTable() error {
 	}
 
 	createTableSQLTempl, err := template.New("createTableSQLTempl").
-		Funcs(FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions)).
+		Funcs(MergeTemplateFuncs(
+			FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions),
+			FromTaskContext(ctx),
+		)).
 		Parse(s.descriptor.CreateTableSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msgf("Parsing template: %s", s.descriptor.CreateTableSQL)
+		log.Error().Caller().Stack().Err(err).Str("sql", s.descriptor.CreateTableSQL).Msg("Failed to parse table SQL template")
 		return err
 	}
 
@@ -339,7 +360,7 @@ func (s *SQLModelAsset) createTable() error {
 	err = createTableSQLTempl.Execute(&sqlQuery, nil)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msgf("Executing template: %s", sqlQuery.String())
+		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery.String()).Msg("Failed to execute table SQL template")
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery.String())
@@ -373,7 +394,7 @@ func (s *SQLModelAsset) truncateTable() error {
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) customQuery() error {
+func (s *SQLModelAsset) customQuery(ctx *TaskContext) error {
 
 	s.functions["IsIncremental"] = func() bool {
 		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL
@@ -391,7 +412,10 @@ func (s *SQLModelAsset) customQuery() error {
 	}
 
 	simleSQLQueryTemplate, err := template.New("simleSQLQueryTemplate").
-		Funcs(FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions)).
+		Funcs(MergeTemplateFuncs(
+			FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions),
+			FromTaskContext(ctx),
+		)).
 		Parse(s.descriptor.RawSQL)
 	if err != nil {
 		log.Error().Caller().Stack().
@@ -416,7 +440,7 @@ func (s *SQLModelAsset) customQuery() error {
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) insertToTable() error {
+func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
 
 	tx, err := dbConnection.Begin()
@@ -434,18 +458,21 @@ func (s *SQLModelAsset) insertToTable() error {
 	}
 
 	runSQLTemplate, err := template.New("Insert SQL template").
-		Funcs(FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions)).
+		Funcs(MergeTemplateFuncs(
+			FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions),
+			FromTaskContext(ctx),
+		)).
 		Parse(s.descriptor.InsertSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msgf("Parsing template: %s", s.descriptor.InsertSQL)
+		log.Error().Caller().Stack().Err(err).Str("sql", s.descriptor.InsertSQL).Msg("Failed to parse insert SQL template")
 		return err
 	}
 
 	err = runSQLTemplate.Execute(&sqlQuery, nil)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msgf("Rendering template: %s", sqlQuery.String())
+		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery.String()).Msg("Failed to render insert SQL template")
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery.String())
@@ -457,7 +484,7 @@ func (s *SQLModelAsset) insertToTable() error {
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
+func (s *SQLModelAsset) getDataFrame(ctx *TaskContext) (*dataframe.DataFrame, error) {
 
 	s.functions["IsIncremental"] = func() bool {
 		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL
@@ -465,7 +492,10 @@ func (s *SQLModelAsset) getDataFrame() (*dataframe.DataFrame, error) {
 
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
 	simleSQLQueryTemplate, err := template.New("simleSQLQueryTemplate").
-		Funcs(FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions)).
+		Funcs(MergeTemplateFuncs(
+			FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions),
+			FromTaskContext(ctx),
+		)).
 		Parse(s.descriptor.RawSQL)
 	if err != nil {
 		log.Error().Caller().Stack().

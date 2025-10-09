@@ -21,6 +21,7 @@ var {{ .GoName }}ModelDescriptor = &models.RawModelDescriptor{
 	ModelProfile:  &configs.ModelProfile{
 		Name: 				"{{ .ModelProfile.Name }}",
 		Stage: 				"{{ .ModelProfile.Stage }}",
+		Description: 		`{{ .ModelProfile.Description }}`,
 		Connection: 		"{{ .ModelProfile.Connection }}",
 		Materialization: 	"{{ .ModelProfile.Materialization }}",
 		IsDataFramed: 		{{ .ModelProfile.IsDataFramed }},

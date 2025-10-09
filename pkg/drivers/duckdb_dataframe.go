@@ -15,7 +15,7 @@ import (
 func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error) {
 	rows, err := d.db.Query(sqlQuery)
 	if err != nil {
-		log.Error().Caller().Stack().Err(err).Msg(sqlQuery)
+		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery).Msg("Failed to execute SQL query")
 		return nil, err
 	}
 	columnTypes, err := rows.ColumnTypes()
@@ -215,14 +215,14 @@ func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *datafra
 					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
 					return err
 				}
-				vals[colIdx] = fmt.Sprintf("%t, ", val)
+				vals[colIdx] = fmt.Sprintf("%t", val)
 			default:
 				return fmt.Errorf("type %s not implemented", colType)
 			}
 		}
 		query += fmt.Sprintf("insert into %s(%s) values(%s);\n", name, strings.Join(colNames, ", "), strings.Join(vals, ", "))
 	}
-	log.Debug().Msg(query)
+	log.Debug().Str("sql", query).Str("name", name).Msg("query for the dataframe persistence")
 	_, err := tx.(*sql.Tx).Exec(query)
 	return err
 }

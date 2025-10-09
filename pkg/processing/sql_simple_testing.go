@@ -22,15 +22,18 @@ func InitSQLModelTesting(descriptor *models.SQLModelTestDescriptor) ModelTesting
 	}
 }
 
-func (mt *SQLModelTestCase) Execute() (bool, string, error) {
+func (mt *SQLModelTestCase) Execute(ctx *TaskContext) (bool, string, error) {
 
 	dbConnection := core.GetInstance().GetDBConnection(mt.descriptor.TestProfile.Connection)
 
 	sqlTestTemplate, err := template.New("runSQTestTemplate").
-		Funcs(FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(template.FuncMap))).
+		Funcs(MergeTemplateFuncs(
+			FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(template.FuncMap)),
+			FromTaskContext(ctx),
+		)).
 		Parse(mt.descriptor.CountTestSQL)
 	if err != nil {
-		log.Error().Caller().Stack().Err(err).Msgf("Parsing template: %s", mt.descriptor.CountTestSQL)
+		log.Error().Caller().Stack().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Err(err).Str("sql", mt.descriptor.CountTestSQL).Msg("Failed to parse test SQL template")
 		return false, mt.descriptor.Name, err
 	}
 
@@ -39,7 +42,7 @@ func (mt *SQLModelTestCase) Execute() (bool, string, error) {
 	err = sqlTestTemplate.Execute(&sqlQuery, nil)
 
 	if err != nil {
-		log.Error().Caller().Stack().Err(err).Msgf("Execute template: %s", mt.descriptor.CountTestSQL)
+		log.Error().Caller().Stack().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Err(err).Str("sql", mt.descriptor.CountTestSQL).Msg("Failed to execute test SQL template")
 		return false, mt.descriptor.Name, err
 	}
 

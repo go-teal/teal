@@ -60,10 +60,12 @@ func (w *StoringConsoleWriter) storeLog(logData map[string]interface{}) {
 }
 
 func (w *StoringConsoleWriter) extractTaskName(logData map[string]interface{}) string {
-	if taskName, ok := logData["task_name"].(string); ok {
-		return taskName
+	// Check for taskId field (used by Debug DAG)
+	if taskId, ok := logData["taskId"].(string); ok {
+		return taskId
 	}
 
+	// Fall back to context value
 	if w.ctx != nil {
 		if taskName, ok := w.ctx.Value(TaskIdKey).(string); ok {
 			return taskName

@@ -25,6 +25,7 @@ var {{ .GoName }}TestDescriptor = &models.SQLModelTestDescriptor{
 	TestProfile: 		&configs.TestProfile {
 		Name: 				"{{ .TestName }}",
 		Stage: 				"{{ .TestProfile.Stage }}",
+		Description: 		`{{ .TestProfile.Description }}`,
 		Connection: 		"{{ .TestProfile.Connection }}",
 	},
 }

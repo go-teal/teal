@@ -1,6 +1,7 @@
 package debugging
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -12,18 +13,23 @@ import (
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/models"
+	"github.com/go-teal/teal/pkg/processing"
 )
 
 type DebuggingService struct {
-	dag         *dags.DebugDag
-	taskHistory map[string]DagExecutionResponseDTO // Store execution results by taskId
-	mu          sync.RWMutex                       // Mutex for thread-safe access to taskHistory
+	dag          *dags.DebugDag
+	taskHistory  map[string]DagExecutionResponseDTO            // Store execution results by taskId
+	testHistory  map[string][]TestProfileDTO                   // Store test results by taskId
+	assetHistory map[string]map[string]AssetExecuteResponseDTO // Store asset execution results by taskId -> assetName
+	mu           sync.RWMutex                                  // Mutex for thread-safe access to taskHistory
 }
 
 func NewDebuggingService(dag *dags.DebugDag) *DebuggingService {
 	return &DebuggingService{
-		dag:         dag,
-		taskHistory: make(map[string]DagExecutionResponseDTO),
+		dag:          dag,
+		taskHistory:  make(map[string]DagExecutionResponseDTO),
+		testHistory:  make(map[string][]TestProfileDTO),
+		assetHistory: make(map[string]map[string]AssetExecuteResponseDTO),
 	}
 }
 
@@ -34,97 +40,126 @@ func (s *DebuggingService) GetDagNodes() []DagNodeDTO {
 
 	nodes := make([]DagNodeDTO, 0)
 
-	for name, asset := range s.dag.AssetsMap {
-		node := DagNodeDTO{
-			Name:            name,
-			Upstreams:       asset.GetUpstreams(),
-			Downstreams:     asset.GetDownstreams(),
-			State:           NodeStateInitial,
-			TotalTests:      0,
-			SuccessfulTests: 0,
-		}
-
-		// Get actual runtime state from NodeMap if available
-		if debugNode, exists := s.dag.NodeMap[name]; exists {
-			node.State = NodeState(debugNode.State) // Convert dags.NodeState to debugging.NodeState
-			node.SuccessfulTests = debugNode.TestsPassed
-			node.LastExecutionDuration = debugNode.LastExecutionDuration
-			node.LastTestsDuration = debugNode.LastTestsDuration
-			// TotalTests will be set below from model profile
-		}
-
-		descriptor := asset.GetDescriptor()
-
-		switch desc := descriptor.(type) {
-		case *models.SQLModelDescriptor:
-			node.SQLSelectQuery = strings.TrimSpace(desc.RawSQL)
-
-			// Use appropriate compiled query based on materialization type
-			node.Materialization = MaterializationType(desc.ModelProfile.Materialization)
-			switch node.Materialization {
-			case MaterializationView:
-				node.SQLCompiledQuery = strings.TrimSpace(desc.CreateViewSQL)
-			case MaterializationTable, MaterializationIncremental:
-				node.SQLCompiledQuery = strings.TrimSpace(desc.InsertSQL)
-			case MaterializationCustom:
-				// Custom materialization uses RawSQL directly
-				node.SQLCompiledQuery = strings.TrimSpace(desc.RawSQL)
-			default:
-				node.SQLCompiledQuery = strings.TrimSpace(desc.InsertSQL)
+	// Traverse nodes following the order from DagGraph
+	for taskGroupIndex, taskGroup := range s.dag.DagGraph {
+		for _, name := range taskGroup {
+			asset, exists := s.dag.AssetsMap[name]
+			if !exists {
+				continue
 			}
 
-			node.ConnectionName = desc.ModelProfile.Connection
-			node.IsDataFramed = desc.ModelProfile.IsDataFramed
-			node.PersistInputs = desc.ModelProfile.PersistInputs
+			node := DagNodeDTO{
+				Name:            name,
+				Upstreams:       asset.GetUpstreams(),
+				Downstreams:     asset.GetDownstreams(),
+				State:           NodeStateInitial,
+				TotalTests:      0,
+				SuccessfulTests: 0,
+				TaskGroupIndex:  taskGroupIndex,
+			}
 
-			// Add tests from model profile
-			if desc.ModelProfile.Tests != nil {
-				node.Tests = make([]string, 0, len(desc.ModelProfile.Tests))
-				for _, test := range desc.ModelProfile.Tests {
-					node.Tests = append(node.Tests, test.Name)
+			// Get actual runtime state from NodeMap if available
+			if debugNode, exists := s.dag.NodeMap[name]; exists {
+				node.State = NodeState(debugNode.State) // Convert dags.NodeState to debugging.NodeState
+				node.SuccessfulTests = debugNode.TestsPassed
+				node.LastExecutionDuration = debugNode.LastExecutionDuration
+				node.LastTestsDuration = debugNode.LastTestsDuration
+				// TotalTests will be set below from model profile
+			}
+
+			descriptor := asset.GetDescriptor()
+
+			switch desc := descriptor.(type) {
+			case *models.SQLModelDescriptor:
+				node.SQLSelectQuery = strings.TrimSpace(desc.RawSQL)
+				// Decode base64 encoded description if present
+				if desc.ModelProfile.Description != "" {
+					decoded, err := base64.StdEncoding.DecodeString(desc.ModelProfile.Description)
+					if err == nil {
+						node.Description = string(decoded)
+					} else {
+						// Fall back to raw description if decode fails
+						node.Description = desc.ModelProfile.Description
+					}
 				}
-				node.TotalTests = len(desc.ModelProfile.Tests)
-				// SuccessfulTests is already set from debugNode.TestsPassed above if available
-			}
 
-			// Find connection type from config
-			if s.dag.Config != nil {
-				for _, conn := range s.dag.Config.Connections {
-					if conn.Name == desc.ModelProfile.Connection {
-						node.ConnectionType = conn.Type
-						break
+				// Use appropriate compiled query based on materialization type
+				node.Materialization = MaterializationType(desc.ModelProfile.Materialization)
+				switch node.Materialization {
+				case MaterializationView:
+					node.SQLCompiledQuery = strings.TrimSpace(desc.CreateViewSQL)
+				case MaterializationTable, MaterializationIncremental:
+					node.SQLCompiledQuery = strings.TrimSpace(desc.InsertSQL)
+				case MaterializationCustom:
+					// Custom materialization uses RawSQL directly
+					node.SQLCompiledQuery = strings.TrimSpace(desc.RawSQL)
+				default:
+					node.SQLCompiledQuery = strings.TrimSpace(desc.InsertSQL)
+				}
+
+				node.ConnectionName = desc.ModelProfile.Connection
+				node.IsDataFramed = desc.ModelProfile.IsDataFramed
+				node.PersistInputs = desc.ModelProfile.PersistInputs
+
+				// Add tests from model profile
+				if desc.ModelProfile.Tests != nil {
+					node.Tests = make([]string, 0, len(desc.ModelProfile.Tests))
+					for _, test := range desc.ModelProfile.Tests {
+						node.Tests = append(node.Tests, test.Name)
+					}
+					node.TotalTests = len(desc.ModelProfile.Tests)
+					// SuccessfulTests is already set from debugNode.TestsPassed above if available
+				}
+
+				// Find connection type from config
+				if s.dag.Config != nil {
+					for _, conn := range s.dag.Config.Connections {
+						if conn.Name == desc.ModelProfile.Connection {
+							node.ConnectionType = conn.Type
+							break
+						}
+					}
+				}
+
+			case *models.RawModelDescriptor:
+				node.Materialization = MaterializationRaw
+				// Decode base64 encoded description if present
+				if desc.ModelProfile.Description != "" {
+					decoded, err := base64.StdEncoding.DecodeString(desc.ModelProfile.Description)
+					if err == nil {
+						node.Description = string(decoded)
+					} else {
+						// Fall back to raw description if decode fails
+						node.Description = desc.ModelProfile.Description
+					}
+				}
+				node.ConnectionName = desc.ModelProfile.Connection
+				node.IsDataFramed = desc.ModelProfile.IsDataFramed
+				node.PersistInputs = desc.ModelProfile.PersistInputs
+
+				// Add tests from model profile
+				if desc.ModelProfile.Tests != nil {
+					node.Tests = make([]string, 0, len(desc.ModelProfile.Tests))
+					for _, test := range desc.ModelProfile.Tests {
+						node.Tests = append(node.Tests, test.Name)
+					}
+					node.TotalTests = len(desc.ModelProfile.Tests)
+					// SuccessfulTests is already set from debugNode.TestsPassed above if available
+				}
+
+				// Find connection type from config
+				if s.dag.Config != nil {
+					for _, conn := range s.dag.Config.Connections {
+						if conn.Name == desc.ModelProfile.Connection {
+							node.ConnectionType = conn.Type
+							break
+						}
 					}
 				}
 			}
 
-		case *models.RawModelDescriptor:
-			node.Materialization = MaterializationRaw
-			node.ConnectionName = desc.ModelProfile.Connection
-			node.IsDataFramed = desc.ModelProfile.IsDataFramed
-			node.PersistInputs = desc.ModelProfile.PersistInputs
-
-			// Add tests from model profile
-			if desc.ModelProfile.Tests != nil {
-				node.Tests = make([]string, 0, len(desc.ModelProfile.Tests))
-				for _, test := range desc.ModelProfile.Tests {
-					node.Tests = append(node.Tests, test.Name)
-				}
-				node.TotalTests = len(desc.ModelProfile.Tests)
-				// SuccessfulTests is already set from debugNode.TestsPassed above if available
-			}
-
-			// Find connection type from config
-			if s.dag.Config != nil {
-				for _, conn := range s.dag.Config.Connections {
-					if conn.Name == desc.ModelProfile.Connection {
-						node.ConnectionType = conn.Type
-						break
-					}
-				}
-			}
+			nodes = append(nodes, node)
 		}
-
-		nodes = append(nodes, node)
 	}
 
 	return nodes
@@ -146,8 +181,7 @@ func (s *DebuggingService) GetTestProfiles() []TestProfileDTO {
 
 	for name, test := range s.dag.TestsMap {
 		testDTO := TestProfileDTO{
-			Name:   name,
-			Status: TestStatusInitial,
+			Name: name,
 		}
 
 		// Get the descriptor to access SQL and connection info
@@ -156,6 +190,16 @@ func (s *DebuggingService) GetTestProfiles() []TestProfileDTO {
 			testDTO.SQL = strings.TrimSpace(desc.RawSQL)
 
 			if desc.TestProfile != nil {
+				// Decode base64 encoded description if present
+				if desc.TestProfile.Description != "" {
+					decoded, err := base64.StdEncoding.DecodeString(desc.TestProfile.Description)
+					if err == nil {
+						testDTO.Description = string(decoded)
+					} else {
+						// Fall back to raw description if decode fails
+						testDTO.Description = desc.TestProfile.Description
+					}
+				}
 				testDTO.ConnectionName = desc.TestProfile.Connection
 
 				// Find connection type from config
@@ -176,6 +220,64 @@ func (s *DebuggingService) GetTestProfiles() []TestProfileDTO {
 	return tests
 }
 
+func (s *DebuggingService) GetTestResultsForTask(taskId string) []TestProfileDTO {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if testResults, exists := s.testHistory[taskId]; exists {
+		// Return a copy to avoid race conditions
+		result := make([]TestProfileDTO, len(testResults))
+		copy(result, testResults)
+		return result
+	}
+
+	// If no test results for this taskId, return empty list
+	return []TestProfileDTO{}
+}
+
+func (s *DebuggingService) storeTestResultsForTask(taskId string) {
+	if s.dag == nil || s.dag.TestsMap == nil {
+		return
+	}
+
+	testResults := make([]TestProfileDTO, 0)
+
+	// Iterate through all tests and get their execution status from nodes
+	for testName, testAsset := range s.dag.TestsMap {
+		testDTO := TestProfileDTO{
+			Name: testName,
+			SQL:  "", // Will be populated from descriptor
+		}
+
+		// Get test descriptor for connection info and SQL
+		if descriptor := testAsset.GetDescriptor(); descriptor != nil {
+			if desc, ok := descriptor.(*models.SQLModelTestDescriptor); ok {
+				testDTO.SQL = desc.RawSQL
+				if desc.TestProfile != nil {
+					testDTO.ConnectionName = desc.TestProfile.Connection
+
+					// Find connection type from config
+					if s.dag.Config != nil {
+						for _, conn := range s.dag.Config.Connections {
+							if conn.Name == desc.TestProfile.Connection {
+								testDTO.ConnectionType = conn.Type
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+
+		testResults = append(testResults, testDTO)
+	}
+
+	// Store test results for this taskId
+	s.mu.Lock()
+	s.testHistory[taskId] = testResults
+	s.mu.Unlock()
+}
+
 func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResponseDTO {
 	if s.dag == nil {
 		return DagExecutionResponseDTO{
@@ -192,6 +294,7 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 	completedAssets := 0
 	failedAssets := 0
 	inProgressAssets := 0
+	testsFailedAssets := 0 // Track assets with failed tests
 	tasks := make([]NodeStatusDTO, 0)
 	lastTaskName := ""
 	order := 0
@@ -201,8 +304,11 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 		switch nodeState {
 		case dags.NodeStateSuccess:
 			completedAssets++
+		case dags.NodeStateTestsFailed:
+			completedAssets++   // Count as completed even if tests failed
+			testsFailedAssets++ // Track that tests failed
 		case dags.NodeStateFailed:
-			failedAssets++
+			failedAssets++ // Only count actual execution failures
 		case dags.NodeStateInProgress, dags.NodeStateTesting:
 			inProgressAssets++
 		}
@@ -233,12 +339,14 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 						endTimeMs := node.EndTime.UnixMilli()
 						taskStatus.EndTime = &endTimeMs
 					}
-					// Add test counts
-					taskStatus.TotalTests = len(node.Tests)
-					taskStatus.PassedTests = node.TestsPassed
-					taskStatus.FailedTests = node.TestsFailed
+					// Only add test counts if this node has tests
+					if len(node.Tests) > 0 {
+						taskStatus.TotalTests = len(node.Tests)
+						taskStatus.PassedTests = node.TestsPassed
+						taskStatus.FailedTests = node.TestsFailed
+					}
 
-					// Add test results
+					// Add test results if any
 					if len(node.TestResults) > 0 {
 						taskStatus.TestResults = make([]TestResultDTO, len(node.TestResults))
 						for i, tr := range node.TestResults {
@@ -273,15 +381,46 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 	} else if inProgressAssets > 0 {
 		status = DagExecutionStatusInProgress
 	} else if failedAssets > 0 {
-		status = DagExecutionStatusFailed
+		status = DagExecutionStatusFailed // Asset execution failed
 	} else if completedAssets == totalAssets {
-		status = DagExecutionStatusSuccess
+		// All assets completed, check if any tests failed
+		if testsFailedAssets > 0 {
+			status = DagExecutionStatusTestsFailed // Tests failed but all assets executed
+		} else {
+			status = DagExecutionStatusSuccess // Everything passed
+		}
 	} else {
 		status = DagExecutionStatusInProgress // Partial completion
 	}
 
+	// Convert root test results if available
+	var rootTestResults []TestResultDTO
+	if s.dag != nil && s.dag.RootTestResults != nil {
+		for _, tr := range s.dag.RootTestResults {
+			rootTestResults = append(rootTestResults, TestResultDTO{
+				TestName: tr.TestName,
+				Status:   string(tr.Status),
+				ErrorMsg: func() string {
+					if tr.Error != nil {
+						return tr.Error.Error()
+					} else {
+						return ""
+					}
+				}(),
+				DurationMs: tr.DurationMs,
+			})
+		}
+	}
+
+	// Get TaskUUID if available
+	var taskUUID string
+	if s.dag != nil {
+		taskUUID = s.dag.GetTaskUUID(taskId)
+	}
+
 	return DagExecutionResponseDTO{
 		TaskId:           taskId,
+		TaskUUID:         taskUUID,
 		Status:           status,
 		NodesStatus:      tasks,
 		LastTaskName:     lastTaskName,
@@ -289,6 +428,7 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 		TotalAssets:      totalAssets,
 		FailedAssets:     failedAssets,
 		InProgressAssets: inProgressAssets,
+		RootTestResults:  rootTestResults,
 	}
 }
 
@@ -334,18 +474,32 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
+		// Create timeout timer
+		timeout := time.NewTimer(10 * time.Second)
+		defer timeout.Stop()
+
 		for {
 			select {
 			case <-dagResultChan:
 				// DAG completed, get final status
 				finalStatus := s.GetDagExecutionStatus(taskId)
 
+				// Store test results for this task
+				s.storeTestResultsForTask(taskId)
+
 				// Store final result in history
 				s.mu.Lock()
 				s.taskHistory[taskId] = finalStatus
 				s.mu.Unlock()
 
-				responseChan <- finalStatus
+				// Send response only if within timeout window
+				select {
+				case responseChan <- finalStatus:
+					// Response sent successfully
+				default:
+					// Channel already closed or timeout occurred, but execution completed
+					// The result is still stored in history for later retrieval
+				}
 				return
 
 			case <-ticker.C:
@@ -355,8 +509,8 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 				s.taskHistory[taskId] = currentStatus
 				s.mu.Unlock()
 
-			case <-time.After(10 * time.Second):
-				// Timeout - return current status as PENDING
+			case <-timeout.C:
+				// Timeout - return current status as PENDING but let execution continue
 				status := s.GetDagExecutionStatus(taskId)
 				if status.Status == DagExecutionStatusInProgress {
 					status.Status = DagExecutionStatusPending
@@ -368,12 +522,55 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 				s.mu.Unlock()
 
 				responseChan <- status
+
+				// Start background goroutine to continue monitoring execution
+				go s.monitorDagExecutionInBackground(taskId, dagResultChan)
 				return
 			}
 		}
 	}()
 
 	return responseChan
+}
+
+// monitorDagExecutionInBackground continues monitoring DAG execution after a timeout
+func (s *DebuggingService) monitorDagExecutionInBackground(taskId string, dagResultChan <-chan map[string]interface{}) {
+	// Continue updating task history periodically
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-dagResultChan:
+			// DAG completed in background, update final status
+			finalStatus := s.GetDagExecutionStatus(taskId)
+
+			// Store test results for this task
+			s.storeTestResultsForTask(taskId)
+
+			// Update status from PENDING to actual completion status
+			s.mu.Lock()
+			s.taskHistory[taskId] = finalStatus
+			s.mu.Unlock()
+
+			return // Exit background monitoring
+
+		case <-ticker.C:
+			// Continue updating task history with current progress
+			currentStatus := s.GetDagExecutionStatus(taskId)
+
+			// Keep status as IN_PROGRESS (not PENDING) since we're still executing
+			if currentStatus.Status != DagExecutionStatusFailed &&
+				currentStatus.Status != DagExecutionStatusSuccess &&
+				currentStatus.Status != DagExecutionStatusTestsFailed {
+				currentStatus.Status = DagExecutionStatusInProgress
+			}
+
+			s.mu.Lock()
+			s.taskHistory[taskId] = currentStatus
+			s.mu.Unlock()
+		}
+	}
 }
 
 func (s *DebuggingService) GetTaskStatus(taskId string) DagExecutionResponseDTO {
@@ -390,9 +587,11 @@ func (s *DebuggingService) GetTaskStatus(taskId string) DagExecutionResponseDTO 
 }
 
 func (s *DebuggingService) ResetDagState() error {
-	// Clear task history map
+	// Clear task history map and asset history
 	s.mu.Lock()
 	s.taskHistory = make(map[string]DagExecutionResponseDTO)
+	s.assetHistory = make(map[string]map[string]AssetExecuteResponseDTO)
+	s.testHistory = make(map[string][]TestProfileDTO)
 	s.mu.Unlock()
 
 	if s.dag == nil {
@@ -422,6 +621,9 @@ func (s *DebuggingService) ResetDagState() error {
 		// Only the data in LastResult is cleared, which will be recreated on next execution
 	}
 
+	// Clear root test results
+	s.dag.RootTestResults = nil
+
 	return nil
 }
 
@@ -435,6 +637,7 @@ func (s *DebuggingService) GetAllTasks() TaskListResponseDTO {
 	for taskId, execution := range s.taskHistory {
 		summary := TaskSummaryDTO{
 			TaskId:           taskId,
+			TaskUUID:         execution.TaskUUID,
 			Status:           execution.Status,
 			TotalAssets:      execution.TotalAssets,
 			CompletedAssets:  execution.CompletedAssets,
@@ -486,7 +689,7 @@ func (s *DebuggingService) GetAllTasks() TaskListResponseDTO {
 	}
 }
 
-func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan AssetExecuteResponseDTO {
+func (s *DebuggingService) ExecuteAsset(assetName string, taskId string, taskUUID string) <-chan AssetExecuteResponseDTO {
 	responseChan := make(chan AssetExecuteResponseDTO, 1)
 
 	go func() {
@@ -540,8 +743,18 @@ func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan 
 			node.State = dags.NodeStateInProgress
 			node.StartTime = &startTime
 
+			// Store initial in-progress state
+			s.storeAssetExecutionMetadata(taskId, assetName, response)
+
 			// Execute the asset
-			result, err := node.Asset.Execute(inputData)
+			// Create TaskContext
+			ctx := &processing.TaskContext{
+				TaskID:       taskId,
+				TaskUUID:     taskUUID,
+				InstanceName: s.dag.DagInstanceName,
+				InstanceUUID: s.dag.DagInstanceUUID,
+			}
+			result, err := node.Asset.Execute(ctx, inputData)
 
 			endTime := time.Now()
 			endTimeMs := endTime.UnixMilli()
@@ -559,11 +772,15 @@ func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan 
 				response.Error = err.Error()
 			} else {
 				node.State = dags.NodeStateSuccess
-				node.LastResult = result
+				node.LastResult = result // Store in node for downstream access
 				node.LastError = nil
 				response.Status = NodeStateSuccess
-				response.Result = result
+				// Don't store result in response to avoid memory issues
+				// Result will be accessed from node.LastResult when needed
 			}
+
+			// Update stored metadata after completion (without the actual data)
+			s.storeAssetExecutionMetadata(taskId, assetName, response)
 
 			close(execDone)
 		}()
@@ -571,20 +788,140 @@ func (s *DebuggingService) ExecuteAsset(assetName string, taskId string) <-chan 
 		// Wait for completion or timeout
 		select {
 		case <-execDone:
-			// Execution completed, send the response
+			// Execution completed within timeout
 			responseChan <- response
 		case <-time.After(10 * time.Second):
-			// Timeout - return IN_PROGRESS status
-			response.Status = NodeStateInProgress
-			response.Error = "Execution still in progress after 10 seconds"
-			responseChan <- response
+			// Timeout - return IN_PROGRESS status but let execution continue
+			timeoutResponse := AssetExecuteResponseDTO{
+				TaskId:        taskId,
+				AssetName:     assetName,
+				Status:        NodeStateInProgress,
+				StartTime:     response.StartTime,
+				UpstreamsUsed: response.UpstreamsUsed,
+				Error:         "Execution still in progress after 10 seconds",
+			}
+			responseChan <- timeoutResponse
+			// Execution continues in background and will update metadata when done
 		}
 	}()
 
 	return responseChan
 }
 
-func (s *DebuggingService) GetAssetData(assetName string) AssetDataResponseDTO {
+// storeAssetExecutionMetadata stores the asset execution metadata (without data) for later retrieval
+func (s *DebuggingService) storeAssetExecutionMetadata(taskId, assetName string, response AssetExecuteResponseDTO) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.assetHistory[taskId] == nil {
+		s.assetHistory[taskId] = make(map[string]AssetExecuteResponseDTO)
+	}
+
+	// Store metadata only, not the actual result data
+	metadataOnly := AssetExecuteResponseDTO{
+		TaskId:          response.TaskId,
+		AssetName:       response.AssetName,
+		Status:          response.Status,
+		StartTime:       response.StartTime,
+		EndTime:         response.EndTime,
+		ExecutionTimeMs: response.ExecutionTimeMs,
+		Error:           response.Error,
+		UpstreamsUsed:   response.UpstreamsUsed,
+		// Result is intentionally omitted to avoid storing large data
+	}
+
+	s.assetHistory[taskId][assetName] = metadataOnly
+}
+
+// GetAssetData retrieves asset execution data for a specific task
+func (s *DebuggingService) GetAssetData(taskId, assetName string) AssetExecuteResponseDTO {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Default response if not found
+	response := AssetExecuteResponseDTO{
+		TaskId:    taskId,
+		AssetName: assetName,
+		Status:    NodeStateInitial,
+	}
+
+	// First check if we have execution metadata for this task
+	if taskAssets, exists := s.assetHistory[taskId]; exists {
+		if assetMetadata, found := taskAssets[assetName]; found {
+			// Start with stored metadata
+			response = assetMetadata
+
+			// Now fetch the actual data from the node if execution completed
+			if s.dag != nil && (response.Status == NodeStateSuccess || response.Status == NodeStateFailed) {
+				if node := s.dag.GetNode(assetName); node != nil {
+					// Add the actual result from node's LastResult (for downstream access)
+					if node.LastResult != nil && response.Status == NodeStateSuccess {
+						response.Result = node.LastResult
+					}
+
+					// Update status from current node state in case it changed
+					response.Status = NodeState(node.State)
+
+					// Update timing if execution completed after timeout
+					if node.EndTime != nil && response.EndTime == nil {
+						endTimeMs := node.EndTime.UnixMilli()
+						response.EndTime = &endTimeMs
+						if node.StartTime != nil {
+							response.ExecutionTimeMs = node.EndTime.Sub(*node.StartTime).Milliseconds()
+						}
+					}
+				}
+			}
+
+			return response
+		}
+	}
+
+	// If no stored execution metadata, check current node state
+	if s.dag != nil {
+		if node := s.dag.GetNode(assetName); node != nil {
+			// Map node state to response
+			response.Status = NodeState(node.State)
+
+			// Add timing information if available
+			if node.StartTime != nil {
+				startTimeMs := node.StartTime.UnixMilli()
+				response.StartTime = &startTimeMs
+			}
+			if node.EndTime != nil {
+				endTimeMs := node.EndTime.UnixMilli()
+				response.EndTime = &endTimeMs
+			}
+			response.ExecutionTimeMs = node.LastExecutionDuration
+
+			// Add result or error from node
+			if node.LastResult != nil {
+				response.Result = node.LastResult
+			}
+			if node.LastError != nil {
+				response.Error = node.LastError.Error()
+			}
+
+			// Add upstreams information
+			upstreams := []string{}
+			for _, upstream := range node.Upstreams {
+				upstreams = append(upstreams, upstream.Name)
+			}
+			response.UpstreamsUsed = upstreams
+		} else {
+			response.Error = "Asset not found in DAG"
+			response.Status = NodeStateFailed
+		}
+	} else {
+		response.Error = "DAG not initialized"
+		response.Status = NodeStateFailed
+	}
+
+	return response
+}
+
+// GetAssetDataLegacy is the old implementation for backward compatibility
+func (s *DebuggingService) GetAssetDataLegacy(assetName string) AssetDataResponseDTO {
 	response := AssetDataResponseDTO{
 		AssetName: assetName,
 		HasData:   false,

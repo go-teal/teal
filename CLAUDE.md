@@ -147,15 +147,49 @@ go run cmd/<project-name>-ui/<project-name>-ui.go
 
 # Start on custom port
 go run cmd/<project-name>-ui/<project-name>-ui.go --port 9090
-
-# API endpoints available:
-# GET  /api/dag                  - Get DAG structure
-# GET  /api/tests                - Get test profiles
-# POST /api/dag/run              - Execute DAG with task ID
-# GET  /api/dag/status/:taskId   - Get task execution status
-# GET  /api/dag/tasks            - List all task executions
-# POST /api/dag/reset            - Clear execution history
 ```
+
+### API Endpoints
+
+#### DAG Operations
+- `GET  /api/dag` - Get DAG structure with all nodes and connections
+- `POST /api/dag/run` - Execute DAG with task ID (returns 200 OK even if tests fail)
+  - Request body: `{"taskId": "task_123", "data": {}}`
+  - Returns 200 for successful execution (including test failures)
+  - Returns 202 for pending/timeout
+  - Response includes `rootTestResults` array with root test execution results:
+    ```json
+    {
+      "taskId": "task_123",
+      "status": "SUCCESS",
+      "rootTestResults": [
+        {
+          "testName": "root.test_name",
+          "status": "SUCCESS|FAILED",
+          "errorMsg": "error message if failed",
+          "durationMs": 123
+        }
+      ]
+    }
+    ```
+- `GET  /api/dag/status/:taskId` - Get task execution status
+  - Response includes `rootTestResults` array with root test execution results (same structure as above)
+- `GET  /api/dag/tasks` - List all task executions
+- `POST /api/dag/reset` - Clear execution history
+
+#### Test Operations  
+- `GET  /api/tests` - Get all test profiles (returns name, SQL, connectionName, connectionType)
+- `GET  /api/tests/:taskId` - Get test execution results for specific task
+
+#### Asset Operations
+- `POST /api/dag/asset/:name/execute` - Execute specific asset
+- `GET  /api/dag/asset/:name/data` - Get asset data/results
+
+#### Log Operations (when UI mode is enabled)
+- `GET  /api/logs/:taskId` - Get logs for specific task execution
+- `GET  /api/logs` - Get all logs
+- `DELETE /api/logs/:taskId` - Clear logs for specific task
+- `DELETE /api/logs` - Clear all logs
 
 ## Database Driver Architecture
 

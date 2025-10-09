@@ -67,32 +67,29 @@ func main() {
 		}
 	}
 
-	// Generate unique task name with timestamp or use custom name
-	var taskName string
+	// Generate unique task ID with timestamp or use custom name
+	var taskId string
 	if *customTaskName != "" {
-		taskName = *customTaskName
-		log.Info().Str("taskName", taskName).Msg("Using custom task name")
+		taskId = *customTaskName
+		log.Info().Str("taskId", taskId).Msg("Using custom task ID")
 	} else {
-		taskName = fmt.Sprintf("{{ .Profile.Name }}_%d", time.Now().Unix())
-		log.Info().Str("taskName", taskName).Msg("Generated task name")
+		taskId = fmt.Sprintf("{{ .Profile.Name }}_%d", time.Now().Unix())
+		log.Info().Str("taskId", taskId).Msg("Generated task ID")
 	}
 
 	// Initialize DAG with or without tests based on flag
 	var dag dags.DAG
 	if *withTests {
-		dag = dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, taskName)
+		dag = dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, taskId)
 	} else {
-		dag = dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, taskName)
+		dag = dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, taskId)
 	}
 
 	wg := dag.Run()
-	result := <-dag.Push(taskName, inputDataMap, make(chan map[string]interface{}))
-	log.Info().Str("taskName", taskName).Any("Result", result).Send()
+	result := <-dag.Push(taskId, inputDataMap, make(chan map[string]interface{}))
+	log.Info().Str("taskId", taskId).Any("Result", result).Send()
 	dag.Stop()
 	wg.Wait()
 
-	if *withTests {
-		modeltests.TestAll()
-	}
 	log.Info().Msg("Finishing {{ .Profile.Name }}")
 }

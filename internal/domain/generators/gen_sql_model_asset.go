@@ -3,6 +3,7 @@ package generators
 import (
 	"bytes"
 	_ "embed"
+	"encoding/base64"
 	"os"
 	"text/template"
 
@@ -47,6 +48,12 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
+
+	// Base64 encode the description to avoid issues with special characters in templates
+	if g.modelConfig.ModelProfile != nil && g.modelConfig.ModelProfile.Description != "" {
+		encoded := base64.StdEncoding.EncodeToString([]byte(g.modelConfig.ModelProfile.Description))
+		g.modelConfig.ModelProfile.Description = encoded
+	}
 
 	goTempl, err := template.New(g.GetFileName()).Parse(dwhModelTemplate)
 	if err != nil {

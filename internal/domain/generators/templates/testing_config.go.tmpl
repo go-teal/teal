@@ -1,24 +1,11 @@
 package modeltests
 
 import (
-	"github.com/go-teal/teal/pkg/processing"	
-	"github.com/rs/zerolog/log"
+	"github.com/go-teal/teal/pkg/processing"
 )
 
 var ProjectTests = map[string] processing.ModelTesting{
 {{- range $tst := .Tests }}
 	"{{ $tst.TestName }}":{{$tst.GoName}}SimpleTestCase,
 {{- end }}
-}
-
-
-func TestAll() {
-	for _, testCase := range ProjectTests {
-		status, testName, err := testCase.Execute()
-		if status {
-			log.Info().Str("testCase", testName).Msg("Success")
-		} else {
-			log.Error().Caller().Str("testCase", testName).Err(err).Msg("Failed")
-		}
-	}
 }

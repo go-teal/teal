@@ -13,11 +13,12 @@ const (
 type NodeState string
 
 const (
-	NodeStateInitial    NodeState = "INITIAL"
-	NodeStateInProgress NodeState = "IN_PROGRESS"
-	NodeStateTesting    NodeState = "TESTING"
-	NodeStateFailed     NodeState = "FAILED"
-	NodeStateSuccess    NodeState = "SUCCESS"
+	NodeStateInitial     NodeState = "INITIAL"
+	NodeStateInProgress  NodeState = "IN_PROGRESS"
+	NodeStateTesting     NodeState = "TESTING"
+	NodeStateFailed      NodeState = "FAILED"
+	NodeStateSuccess     NodeState = "SUCCESS"
+	NodeStateTestsFailed NodeState = "TESTS_FAILED" // Asset succeeded but tests failed
 )
 
 type TestStatus string
@@ -31,6 +32,7 @@ const (
 
 type DagNodeDTO struct {
 	Name                  string              `json:"name"`
+	Description           string              `json:"description"`
 	Downstreams           []string            `json:"downstreams"`
 	Upstreams             []string            `json:"upstreams"`
 	SQLSelectQuery        string              `json:"sqlSelectQuery"`
@@ -46,24 +48,26 @@ type DagNodeDTO struct {
 	SuccessfulTests       int                 `json:"successfulTests"`
 	LastExecutionDuration int64               `json:"lastExecutionDuration"` // Duration in milliseconds
 	LastTestsDuration     int64               `json:"lastTestsDuration"`     // Duration of tests execution in milliseconds
+	TaskGroupIndex        int                 `json:"TaskGroupIndex"`
 }
 
 type TestProfileDTO struct {
-	Name           string     `json:"name"`
-	SQL            string     `json:"sql"`
-	ConnectionName string     `json:"connectionName"`
-	ConnectionType string     `json:"connectionType"`
-	Status         TestStatus `json:"status"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	SQL            string `json:"sql"`
+	ConnectionName string `json:"connectionName"`
+	ConnectionType string `json:"connectionType"`
 }
 
 type DagExecutionStatus string
 
 const (
-	DagExecutionStatusNotStarted DagExecutionStatus = "NOT_STARTED"
-	DagExecutionStatusInProgress DagExecutionStatus = "IN_PROGRESS"
-	DagExecutionStatusSuccess    DagExecutionStatus = "SUCCESS"
-	DagExecutionStatusFailed     DagExecutionStatus = "FAILED"
-	DagExecutionStatusPending    DagExecutionStatus = "PENDING"
+	DagExecutionStatusNotStarted  DagExecutionStatus = "NOT_STARTED"
+	DagExecutionStatusInProgress  DagExecutionStatus = "IN_PROGRESS"
+	DagExecutionStatusSuccess     DagExecutionStatus = "SUCCESS"
+	DagExecutionStatusFailed      DagExecutionStatus = "FAILED"
+	DagExecutionStatusPending     DagExecutionStatus = "PENDING"
+	DagExecutionStatusTestsFailed DagExecutionStatus = "TESTS_FAILED" // All assets succeeded but some tests failed
 )
 
 // TestResultDTO represents a test result in API responses
@@ -90,6 +94,7 @@ type NodeStatusDTO struct {
 
 type DagExecutionResponseDTO struct {
 	TaskId           string             `json:"taskId"`
+	TaskUUID         string             `json:"taskUuid,omitempty"`
 	Status           DagExecutionStatus `json:"status"`
 	NodesStatus      []NodeStatusDTO    `json:"nodes"`
 	LastTaskName     string             `json:"lastTaskName"`
@@ -97,17 +102,20 @@ type DagExecutionResponseDTO struct {
 	TotalAssets      int                `json:"totalAssets"`
 	FailedAssets     int                `json:"failedAssets"`
 	InProgressAssets int                `json:"inProgressAssets"`
+	RootTestResults  []TestResultDTO    `json:"rootTestResults,omitempty"`
 }
 
 type DagRunRequestDTO struct {
-	TaskId string                 `json:"taskId"`
-	Data   map[string]interface{} `json:"data"`
+	TaskId   string                 `json:"taskId"`
+	TaskUUID string                 `json:"taskUuid,omitempty"`
+	Data     map[string]interface{} `json:"data"`
 }
 
 // TaskSummaryDTO represents the summary of an entire task execution (identified by TaskId)
 // It contains aggregate counts for all assets in the DAG execution
 type TaskSummaryDTO struct {
 	TaskId           string             `json:"taskId"`
+	TaskUUID         string             `json:"taskUuid,omitempty"`
 	Status           DagExecutionStatus `json:"status"`
 	StartTime        *int64             `json:"startTime,omitempty"`
 	EndTime          *int64             `json:"endTime,omitempty"`
@@ -123,7 +131,8 @@ type TaskListResponseDTO struct {
 }
 
 type AssetExecuteRequestDTO struct {
-	TaskId string `json:"taskId"`
+	TaskId   string `json:"taskId"`
+	TaskUUID string `json:"taskUuid,omitempty"`
 }
 
 type AssetExecuteResponseDTO struct {

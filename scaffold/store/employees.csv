@@ -1,0 +1,21 @@
+employee_id,first_name,last_name,date_of_birth,position,salary,hire_date,base_airport
+1001,John,Smith,1975-03-15,Captain,150000,2000-06-01,JFK
+1002,Sarah,Johnson,1980-07-22,First Officer,95000,2005-09-15,JFK
+1003,Michael,Williams,1985-11-08,Flight Attendant,55000,2010-03-20,JFK
+1004,Emily,Brown,1990-02-28,Flight Attendant,52000,2012-07-10,JFK
+1005,David,Jones,1978-09-12,Captain,155000,2002-04-05,LAX
+1006,Jennifer,Davis,1982-06-18,First Officer,92000,2008-11-22,LAX
+1007,Robert,Miller,1987-04-25,Flight Attendant,58000,2011-08-30,LAX
+1008,Lisa,Wilson,1992-12-03,Flight Attendant,50000,2015-02-14,LAX
+1009,James,Moore,1976-10-30,Captain,160000,2001-05-18,ORD
+1010,Patricia,Taylor,1983-08-14,First Officer,98000,2007-10-08,ORD
+1011,William,Anderson,1988-01-20,Flight Attendant,56000,2013-06-25,ORD
+1012,Mary,Thomas,1991-05-07,Flight Attendant,51000,2014-09-12,ORD
+1013,Richard,Jackson,1977-07-19,Captain,158000,2003-03-28,ATL
+1014,Linda,White,1984-11-25,First Officer,94000,2009-08-16,ATL
+1015,Charles,Harris,1989-03-11,Lead Flight Attendant,62000,2012-01-30,ATL
+1016,Barbara,Martin,1993-09-05,Flight Attendant,49000,2016-04-22,ATL
+1017,Joseph,Thompson,1979-12-28,Captain,152000,2004-07-14,DFW
+1018,Susan,Garcia,1986-02-14,First Officer,91000,2010-12-05,DFW
+1019,Thomas,Martinez,1990-06-30,Flight Attendant,54000,2013-10-18,DFW
+1020,Jessica,Robinson,1994-08-17,Flight Attendant,48000,2017-03-09,DFW

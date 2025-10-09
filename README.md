@@ -194,6 +194,30 @@ Your DAG is depicted in the PlantUML file `graph.wsd`
 
 ### Run your project <!-- omit from toc -->
 
+**Using Make (recommended for development):**
+
+The generated project includes a Makefile with convenient targets:
+
+```bash
+# Generate assets and run UI debug server (default port 8080)
+make run
+
+# Run on custom port
+make run PORT=9090
+
+# Build production binary
+make build
+
+# Build UI debug binary
+make build-ui
+
+# Run with tests
+make run-with-tests
+
+# View all available commands
+make help
+```
+
 **Production mode (Channel DAG):**
 
 First, build the production binary:
@@ -230,6 +254,16 @@ Then run the compiled binary with various options:
 
 # Schedule with cron (example)
 # 0 */6 * * * /path/to/bin/my-test-project --task-name "scheduled_$(date +\%Y\%m\%d_\%H\%M\%S)" --log-level info
+```
+
+**Debug UI mode:**
+
+```bash
+# Run UI debug server directly
+go run ./cmd/my-test-project-ui/my-test-project-ui.go
+
+# Run on custom port
+go run ./cmd/my-test-project-ui/my-test-project-ui.go --port 9090
 ```
 
 **Note:** For production deployments, always use the compiled binary rather than `go run` for better performance and reliability.
@@ -407,7 +441,8 @@ The asset profile can be specified via the `profile.yaml` file or via a GO templ
 ```yaml
 {{ define "profile.yaml" }}
     connection: 'default'
-    materialization: 'table'  
+    description: 'Staging addresses from CSV file'  # Optional: Describes the model's purpose
+    materialization: 'table'
     is_data_framed: true
     primary_key_fields:
       - "id"
@@ -437,6 +472,7 @@ select
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
 |name|String|filename|The model name must match the file name, disregarding the system extension (.sql).|
+|description|String||Optional description of the model's purpose, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
 |materialization|String|table|See [Materializations](#materializations).|
 |is_data_framed|boolean|false|See [Cross-database references](#cross-database-references).|
@@ -473,6 +509,10 @@ Native available functions:
 |Ref|`"<staging name>.<model name>"`|string|`Ref` is the main function on which the DAG is based. It points to the model that will be replaced by the table name after the template is executed.|
 |this|None|string|The `this` function returns the name of the current table.|
 |IsIncremental|None|boolean|The `IsIncremental` function returns a flag indicating whether the model is being executed in incremental mode.|
+|TaskID|None|string|Returns the task identifier from the Push method.|
+|TaskUUID|None|string|Returns the unique UUID assigned in the Push method for task tracking.|
+|InstanceName|None|string|Returns the DAG instance name.|
+|InstanceUUID|None|string|Returns the unique UUID assigned to the DAG instance at initialization.|
 
 ## Databases
 
@@ -536,8 +576,14 @@ Raw assets are custom functions written in Go that can accept and return datafra
 Raw assets must implement the following function interface:
 
 ```go
-type ExecutorFunc func(input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
+type ExecutorFunc func(ctx *TaskContext, input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
 ```
+
+The `TaskContext` provides runtime information about the current execution:
+- `TaskID`: Task identifier from the Push method
+- `TaskUUID`: Unique UUID assigned for task tracking
+- `InstanceName`: DAG instance name
+- `InstanceUUID`: Unique UUID assigned to the DAG instance
 
 Retrieving a dataframe from an upstream is done as follows:
 
@@ -580,7 +626,7 @@ select pk_id, count(pk_id) as c from {{ Ref "dds.fact_transactions" }} group by 
 ```
 
 The generated source code for testing is located in the `modeltests` package.  
-To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`.
+Root tests (tests located in `assets/tests/` with `root.` prefix) are automatically executed after all DAG tasks complete when running with the `--with-tests` flag.
 
 Test cases defined in the model profiles are executed immediately after the execution of the model itself.  
 For the tests to be executed immediately after the models, the DAG must be initialized with the following command:  
@@ -588,9 +634,19 @@ For the tests to be executed immediately after the models, the DAG must be initi
 
 #### Test profile
 
+Test profiles can be defined in test SQL files using the same template syntax as models:
+
+```yaml
+{{ define "profile.yaml" }}
+    connection: 'default'
+    description: 'Test that ensures airport keys are unique'  # Optional: Describes what the test validates
+{{ end }}
+```
+
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
 |name|String|`<stage>.<filename>`|The test name following the pattern `<stage>.<test_name>`. Can be specified in the test file's profile or in the model profile when defining tests. For tests in `assets/tests/`, stage is `root`.|
+|description|String||Optional description of what the test validates, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
 
 ## Road Map
