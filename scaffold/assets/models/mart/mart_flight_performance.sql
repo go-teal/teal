@@ -1,6 +1,6 @@
 {{ define "profile.yaml" }}
-    connection: 'default'
     materialization: 'view'
+    is_data_framed: True
     description: |
         ## Flight Performance Analytics
 

@@ -119,7 +119,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 			}
 		}
 		if s.descriptor.ModelProfile.IsDataFramed {
-			data, err = s.getDataFrame(ctx)
+			data, err = s.getDataFrame(ctx, isTableExists)
 			if err != nil {
 				return nil, err
 			}
@@ -145,7 +145,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 			}
 			if s.descriptor.ModelProfile.IsDataFramed {
 				log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-				data, err = s.getDataFrame(ctx)
+				data, err = s.getDataFrame(ctx, false)
 				if err != nil {
 					return nil, err
 				}
@@ -165,7 +165,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 				}
 				if s.descriptor.ModelProfile.IsDataFramed {
 					log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-					data, err = s.getDataFrame(ctx)
+					data, err = s.getDataFrame(ctx, false)
 					if err != nil {
 						return nil, err
 					}
@@ -207,7 +207,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 
 		if s.descriptor.ModelProfile.IsDataFramed {
 			log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
-			data, err = s.getDataFrame(ctx)
+			data, err = s.getDataFrame(ctx, false)
 			if err != nil {
 				return nil, err
 			}
@@ -230,7 +230,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 		}
 
 		if s.descriptor.ModelProfile.IsDataFramed {
-			data, err = s.getDataFrame(ctx)
+			data, err = s.getDataFrame(ctx, false)
 			if err != nil {
 				return nil, err
 			}
@@ -247,22 +247,22 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 // RunTests implements Asset.
 func (s *SQLModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTesting) []TestResult {
 	results := make([]TestResult, 0)
-	
+
 	if len(s.descriptor.ModelProfile.Tests) == 0 {
 		return results
 	}
-	
+
 	log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msgf("Testing %s", s.descriptor.Name)
 	for _, testConfig := range s.descriptor.ModelProfile.Tests {
 		startTime := time.Now()
 		result := TestResult{
 			TestName: testConfig.Name,
 		}
-		
+
 		if testCase, ok := testsMap[testConfig.Name]; ok {
 			status, testName, err := testCase.Execute(ctx)
 			result.DurationMs = time.Since(startTime).Milliseconds()
-			
+
 			if status {
 				result.Status = TestStatusSuccess
 				result.Message = testName
@@ -279,10 +279,10 @@ func (s *SQLModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTest
 			result.Message = fmt.Sprintf("Test %s not found", testConfig.Name)
 			log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg(result.Message)
 		}
-		
+
 		results = append(results, result)
 	}
-	
+
 	return results
 }
 
@@ -484,10 +484,10 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 	return dbConnection.Commit(tx)
 }
 
-func (s *SQLModelAsset) getDataFrame(ctx *TaskContext) (*dataframe.DataFrame, error) {
+func (s *SQLModelAsset) getDataFrame(ctx *TaskContext, isIncremental bool) (*dataframe.DataFrame, error) {
 
 	s.functions["IsIncremental"] = func() bool {
-		return s.descriptor.ModelProfile.Materialization == configs.MAT_INCREMENTAL
+		return isIncremental
 	}
 
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)

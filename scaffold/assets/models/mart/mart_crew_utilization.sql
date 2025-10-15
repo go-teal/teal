@@ -1,5 +1,4 @@
 {{ define "profile.yaml" }}
-    connection: 'default'
     materialization: 'view'
     description: |
         ## Crew Utilization Analytics

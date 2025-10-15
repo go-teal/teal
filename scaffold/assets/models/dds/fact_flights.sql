@@ -1,6 +1,6 @@
 {{ define "profile.yaml" }}
-    connection: 'default'
     materialization: 'incremental'
+    is_data_framed: True
     description: |
         ## Flight Operations Fact Table (Incremental)
 

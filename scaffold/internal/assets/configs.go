@@ -21,11 +21,11 @@ var ProjectAssets = map[string] processing.Asset{
 
 var DAG = [][]string{
 	{
-		"staging.stg_flights",
-		"staging.stg_routes",
 		"staging.stg_airports",
 		"staging.stg_crew_assignments",
-		"staging.stg_employees",			
+		"staging.stg_employees",
+		"staging.stg_routes",
+		"staging.stg_flights",			
 	},
 	{
 		"dds.dim_airports",

@@ -15,8 +15,9 @@ http://localhost:8080
   - [GET /api/dag/tasks](#get-apidagtasks)
   - [POST /api/dag/reset](#post-apidagreset)
 - [Asset Operations](#asset-operations)
-  - [POST /api/dag/asset/:name/execute](#post-apidagassetnameexecute)
+  - [POST /api/dag/asset/:name/mutate](#post-apidagassetnamemutate)
   - [GET /api/dag/asset/:name/data](#get-apidagassetnamedata)
+  - [POST /api/dag/asset/:name/select](#post-apidagassetnameselect)
 - [Test Operations](#test-operations)
   - [GET /api/tests](#get-apitests)
 - [Log Operations](#log-operations)
@@ -441,7 +442,7 @@ Resets the DAG state, clearing all execution data and task history.
 
 ## Asset Operations
 
-### POST /api/dag/asset/:name/execute
+### POST /api/dag/asset/:name/mutate
 Executes a specific asset within the DAG context. Returns within 10 seconds.
 
 **Parameters:**
@@ -511,79 +512,164 @@ Executes a specific asset within the DAG context. Returns within 10 seconds.
 ---
 
 ### GET /api/dag/asset/:name/data
-Retrieves the current data stored in an asset after execution.
+Retrieves the execution result and metadata for an asset from a specific task execution with optional pagination.
 
 **Parameters:**
 - `name` (path parameter): Asset name (e.g., "staging.hello")
 
-**Response: 200 OK (DataFrame)**
+**Query Parameters:**
+- `taskId` (required): Task ID from DAG execution
+- `offset` (optional): Starting index for pagination (0-based, default: 0)
+- `limit` (optional): Maximum number of records to return (default: 0 = no limit)
+
+**Response: 200 OK (DataFrame Result)**
 ```json
 {
+  "taskId": "task_20250125_143022",
   "assetName": "staging.hello",
-  "hasData": true,
-  "dataType": "dataframe",
-  "isDataFramed": true,
-  "data": [
+  "status": "SUCCESS",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500,
+  "result": [
     {"greeting": "Hello", "id": 1},
     {"greeting": "World", "id": 2}
   ],
-  "rowCount": 2,
-  "columnCount": 2,
-  "columns": ["greeting", "id"],
-  "error": ""
+  "upstreamsUsed": [],
+  "totalRecords": 100,
+  "offset": 0,
+  "limit": 2
 }
 ```
 
-**Response: 200 OK (Map Data)**
+**Response: 200 OK (Map Result)**
 ```json
 {
+  "taskId": "task_20250125_143022",
   "assetName": "dds.world",
-  "hasData": true,
-  "dataType": "map",
-  "isDataFramed": false,
-  "data": {
+  "status": "SUCCESS",
+  "startTime": 1737816623500,
+  "endTime": 1737816625000,
+  "executionTimeMs": 1500,
+  "result": {
     "key1": "value1",
-    "key2": 42,
-    "nested": {
-      "field": "data"
-    }
+    "key2": 42
   },
-  "error": ""
+  "upstreamsUsed": ["staging.hello"]
 }
 ```
 
-**Response: 204 No Content**
+**Response: 200 OK (Not Executed)**
 ```json
 {
+  "taskId": "task_20250125_143022",
   "assetName": "staging.hello",
-  "hasData": false,
-  "dataType": "",
-  "isDataFramed": false,
-  "error": ""
+  "status": "INITIAL",
+  "upstreamsUsed": []
 }
 ```
 
-**Response: 404 Not Found**
+**Response: 200 OK (Failed)**
 ```json
 {
-  "assetName": "unknown.asset",
-  "hasData": false,
-  "dataType": "",
-  "isDataFramed": false,
-  "error": "Asset not found in DAG"
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "FAILED",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500,
+  "error": "SQL execution failed: table not found",
+  "upstreamsUsed": []
 }
 ```
 
 **Field Descriptions:**
+- `taskId` (string): Task ID for this execution
 - `assetName` (string): Name of the asset
-- `hasData` (boolean): Whether the asset has data
-- `dataType` (string): Type of data - "dataframe", "map", "array", "string", etc.
-- `isDataFramed` (boolean): Whether data is stored as DataFrame
-- `data` (any, optional): The actual data (structure depends on dataType)
-- `rowCount` (integer, optional): Number of rows (for dataframes)
-- `columnCount` (integer, optional): Number of columns (for dataframes)
-- `columns` (array, optional): Column names (for dataframes)
-- `error` (string): Error message if retrieval failed
+- `status` (string): Execution status - "INITIAL", "IN_PROGRESS", "SUCCESS", "FAILED", "TESTS_FAILED"
+- `startTime` (integer, optional): Unix timestamp in milliseconds
+- `endTime` (integer, optional): Unix timestamp in milliseconds
+- `executionTimeMs` (integer): Execution duration in milliseconds
+- `result` (any, optional): The execution result. DataFrames are automatically serialized as arrays of objects. Paginated based on offset and limit
+- `error` (string, optional): Error message if execution failed
+- `upstreamsUsed` (array): List of upstream assets used in execution
+- `totalRecords` (integer, optional): Total number of records available (before pagination)
+- `offset` (integer, optional): Starting index used for this response
+- `limit` (integer, optional): Maximum records returned in this response (0 = no limit)
+
+**Notes:**
+- DataFrame results are automatically serialized to JSON as arrays of objects, where each object represents a row
+- Pagination is applied after serialization: `offset` specifies the starting record index (0-based), and `limit` specifies the maximum number of records to return
+- `totalRecords` shows the complete dataset size before pagination, allowing clients to calculate total pages
+- **Important**: The `result` field contains data from the node's `LastResult`, which is overwritten on each new execution. If Task B executes after Task A, querying `?taskId=taskA` will return Task B's result, not Task A's original result. The endpoint only guarantees metadata (status, timing, error) is task-specific; the actual data reflects the most recent execution of that asset
+- This endpoint returns execution metadata from a specific task, unlike `/select` which executes a fresh query
+
+**Pagination Examples:**
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123` - Returns all records
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123&limit=10` - Returns first 10 records
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123&offset=10&limit=10` - Returns records 11-20
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123&offset=100` - Returns all records starting from index 100
+
+---
+
+### POST /api/dag/asset/:name/select
+Executes the asset's SQL query using the `ToDataFrame` method, renders the SQL template (executing all template functions like `Ref` and `IsIncremental`), and saves the result to the node's `LastResult`. The result can then be retrieved using the `/api/dag/asset/:name/data` endpoint.
+
+**Parameters:**
+- `name` (path parameter): Asset name (e.g., "staging.hello")
+
+**Request Body:**
+```json
+{
+  "taskId": "task_select_20250115"
+}
+```
+
+**Field Descriptions (Request):**
+- `taskId` (string, required): Task ID to associate with this execution
+
+**Response: 200 OK (Success)**
+```json
+{
+  "taskId": "task_select_20250115",
+  "assetName": "staging.hello",
+  "status": "SUCCESS",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500
+}
+```
+
+**Response: 200 OK (Failed)**
+```json
+{
+  "taskId": "task_select_20250115",
+  "assetName": "staging.hello",
+  "status": "FAILED",
+  "error": "Failed to execute query: syntax error at line 5"
+}
+```
+
+**Field Descriptions (Response):**
+- `taskId` (string): Task ID for this execution
+- `assetName` (string): Name of the asset
+- `status` (string): Execution status - "SUCCESS" or "FAILED"
+- `startTime` (integer, optional): Unix timestamp in milliseconds when execution started
+- `endTime` (integer, optional): Unix timestamp in milliseconds when execution completed
+- `executionTimeMs` (integer, optional): Execution duration in milliseconds
+- `error` (string, optional): Error message if query failed
+
+**Notes:**
+- This endpoint only works with SQL assets (not raw assets)
+- **Template Rendering**: The SQL template is rendered before execution, which means:
+  - `{{ Ref "stage.model" }}` functions are executed to resolve table references
+  - `{{ IsIncremental() }}` returns `true` if materialization is incremental and the table exists
+  - All other template functions are evaluated
+- The result is saved to the node's `LastResult` and can be retrieved via `GET /api/dag/asset/:name/data?taskId=<taskId>`
+- To get paginated data, use `GET /api/dag/asset/:name/data?taskId=<taskId>&offset=0&limit=100`
+- The result is stored against the taskId in execution metadata
+- Uses the asset's configured database connection
+- **Important**: The data in `LastResult` is overwritten on subsequent executions (see `/data` endpoint notes)
 
 ---
 

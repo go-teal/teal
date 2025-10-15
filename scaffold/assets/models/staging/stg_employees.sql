@@ -1,5 +1,4 @@
 {{ define "profile.yaml" }}
-    connection: 'default'
     materialization: 'table'
     description: |
         ## Employee Master Data Staging

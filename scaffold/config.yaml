@@ -7,7 +7,4 @@ connections:
       path: ./store/test.duckdb            
       extensions:
         - postgres
-        - httpfs         
-      # extraParams: 
-      #   - name: "name"
-      #     value: "value"
+        - httpfs    

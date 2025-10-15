@@ -75,6 +75,7 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 
 	generatorsList = append(generatorsList, generators.InitGenAssetsConfig(config, projectProfile, modelConfigs, priorityGroups))
 	generatorsList = append(generatorsList, generators.InitGenGraph(config, projectProfile, modelConfigs))
+	generatorsList = append(generatorsList, generators.InitGenReadme(config, projectProfile, modelConfigs))
 	generatorsList = append(generatorsList, generators.InitGenTestConfig(config, projectProfile, testConfigs))
 
 	fmt.Printf("Files %d\n", len(generatorsList))

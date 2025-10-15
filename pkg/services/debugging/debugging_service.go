@@ -2,15 +2,16 @@ package debugging
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/go-teal/gota/dataframe"
+	"github.com/go-teal/teal/pkg/configs"
+	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/go-teal/teal/pkg/processing"
@@ -689,7 +690,7 @@ func (s *DebuggingService) GetAllTasks() TaskListResponseDTO {
 	}
 }
 
-func (s *DebuggingService) ExecuteAsset(assetName string, taskId string, taskUUID string) <-chan AssetExecuteResponseDTO {
+func (s *DebuggingService) MutateAsset(assetName string, taskId string, taskUUID string) <-chan AssetExecuteResponseDTO {
 	responseChan := make(chan AssetExecuteResponseDTO, 1)
 
 	go func() {
@@ -834,7 +835,7 @@ func (s *DebuggingService) storeAssetExecutionMetadata(taskId, assetName string,
 }
 
 // GetAssetData retrieves asset execution data for a specific task
-func (s *DebuggingService) GetAssetData(taskId, assetName string) AssetExecuteResponseDTO {
+func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit int) AssetExecuteResponseDTO {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -843,6 +844,8 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string) AssetExecuteRe
 		TaskId:    taskId,
 		AssetName: assetName,
 		Status:    NodeStateInitial,
+		Offset:    offset,
+		Limit:     limit,
 	}
 
 	// First check if we have execution metadata for this task
@@ -850,13 +853,18 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string) AssetExecuteRe
 		if assetMetadata, found := taskAssets[assetName]; found {
 			// Start with stored metadata
 			response = assetMetadata
+			// Update pagination parameters
+			response.Offset = offset
+			response.Limit = limit
 
 			// Now fetch the actual data from the node if execution completed
 			if s.dag != nil && (response.Status == NodeStateSuccess || response.Status == NodeStateFailed) {
 				if node := s.dag.GetNode(assetName); node != nil {
 					// Add the actual result from node's LastResult (for downstream access)
 					if node.LastResult != nil && response.Status == NodeStateSuccess {
-						response.Result = node.LastResult
+						totalRecords := 0
+						response.Result, totalRecords = s.serializeResultWithPagination(node.LastResult, offset, limit)
+						response.TotalRecords = totalRecords
 					}
 
 					// Update status from current node state in case it changed
@@ -896,7 +904,9 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string) AssetExecuteRe
 
 			// Add result or error from node
 			if node.LastResult != nil {
-				response.Result = node.LastResult
+				totalRecords := 0
+				response.Result, totalRecords = s.serializeResultWithPagination(node.LastResult, offset, limit)
+				response.TotalRecords = totalRecords
 			}
 			if node.LastError != nil {
 				response.Error = node.LastError.Error()
@@ -920,11 +930,95 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string) AssetExecuteRe
 	return response
 }
 
-// GetAssetDataLegacy is the old implementation for backward compatibility
-func (s *DebuggingService) GetAssetDataLegacy(assetName string) AssetDataResponseDTO {
-	response := AssetDataResponseDTO{
+// serializeResult converts the result to a JSON-serializable format
+// If the result is a DataFrame, it converts it to an array of maps
+func (s *DebuggingService) serializeResult(result interface{}) interface{} {
+	serialized, _ := s.serializeResultWithPagination(result, 0, 0)
+	return serialized
+}
+
+// serializeResultWithPagination converts the result to a JSON-serializable format with pagination support
+// Returns the serialized result and total record count
+// offset: starting index (0-based), limit: max records to return (0 = no limit)
+func (s *DebuggingService) serializeResultWithPagination(result interface{}, offset, limit int) (interface{}, int) {
+	if result == nil {
+		return nil, 0
+	}
+
+	// Check if result is a DataFrame
+	if df, ok := result.(*dataframe.DataFrame); ok {
+		totalRecords := df.Nrow()
+
+		// Calculate slice boundaries
+		start := offset
+		end := totalRecords
+
+		if start >= totalRecords {
+			// Offset beyond data, return empty slice
+			return []map[string]interface{}{}, totalRecords
+		}
+
+		if limit > 0 {
+			end = start + limit
+			if end > totalRecords {
+				end = totalRecords
+			}
+		}
+
+		// Convert dataframe to JSON-serializable format with pagination
+		records := make([]map[string]interface{}, 0, end-start)
+		for i := start; i < end; i++ {
+			record := make(map[string]interface{})
+			for _, colName := range df.Names() {
+				col := df.Col(colName)
+				if col.Err != nil {
+					continue
+				}
+				record[colName] = col.Elem(i).Val()
+			}
+			records = append(records, record)
+		}
+		return records, totalRecords
+	}
+
+	// For arrays, apply pagination
+	if arr, ok := result.([]interface{}); ok {
+		totalRecords := len(arr)
+
+		start := offset
+		end := totalRecords
+
+		if start >= totalRecords {
+			return []interface{}{}, totalRecords
+		}
+
+		if limit > 0 {
+			end = start + limit
+			if end > totalRecords {
+				end = totalRecords
+			}
+		}
+
+		return arr[start:end], totalRecords
+	}
+
+	// For all other types, return as-is (maps, primitives)
+	// Total records = 1 for non-array types
+	return result, 1
+}
+
+// ExecuteAssetSelect executes the asset's SQL query using ToDataFrame and saves the result to the DAG node
+// The SQL template is rendered first, executing all template functions (like Ref)
+// Returns a response with taskId that can be used to retrieve the data via GetAssetData endpoint
+func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) AssetExecuteResponseDTO {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	startTime := time.Now()
+	response := AssetExecuteResponseDTO{
 		AssetName: assetName,
-		HasData:   false,
+		TaskId:    taskId,
+		Status:    NodeStateFailed,
 	}
 
 	if s.dag == nil {
@@ -939,88 +1033,92 @@ func (s *DebuggingService) GetAssetDataLegacy(assetName string) AssetDataRespons
 		return response
 	}
 
-	// Check if node has data
-	if node.LastResult == nil {
-		response.Error = "No data available for this asset (not executed or reset)"
+	// Get the asset descriptor to access SQL and connection info
+	descriptor := node.Asset.GetDescriptor()
+	sqlModelDesc, ok := descriptor.(*models.SQLModelDescriptor)
+	if !ok {
+		response.Error = "Asset is not a SQL model (only SQL assets support select)"
 		return response
 	}
 
-	response.HasData = true
+	// Get the database connection using core singleton
+	dbConnection := core.GetInstance().GetDBConnection(sqlModelDesc.ModelProfile.Connection)
+	if dbConnection == nil {
+		response.Error = fmt.Sprintf("Connection '%s' not found", sqlModelDesc.ModelProfile.Connection)
+		return response
+	}
 
-	// Check if the asset is data-framed by looking at its descriptor
-	if node.Asset != nil {
-		descriptor := node.Asset.GetDescriptor()
-		switch desc := descriptor.(type) {
-		case *models.SQLModelDescriptor:
-			response.IsDataFramed = desc.ModelProfile.IsDataFramed
-		case *models.RawModelDescriptor:
-			response.IsDataFramed = desc.ModelProfile.IsDataFramed
+	// Check if table exists for incremental materialization
+	isIncremental := false
+	if sqlModelDesc.ModelProfile.Materialization == configs.MAT_INCREMENTAL {
+		// Need to check within a transaction
+		tx, err := dbConnection.Begin()
+		if err == nil {
+			isIncremental = dbConnection.CheckTableExists(tx, sqlModelDesc.Name)
+			dbConnection.Commit(tx)
 		}
 	}
 
-	// Determine data type and serialize accordingly
-	switch v := node.LastResult.(type) {
-	case *dataframe.DataFrame:
-		response.DataType = "dataframe"
-		response.IsDataFramed = true
-
-		// Get dataframe metadata
-		response.RowCount = v.Nrow()
-		response.ColumnCount = v.Ncol()
-		response.Columns = v.Names()
-
-		// Convert dataframe to JSON
-		// Create a slice of maps for JSON representation
-		records := make([]map[string]interface{}, 0, v.Nrow())
-		for i := 0; i < v.Nrow(); i++ {
-			record := make(map[string]interface{})
-			for _, colName := range v.Names() {
-				col := v.Col(colName)
-				if col.Err != nil {
-					continue
-				}
-				record[colName] = col.Elem(i).Val()
-			}
-			records = append(records, record)
-		}
-		response.Data = records
-
-	case map[string]interface{}:
-		response.DataType = "map"
-		response.Data = v
-
-	case []interface{}:
-		response.DataType = "array"
-		response.Data = v
-
-	case string:
-		response.DataType = "string"
-		response.Data = v
-
-	case int, int64, float64, bool:
-		response.DataType = fmt.Sprintf("%T", v)
-		response.Data = v
-
-	default:
-		// For any other type, try to serialize as JSON
-		response.DataType = reflect.TypeOf(v).String()
-
-		// Attempt to marshal to JSON and unmarshal back to interface{}
-		// This ensures the data is JSON-serializable
-		jsonBytes, err := json.Marshal(v)
-		if err != nil {
-			response.Error = fmt.Sprintf("Failed to serialize data: %v", err)
-			response.HasData = false
-		} else {
-			var jsonData interface{}
-			if err := json.Unmarshal(jsonBytes, &jsonData); err != nil {
-				response.Error = fmt.Sprintf("Failed to parse serialized data: %v", err)
-				response.HasData = false
-			} else {
-				response.Data = jsonData
-			}
-		}
+	// Create template functions map with IsIncremental
+	templateFuncs := template.FuncMap{
+		"IsIncremental": func() bool {
+			return isIncremental
+		},
 	}
+
+	// Render the SQL template with template functions
+	sqlTemplate, err := template.New("selectQueryTemplate").
+		Funcs(processing.MergeTemplateFuncs(
+			processing.FromConnectionContext(dbConnection, nil, sqlModelDesc.Name, templateFuncs),
+		)).
+		Parse(sqlModelDesc.RawSQL)
+
+	if err != nil {
+		response.Error = fmt.Sprintf("Failed to parse SQL template: %v", err)
+		s.storeAssetExecutionMetadata(taskId, assetName, response)
+		return response
+	}
+
+	var renderedSQL strings.Builder
+	err = sqlTemplate.Execute(&renderedSQL, nil)
+	if err != nil {
+		response.Error = fmt.Sprintf("Failed to render SQL template: %v", err)
+		s.storeAssetExecutionMetadata(taskId, assetName, response)
+		return response
+	}
+
+	// Execute the rendered SQL using ToDataFrame
+	df, err := dbConnection.ToDataFrame(renderedSQL.String())
+	if err != nil {
+		response.Error = fmt.Sprintf("Failed to execute query: %v", err)
+		s.storeAssetExecutionMetadata(taskId, assetName, response)
+		return response
+	}
+
+	if df == nil {
+		response.Error = "Query returned nil DataFrame"
+		s.storeAssetExecutionMetadata(taskId, assetName, response)
+		return response
+	}
+
+	// Save the result to the node's LastResult
+	node.LastResult = df
+	node.State = dags.NodeStateSuccess
+	endTime := time.Now()
+	node.StartTime = &startTime
+	node.EndTime = &endTime
+	node.LastExecutionDuration = endTime.Sub(startTime).Milliseconds()
+
+	// Build successful response
+	startTimeMs := startTime.UnixMilli()
+	endTimeMs := endTime.UnixMilli()
+	response.Status = NodeStateSuccess
+	response.StartTime = &startTimeMs
+	response.EndTime = &endTimeMs
+	response.ExecutionTimeMs = node.LastExecutionDuration
+
+	// Store metadata in asset history
+	s.storeAssetExecutionMetadata(taskId, assetName, response)
 
 	return response
 }

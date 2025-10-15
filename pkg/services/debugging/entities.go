@@ -145,6 +145,9 @@ type AssetExecuteResponseDTO struct {
 	Result          interface{} `json:"result,omitempty"`
 	Error           string      `json:"error,omitempty"`
 	UpstreamsUsed   []string    `json:"upstreamsUsed"`
+	TotalRecords    int         `json:"totalRecords,omitempty"`
+	Offset          int         `json:"offset,omitempty"`
+	Limit           int         `json:"limit,omitempty"`
 }
 
 type AssetDataResponseDTO struct {

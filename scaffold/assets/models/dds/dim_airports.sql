@@ -1,6 +1,6 @@
 {{ define "profile.yaml" }}
-    connection: 'default'
     materialization: 'table'
+    is_data_framed: True
     description: |
         ## Airport Dimension (SCD Type 1)
 

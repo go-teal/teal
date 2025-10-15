@@ -11,12 +11,17 @@ import (
 )
 
 func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProfile) {
+	// Store project-level connection for defaults
+	projectConnection := projectProfile.Connection
+	if projectConnection == "" {
+		projectConnection = "default"
+	}
 	fmt.Println("reading model profiles...")
 	modelsProjectDir := config.ProjectPath + "/" + MODEL_DIR
 
 	for _, stage := range projectProfile.Models.Stages {
 		fmt.Printf("Stage: %s\n", stage.Name)
-		
+
 		// Step 1: Get all profiles from projectProfile
 		profilesFromYAML := make(map[string]*configs.ModelProfile)
 		for _, modelProfile := range stage.Models {
@@ -71,7 +76,7 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 					fmt.Printf("Cannot unmarshal profile from %s: %v\n", modelFileName, err)
 					continue
 				}
-				
+
 				sqlProfile.Name = modelName
 				sqlProfile.Stage = stage.Name
 				profilesFromSQL[refName] = &sqlProfile
@@ -81,7 +86,7 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 
 		// Step 4: Merge the two sets of profiles with priority from projectProfile
 		mergedProfiles := make(map[string]*configs.ModelProfile)
-		
+
 		// First, add all profiles from YAML (they have priority)
 		for key, yamlProfile := range profilesFromYAML {
 			mergedProfiles[key] = yamlProfile
@@ -94,7 +99,7 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 				mergedProfiles[key] = mergeModelProfiles(yamlProfile, sqlProfile)
 			} else {
 				// No YAML profile exists, use SQL profile and apply defaults
-				applyDefaultsToProfile(sqlProfile)
+				applyDefaultsToProfile(sqlProfile, projectConnection)
 				mergedProfiles[key] = sqlProfile
 			}
 		}
@@ -102,7 +107,7 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 		// Apply defaults to all profiles and prepare final list
 		stage.Models = make([]*configs.ModelProfile, 0, len(mergedProfiles))
 		for _, profile := range mergedProfiles {
-			applyDefaultsToProfile(profile)
+			applyDefaultsToProfile(profile, projectConnection)
 			// Set test connections and stages
 			for _, testProfile := range profile.Tests {
 				if testProfile.Connection == "" {
@@ -182,9 +187,9 @@ func mergeModelProfiles(primary, secondary *configs.ModelProfile) *configs.Model
 }
 
 // applyDefaultsToProfile applies default values to empty fields
-func applyDefaultsToProfile(profile *configs.ModelProfile) {
+func applyDefaultsToProfile(profile *configs.ModelProfile, defaultConnection string) {
 	if profile.Connection == "" {
-		profile.Connection = "default"
+		profile.Connection = defaultConnection
 	}
 	if profile.Materialization == "" {
 		profile.Materialization = configs.MAT_TABLE

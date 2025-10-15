@@ -11,6 +11,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// columnTypesToString converts array of ColumnType to array of strings in format "FieldName->DatabaseTypeName"
+func columnTypesToString(columnTypes []*sql.ColumnType) []string {
+	result := make([]string, len(columnTypes))
+	for i, c := range columnTypes {
+		result[i] = fmt.Sprintf("%s->%s", c.Name(), c.DatabaseTypeName())
+	}
+	return result
+}
+
 // ToDataFrame implements DBDriver.
 func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error) {
 	rows, err := d.db.Query(sqlQuery)
@@ -19,6 +28,7 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		return nil, err
 	}
 	columnTypes, err := rows.ColumnTypes()
+	log.Debug().Any("column types", columnTypesToString(columnTypes)).Send()
 	if err != nil {
 		log.Error().Caller().Stack().Err(err).Msg("Can not extract column types")
 		return nil, err
@@ -38,11 +48,14 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		case "TIMESTAMP":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
-		case "BIGINT":
+		case "TIMESTAMPTZ":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
+		case "BIGINT":
+			// TODO: Add this type to gota series
+			seriesData[i] = make([]int64, 0)
 		case "BOOLEAN":
-			seriesData[i] = make([]string, 0)
+			seriesData[i] = make([]bool, 0)
 		case "DATE":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
@@ -69,6 +82,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 				safeData[i] = &sql.NullInt32{}
 			case "TIMESTAMP":
 				safeData[i] = &sql.NullString{}
+			case "TIMESTAMPTZ":
+				safeData[i] = &sql.NullString{}
 			case "BIGINT":
 				safeData[i] = &sql.NullInt64{}
 			case "BOOLEAN":
@@ -86,6 +101,7 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		}
 
 		for i, c := range columnTypes {
+			log.Debug().Str("fieldName", c.Name()).Str("type", c.DatabaseTypeName()).Msg("serealizing")
 			switch c.DatabaseTypeName() {
 
 			case "VARCHAR":
@@ -113,6 +129,12 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 				seriesData[i] = sd
 
 			case "TIMESTAMP":
+				sd := seriesData[i].([]string)
+				val := safeData[i].(*sql.NullString)
+				sd = append(sd, val.String)
+				seriesData[i] = sd
+
+			case "TIMESTAMPTZ":
 				sd := seriesData[i].([]string)
 				val := safeData[i].(*sql.NullString)
 				sd = append(sd, val.String)
@@ -158,6 +180,9 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		case "INTEGER":
 			dFseries[i] = series.New(seriesData[i], series.Int, c.Name())
 		case "TIMESTAMP":
+			// TODO: Add this type to gota series
+			dFseries[i] = series.New(seriesData[i], series.String, c.Name())
+		case "TIMESTAMPTZ":
 			// TODO: Add this type to gota series
 			dFseries[i] = series.New(seriesData[i], series.String, c.Name())
 		case "BIGINT":

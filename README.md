@@ -122,25 +122,56 @@ You'll see the following output
 ```bash
 project-path: .
 config-file: ./config.yaml
-Building: staging.addresses.sql
-Building: staging.transactions.sql
-Building: staging.wallets.sql
-Building: dds.dim_addresses.sql
-Building: dds.fact_transactions.sql
-Building: mart.mart_wallet_report.sql
-Files 11
-./cmd/my-test-project/my-test-project.go ........................................ [OK]
-./cmd/my-test-project-ui/my-test-project-ui.go .................................. [OK]
-./go.mod ........................................................................ [OK]
-./internal/assets/staging.addresses.go .......................................... [OK]
-./internal/assets/staging.transactions.go ....................................... [OK]
-./internal/assets/staging.wallets.go ............................................ [OK]
-./internal/assets/dds.dim_addresses.go .......................................... [OK]
-./internal/assets/dds.fact_transactions.go ...................................... [OK]
-./internal/assets/mart.mart_wallet_report.go .................................... [OK]
-./internal/assets/configs.go .................................................... [OK]
-./docs/graph.wsd ................................................................ [OK]
+Building: staging.stg_airports.sql
+Building: staging.stg_crew_assignments.sql
+Building: staging.stg_employees.sql
+Building: staging.stg_flights.sql
+Building: staging.stg_routes.sql
+Building: dds.dim_airports.sql
+Building: dds.dim_employees.sql
+Building: dds.dim_routes.sql
+Building: dds.fact_crew_assignments.sql
+Building: dds.fact_flights.sql
+Building: mart.mart_airport_statistics.sql
+Building: mart.mart_crew_utilization.sql
+Building: mart.mart_flight_performance.sql
+Files 26
+./cmd/hello-world/hello-world.go ...................................... [OK]
+./cmd/hello-world-ui/hello-world-ui.go ................................ [OK]
+./go.mod .............................................................. [OK]
+./Makefile ............................................................ [OK]
+./internal/assets/staging.stg_airports.go ............................. [OK]
+./internal/assets/staging.stg_crew_assignments.go ..................... [OK]
+./internal/assets/staging.stg_employees.go ............................ [OK]
+./internal/assets/staging.stg_flights.go .............................. [OK]
+./internal/assets/staging.stg_routes.go ............................... [OK]
+./internal/assets/dds.dim_airports.go ................................. [OK]
+./internal/assets/dds.dim_employees.go ................................ [OK]
+./internal/assets/dds.dim_routes.go ................................... [OK]
+./internal/assets/dds.fact_crew_assignments.go ........................ [OK]
+./internal/assets/dds.fact_flights.go ................................. [OK]
+./internal/assets/mart.mart_airport_statistics.go ..................... [OK]
+./internal/assets/mart.mart_crew_utilization.go ....................... [OK]
+./internal/assets/mart.mart_flight_performance.go ..................... [OK]
+./internal/model_tests/root.test_data_integrity.go .................... [OK]
+./internal/model_tests/root.test_flight_delays.go ..................... [OK]
+./internal/model_tests/dds.test_dim_airports_unique.go ................ [OK]
+./internal/model_tests/dds.test_dim_employees_unique.go ............... [OK]
+./internal/model_tests/dds.test_dim_routes_unique.go .................. [OK]
+./internal/assets/configs.go .......................................... [OK]
+./docs/graph.wsd ...................................................... [OK]
+./docs/README.md ...................................................... [OK]
+./internal/model_tests/configs.go ..................................... [OK]
 ```
+
+**Important:**
+Teal automatically generates **`docs/README.md`** with comprehensive project documentation:
+- Project configuration and database connections
+- Complete model tree with dependencies and asset counts
+- RAW assets documentation (if any)
+- Build and run instructions
+
+**This documentation is designed to be used with AI code assistants** like Claude Code, GitHub Copilot, Cursor, and Gemini Code Assist. See the "Using with AI Assistants" section below.
 
 Your DAG is depicted in the PlantUML file `graph.wsd`
 ![DAG](docs/hello-world.svg)
@@ -155,42 +186,103 @@ Your DAG is depicted in the PlantUML file `graph.wsd`
 
 ```bash
 .
+├── Makefile
 ├── assets
-│   └── models
-│       ├── dds
-│       │   ├── dim_addresses.sql
-│       │   └── fact_transactions.sql
-│       ├── mart
-│       │   └── mart_wallet_report.sql
-│       └── staging
-│           ├── addresses.sql
-│           ├── transactions.sql
-│           └── wallets.sql
+│   ├── models
+│   │   ├── dds
+│   │   │   ├── dim_airports.sql
+│   │   │   ├── dim_employees.sql
+│   │   │   ├── dim_routes.sql
+│   │   │   ├── fact_crew_assignments.sql
+│   │   │   └── fact_flights.sql
+│   │   ├── mart
+│   │   │   ├── mart_airport_statistics.sql
+│   │   │   ├── mart_crew_utilization.sql
+│   │   │   └── mart_flight_performance.sql
+│   │   └── staging
+│   │       ├── stg_airports.sql
+│   │       ├── stg_crew_assignments.sql
+│   │       ├── stg_employees.sql
+│   │       ├── stg_flights.sql
+│   │       └── stg_routes.sql
+│   └── tests
+│       ├── dds
+│       │   ├── test_dim_airports_unique.sql
+│       │   ├── test_dim_employees_unique.sql
+│       │   └── test_dim_routes_unique.sql
+│       ├── test_data_integrity.sql
+│       └── test_flight_delays.sql
 ├── cmd
-│   └── my-test-project              # Production binary
-│       └── my-test-project.go
-│   └── my-test-project-ui           # Debug UI binary
-│       └── my-test-project-ui.go
+│   ├── hello-world
+│   │   └── hello-world.go
+│   └── hello-world-ui
+│       └── hello-world-ui.go
 ├── config.yaml
 ├── docs
-│   └── graph.wsd
+│   ├── README.md
+│   └── graph.wsd
 ├── go.mod
 ├── go.sum
 ├── internal
-│   └── assets
-│       ├── configs.go
-│       ├── dds.dim_addresses.go
-│       ├── dds.fact_transactions.go
-│       ├── mart.mart_wallet_report.go
-│       ├── staging.addresses.go
-│       ├── staging.transactions.go
-│       └── staging.wallets.go
+│   ├── assets
+│   │   ├── configs.go
+│   │   ├── dds.dim_airports.go
+│   │   ├── dds.dim_employees.go
+│   │   ├── dds.dim_routes.go
+│   │   ├── dds.fact_crew_assignments.go
+│   │   ├── dds.fact_flights.go
+│   │   ├── mart.mart_airport_statistics.go
+│   │   ├── mart.mart_crew_utilization.go
+│   │   ├── mart.mart_flight_performance.go
+│   │   ├── staging.stg_airports.go
+│   │   ├── staging.stg_crew_assignments.go
+│   │   ├── staging.stg_employees.go
+│   │   ├── staging.stg_flights.go
+│   │   └── staging.stg_routes.go
+│   └── model_tests
+│       ├── configs.go
+│       ├── dds.test_dim_airports_unique.go
+│       ├── dds.test_dim_employees_unique.go
+│       ├── dds.test_dim_routes_unique.go
+│       ├── root.test_data_integrity.go
+│       └── root.test_flight_delays.go
+├── pkg
+│   └── services
 ├── profile.yaml
 └── store
-    ├── addresses.csv    
-    ├── transactions.csv
-    └── wallets.csv
+    ├── airports.csv
+    ├── crew_assignments.csv
+    ├── employees.csv
+    ├── flights.csv
+    └── routes.csv
 ```
+
+### Using Generated Documentation with AI Assistants <!-- omit from toc -->
+
+The `docs/README.md` file generated by Teal contains comprehensive project information that can be directly included in AI code assistant contexts:
+
+**Claude.ai / Claude Code:**
+```
+@docs/README.md - Include this file to provide complete project context
+```
+
+**Cursor IDE:**
+- Add `docs/README.md` to `.cursorrules` or reference it: `@docs/README.md`
+
+**GitHub Copilot (VS Code):**
+- Open `docs/README.md` in a tab or reference: `// See docs/README.md`
+
+**Gemini Code Assist:**
+- Add `docs/README.md` to workspace context
+
+**Example Prompts:**
+```
+"Based on @docs/README.md, add a new mart layer asset aggregating transactions by address"
+"Using @docs/README.md, which database connection should staging models use?"
+"According to @docs/README.md, create an incremental model in the dds stage"
+```
+
+The generated README provides AI assistants with complete understanding of your pipeline structure, connections, dependencies, and patterns.
 
 ### Run your project <!-- omit from toc -->
 

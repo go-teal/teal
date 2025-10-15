@@ -9,8 +9,19 @@ import (
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/gota/series"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog/log"
 )
+
+// fieldDescriptionsToString converts array of FieldDescription to array of strings in format "FieldName->PGType"
+func fieldDescriptionsToString(fields []pgconn.FieldDescription) []string {
+	result := make([]string, len(fields))
+	for i, f := range fields {
+		pgType := pgOIDToType[int(f.DataTypeOID)]
+		result[i] = fmt.Sprintf("%s->%s", f.Name, pgType)
+	}
+	return result
+}
 
 var pgOIDToType = map[int]string{
 	16:    "bool",
@@ -126,6 +137,7 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 		return nil, err
 	}
 	columnTypes := rows.FieldDescriptions()
+	log.Debug().Any("column types", fieldDescriptionsToString(columnTypes)).Send()
 	seriesData := make([]interface{}, len(columnTypes))
 	for i, c := range columnTypes {
 		pgType := pgOIDToType[int(c.DataTypeOID)]
@@ -137,9 +149,11 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 		case "int2":
 			seriesData[i] = make([]int, 0)
 		case "int4":
-			seriesData[i] = make([]int, 0)
+			seriesData[i] = make([]int32, 0)
+		case "int8":
+			seriesData[i] = make([]int64, 0)
 		case "bool":
-			seriesData[i] = make([]string, 0)
+			seriesData[i] = make([]bool, 0)
 		default:
 			seriesData[i] = make([]string, 0)
 			log.Warn().Str("type", pgType).Str("field", c.Name).Msg("type not implemented in Dataframe")
@@ -161,6 +175,8 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 				safeData[i] = &sql.NullInt16{}
 			case "int4":
 				safeData[i] = &sql.NullInt32{}
+			case "int8":
+				safeData[i] = &sql.NullInt64{}
 			case "bool":
 				safeData[i] = &sql.NullBool{}
 			default:
@@ -175,6 +191,7 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 
 		for i, c := range columnTypes {
 			pgType := pgOIDToType[int(c.DataTypeOID)]
+			log.Debug().Str("fieldName", c.Name).Str("type", pgType).Msg("serializing")
 			switch pgType {
 
 			case "varchar", "text":
@@ -195,9 +212,14 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 				sd = append(sd, int(val.Int16))
 				seriesData[i] = sd
 			case "int4":
-				sd := seriesData[i].([]int)
+				sd := seriesData[i].([]int32)
 				val := safeData[i].(*sql.NullInt32)
-				sd = append(sd, int(val.Int32))
+				sd = append(sd, int32(val.Int32))
+				seriesData[i] = sd
+			case "int8":
+				sd := seriesData[i].([]int64)
+				val := safeData[i].(*sql.NullInt64)
+				sd = append(sd, int64(val.Int64))
 				seriesData[i] = sd
 			case "bool":
 				sd := seriesData[i].([]bool)
@@ -224,7 +246,7 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 		case "int2", "int4":
 			dFseries[i] = series.New(seriesData[i], series.Int, c.Name)
 		case "bool":
-			dFseries[i] = series.New(seriesData[i], series.String, c.Name)
+			dFseries[i] = series.New(seriesData[i], series.Bool, c.Name)
 		default:
 			log.Warn().Str("type", pgType).Str("field", c.Name).Msg("type not implemented")
 			dFseries[i] = series.New(seriesData[i], series.String, c.Name)

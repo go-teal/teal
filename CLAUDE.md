@@ -217,7 +217,7 @@ Teal uses a clean interface-based abstraction pattern for database drivers, impl
      - Source mounting for federated queries
      - Mutex-based concurrency control (single-writer limitation)
      - DataFrame integration via `duckdb_dataframe.go`
-   
+
    - **PostgreSQL** (`postgres.go`): Production-grade relational database
      - Full SSL/TLS support with certificate authentication
      - Native pgx v5 driver for optimal performance
@@ -275,7 +275,7 @@ connections:
     config:
       path: "./analytics.db"
       extensions: ["parquet", "json"]
-  
+
   - name: production_pg
     type: postgres
     config:

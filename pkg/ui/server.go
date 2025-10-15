@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -70,8 +71,9 @@ func (s *UIServer) Start() error {
 	r.POST("/api/dag/run", s.handleDagRun)
 	r.GET("/api/dag/status/:taskId", s.handleDagStatus)
 	r.GET("/api/dag/tasks", s.handleDagTasks)
-	r.POST("/api/dag/asset/:name/execute", s.handleAssetExecute)
+	r.POST("/api/dag/asset/:name/mutate", s.handleAssetMutate)
 	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
+	r.POST("/api/dag/asset/:name/select", s.handleAssetSelect)
 	r.POST("/api/dag/reset", s.handleDagReset)
 
 	// Log endpoints (only available when logWriter is configured)
@@ -183,7 +185,7 @@ func (s *UIServer) handleDagTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, taskList)
 }
 
-func (s *UIServer) handleAssetExecute(c *gin.Context) {
+func (s *UIServer) handleAssetMutate(c *gin.Context) {
 	assetName := c.Param("name")
 
 	if assetName == "" {
@@ -215,7 +217,7 @@ func (s *UIServer) handleAssetExecute(c *gin.Context) {
 	}
 
 	// Execute asset with timeout
-	responseChan := s.debuggingService.ExecuteAsset(assetName, request.TaskId, taskUUID)
+	responseChan := s.debuggingService.MutateAsset(assetName, request.TaskId, taskUUID)
 
 	// Wait for response (will timeout after 10 seconds as configured in ExecuteAsset)
 	response := <-responseChan
@@ -268,8 +270,30 @@ func (s *UIServer) handleAssetData(c *gin.Context) {
 		return
 	}
 
+	// Get pagination parameters
+	offset := 0
+	limit := 0 // 0 means no limit
+
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if val, err := strconv.Atoi(offsetStr); err == nil && val >= 0 {
+			offset = val
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "offset must be a non-negative integer"})
+			return
+		}
+	}
+
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if val, err := strconv.Atoi(limitStr); err == nil && val >= 0 {
+			limit = val
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be a non-negative integer"})
+			return
+		}
+	}
+
 	// Get asset data for the specific task
-	response := s.debuggingService.GetAssetData(taskId, assetName)
+	response := s.debuggingService.GetAssetData(taskId, assetName, offset, limit)
 
 	// Always return 200 or 202, similar to handleAssetExecute
 	statusCode := http.StatusOK
@@ -277,6 +301,39 @@ func (s *UIServer) handleAssetData(c *gin.Context) {
 	// Return 202 if still in progress
 	if response.Status == debugging.NodeStateInProgress {
 		statusCode = http.StatusAccepted
+	}
+
+	c.JSON(statusCode, response)
+}
+
+func (s *UIServer) handleAssetSelect(c *gin.Context) {
+	assetName := c.Param("name")
+
+	if assetName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
+		return
+	}
+
+	// Parse request body to get taskId
+	var request debugging.AssetExecuteRequestDTO
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Validate taskId
+	if request.TaskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+
+	// Execute the asset's SQL query using ToDataFrame and save to node's LastResult
+	response := s.debuggingService.ExecuteAssetSelect(assetName, request.TaskId)
+
+	// Return appropriate status code
+	statusCode := http.StatusOK
+	if response.Status == debugging.NodeStateFailed {
+		statusCode = http.StatusOK // Still return 200 with error in response body
 	}
 
 	c.JSON(statusCode, response)

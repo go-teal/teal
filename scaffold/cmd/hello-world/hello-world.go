@@ -5,6 +5,7 @@ import (
 	_ "github.com/marcboeker/go-duckdb/v2"
 
 
+
 	"encoding/json"
 	"flag"
 	"fmt"

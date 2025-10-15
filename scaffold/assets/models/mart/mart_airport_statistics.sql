@@ -1,5 +1,4 @@
 {{ define "profile.yaml" }}
-    connection: 'default'
     materialization: 'view'
     description: |
         ## Executive Airport Performance Dashboard

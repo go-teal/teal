@@ -62,7 +62,25 @@ func (c *Core) ConnectAll() {
 }
 
 func (c *Core) GetDBConnection(connection string) drivers.DBDriver {
-	return c.dbConnections[connection]
+	dbConnection, exists := c.dbConnections[connection]
+	if !exists {
+		log.Error().
+			Caller().
+			Str("connection", connection).
+			Strs("available_connections", c.getAvailableConnectionNames()).
+			Msg("Database connection not found")
+		panic("database connection '" + connection + "' not found in configuration")
+	}
+	return dbConnection
+}
+
+// getAvailableConnectionNames returns list of configured connection names for error messages
+func (c *Core) getAvailableConnectionNames() []string {
+	names := make([]string, 0, len(c.dbConnections))
+	for name := range c.dbConnections {
+		names = append(names, name)
+	}
+	return names
 }
 
 func (c *Core) Shutdown() {
