@@ -266,12 +266,12 @@ func (s *SQLModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTest
 			if status {
 				result.Status = TestStatusSuccess
 				result.Message = testName
-				log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testCase", testName).Int64("durationMs", result.DurationMs).Msg("Success")
+				log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testName", testName).Int64("durationMs", result.DurationMs).Msg("Success")
 			} else {
 				result.Status = TestStatusFailed
 				result.Error = err
 				result.Message = testName
-				log.Error().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testCase", testName).Err(err).Int64("durationMs", result.DurationMs).Msg("Failed")
+				log.Error().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testName", testName).Err(err).Int64("durationMs", result.DurationMs).Msg("Failed")
 			}
 		} else {
 			result.Status = TestStatusNotFound

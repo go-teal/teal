@@ -21,11 +21,11 @@ var ProjectAssets = map[string] processing.Asset{
 
 var DAG = [][]string{
 	{
-		"staging.stg_airports",
-		"staging.stg_crew_assignments",
 		"staging.stg_employees",
+		"staging.stg_flights",
 		"staging.stg_routes",
-		"staging.stg_flights",			
+		"staging.stg_airports",
+		"staging.stg_crew_assignments",			
 	},
 	{
 		"dds.dim_airports",
@@ -36,9 +36,9 @@ var DAG = [][]string{
 		"dds.fact_flights",			
 	},
 	{
+		"mart.mart_flight_performance",
 		"dds.fact_crew_assignments",
-		"mart.mart_airport_statistics",
-		"mart.mart_flight_performance",			
+		"mart.mart_airport_statistics",			
 	},
 	{
 		"mart.mart_crew_utilization",			

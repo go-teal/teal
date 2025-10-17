@@ -400,12 +400,12 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					if status {
 						testResult.Status = processing.TestStatusSuccess
 						testResult.Message = "Root test passed"
-						log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Int64("durationMs", duration).Msg("Root test passed")
+						log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Int64("durationMs", duration).Msg("Root test passed")
 					} else {
 						testResult.Status = processing.TestStatusFailed
 						testResult.Error = err
 						testResult.Message = "Root test failed"
-						log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Int64("durationMs", duration).Err(err).Msg("Root test failed")
+						log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Int64("durationMs", duration).Err(err).Msg("Root test failed")
 					}
 					
 					d.RootTestResults = append(d.RootTestResults, testResult)

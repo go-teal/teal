@@ -325,9 +325,9 @@ func (dag *ChannelDag) propagateTask(taskId string, taskUUID string, assetName s
 							if len(testName) >= 5 && testName[:5] == "root." {
 								status, executedTestName, err := testCase.Execute(rootCtx)
 								if status {
-									log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Msg("Root test passed")
+									log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Msg("Root test passed")
 								} else {
-									log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testCase", executedTestName).Err(err).Msg("Root test failed")
+									log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Err(err).Msg("Root test failed")
 								}
 							}
 						}
