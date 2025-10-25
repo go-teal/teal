@@ -50,10 +50,10 @@ The project contains data models organized by stages:
 - **{{ asset.ModelName }}** ({{ asset.ModelProfile.Materialization }})
   - Connection: `{{ asset.ModelProfile.Connection }}`
 {%- if asset.Upstreams %}
-  - Depends on: {% for u in asset.Upstreams %}{% if loop.index0 > 0 %}, {% endif %}`{{ u }}`{% endfor -%}
+  - Depends on: {% for u in asset.Upstreams %}{% if not loop.first %}, {% endif %}`{{ u }}`{% endfor -%}
 {%- endif -%}
 {%- if asset.Downstreams %}
-  - Used by: {% for d in asset.Downstreams %}{% if loop.index0 > 0 %}, {% endif %}`{{ d }}`{% endfor -%}
+  - Used by: {% for d in asset.Downstreams %}{% if not loop.first %}, {% endif %}`{{ d }}`{% endfor -%}
 {%- endif -%}
 {%- if asset.ModelProfile.Tests %}
   - Tests: {{ asset.ModelProfile.Tests|length }} test(s)
@@ -71,10 +71,10 @@ The following raw assets are implemented as custom Go functions:
 - **{{ rawAsset.ModelName }}**
   - Connection: `{{ rawAsset.ModelProfile.Connection }}`
 {%- if rawAsset.Upstreams %}
-  - Depends on:{% for u in rawAsset.Upstreams %}{% if u|trim %} `{{ u }}`{% if not loop.last %},{% endif %}{% endif %}{% endfor -%}
+  - Depends on: {% for u in rawAsset.Upstreams %}{% if not loop.first %}, {% endif %}`{{ u }}`{% endfor -%}
 {%- endif -%}
 {%- if rawAsset.Downstreams %}
-  - Used by:{% for d in rawAsset.Downstreams %}{% if d|trim %} `{{ d }}`{% if not loop.last %},{% endif %}{% endif %}{% endfor -%}
+  - Used by: {% for d in rawAsset.Downstreams %}{% if not loop.first %}, {% endif %}`{{ d }}`{% endfor -%}
 {%- endif -%}
 {%- endfor %}
 {%- else -%}
