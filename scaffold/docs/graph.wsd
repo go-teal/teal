@@ -1,45 +1,193 @@
 
 @startuml hello-world
 left to right direction
+
+
 state staging {
+    
+        
     state staging.stg_airports: table
+        
+    
+        
     state staging.stg_crew_assignments: table
+        
+    
+        
     state staging.stg_employees: table
+        
+    
+        
     state staging.stg_flights: table
+        
+    
+        
     state staging.stg_routes: table
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
 }
+
 state dds {
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
     state dds.dim_airports: table
+        
+    
+        
     state dds.dim_employees: table
+        
+    
+        
     state dds.dim_routes: table
+        
+    
+        
     state dds.fact_crew_assignments: table
+        
+    
+        
     state dds.fact_flights: incremental
+        
+    
+        
+    
+        
+    
+        
+    
 }
+
 state mart {
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
     state mart.mart_airport_statistics: view
+        
+    
+        
     state mart.mart_crew_utilization: view
+        
+    
+        
     state mart.mart_flight_performance: view
+        
+    
 }
+
+
+
+
+    
 staging.stg_airports-->dds.dim_airports: Ref staging.stg_airports
+    
+
+    
 staging.stg_crew_assignments-->dds.fact_crew_assignments: Ref staging.stg_crew_assignments
+    
+
+    
 staging.stg_employees-->dds.dim_employees: Ref staging.stg_employees
+    
+
+    
 staging.stg_flights-->dds.fact_flights: Ref staging.stg_flights
+    
+
+    
 staging.stg_routes-->dds.dim_routes: Ref staging.stg_routes
+    
+
+    
 dds.dim_airports-->mart.mart_airport_statistics: Ref dds.dim_airports
+    
 dds.dim_airports-->mart.mart_flight_performance: Ref dds.dim_airports
+    
+
+    
 dds.dim_employees-->dds.fact_crew_assignments: Ref dds.dim_employees
+    
 dds.dim_employees-->mart.mart_airport_statistics: Ref dds.dim_employees
+    
 dds.dim_employees-->mart.mart_crew_utilization: Ref dds.dim_employees
+    
+
+    
 dds.dim_routes-->dds.fact_crew_assignments: Ref dds.dim_routes
+    
 dds.dim_routes-->dds.fact_flights: Ref dds.dim_routes
+    
 dds.dim_routes-->mart.mart_airport_statistics: Ref dds.dim_routes
+    
 dds.dim_routes-->mart.mart_crew_utilization: Ref dds.dim_routes
+    
 dds.dim_routes-->mart.mart_flight_performance: Ref dds.dim_routes
+    
+
+    
 dds.fact_crew_assignments-->mart.mart_crew_utilization: Ref dds.fact_crew_assignments
+    
+
+    
 dds.fact_flights-->dds.fact_crew_assignments: Ref dds.fact_flights
+    
 dds.fact_flights-->mart.mart_airport_statistics: Ref dds.fact_flights
+    
 dds.fact_flights-->mart.mart_crew_utilization: Ref dds.fact_flights
+    
 dds.fact_flights-->mart.mart_flight_performance: Ref dds.fact_flights
+    
+
+    
+
+    
+
+    
+
 
 
 @enduml

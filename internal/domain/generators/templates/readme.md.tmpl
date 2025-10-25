@@ -17,81 +17,84 @@ For more information about Teal, see the [Teal README](https://github.com/go-tea
 ## Database Connections
 
 The project uses the following database connections:
+{%- for connection in Connections %}
 
-{% for connection in Connections %}
 ### {{ connection.Name }}
 - **Type**: {{ connection.Type }}
-{% if connection.Config %}
-{% if connection.Config.Host %}
+{%- if connection.Config -%}
+{%- if connection.Config.Host %}
 - **Host**: {{ connection.Config.Host }}
-{% endif %}
-{% if connection.Config.Port %}
+{%- endif -%}
+{%- if connection.Config.Port %}
 - **Port**: {{ connection.Config.Port }}
-{% endif %}
-{% if connection.Config.Database %}
+{%- endif -%}
+{%- if connection.Config.Database %}
 - **Database**: {{ connection.Config.Database }}
-{% endif %}
-{% if connection.Config.Path %}
+{%- endif -%}
+{%- if connection.Config.Path %}
 - **Path**: {{ connection.Config.Path }}
-{% endif %}
-{% endif %}
-{% endfor %}
+{%- endif -%}
+{%- endif -%}
+{%- endfor %}
 
 ## Data Models
 
 The project contains data models organized by stages:
+{%- for stage in Stages %}
 
-{% for stage in Stages %}
 ### {{ stage.Name }} Stage
-{% set stageName = stage.Name %}
-{% for asset in Assets %}
-{% if asset.Stage == stageName %}
+{%- set stageName = stage.Name %}
+{%- for asset in Assets %}
+{%- if asset.Stage == stageName %}
+
 - **{{ asset.ModelName }}** ({{ asset.ModelProfile.Materialization }})
   - Connection: `{{ asset.ModelProfile.Connection }}`
-{% if asset.Upstreams %}
-  - Depends on: {% for u in asset.Upstreams %}{% if not loop.first %}, {% endif %}`{{ u }}`{% endfor %}
-{% endif %}
-{% if asset.Downstreams %}
-  - Used by: {% for d in asset.Downstreams %}{% if not loop.first %}, {% endif %}`{{ d }}`{% endfor %}
-{% endif %}
-{% if asset.ModelProfile.Tests %}
+{%- if asset.Upstreams %}
+  - Depends on: {% for u in asset.Upstreams %}{% if loop.index0 > 0 %}, {% endif %}`{{ u }}`{% endfor -%}
+{%- endif -%}
+{%- if asset.Downstreams %}
+  - Used by: {% for d in asset.Downstreams %}{% if loop.index0 > 0 %}, {% endif %}`{{ d }}`{% endfor -%}
+{%- endif -%}
+{%- if asset.ModelProfile.Tests %}
   - Tests: {{ asset.ModelProfile.Tests|length }} test(s)
-{% endif %}
-{% endif %}
-{% endfor %}
-{% endfor %}
+{%- endif -%}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
 
 ## Raw Assets (Go Functions)
 
-{% if RawAssets %}
+{% if RawAssets -%}
 The following raw assets are implemented as custom Go functions:
+{%- for rawAsset in RawAssets %}
 
-{% for rawAsset in RawAssets %}
 - **{{ rawAsset.ModelName }}**
   - Connection: `{{ rawAsset.ModelProfile.Connection }}`
-{% if rawAsset.Upstreams %}
-  - Depends on: {% for u in rawAsset.Upstreams %}{% if not loop.first %}, {% endif %}`{{ u }}`{% endfor %}
-{% endif %}
-{% if rawAsset.Downstreams %}
-  - Used by: {% for d in rawAsset.Downstreams %}{% if not loop.first %}, {% endif %}`{{ d }}`{% endfor %}
-{% endif %}
-{% endfor %}
-{% else %}
+{%- if rawAsset.Upstreams %}
+  - Depends on:{% for u in rawAsset.Upstreams %}{% if u|trim %} `{{ u }}`{% if not loop.last %},{% endif %}{% endif %}{% endfor -%}
+{%- endif -%}
+{%- if rawAsset.Downstreams %}
+  - Used by:{% for d in rawAsset.Downstreams %}{% if d|trim %} `{{ d }}`{% if not loop.last %},{% endif %}{% endif %}{% endfor -%}
+{%- endif -%}
+{%- endfor %}
+{%- else -%}
+
 No raw assets defined in this project.
-{% endif %}
+{%- endif %}
 
 ## Model Tree
 
 ```
-{% for stage in Stages %}
+{%- for stage in Stages %}
+
 {{ stage.Name }}/
-{% set stageName = stage.Name %}
-{% for asset in Assets %}
-{% if asset.Stage == stageName %}
+{%- set stageName = stage.Name %}
+{%- for asset in Assets %}
+{%- if asset.Stage == stageName %}
 ├── {{ asset.ModelName }} [{{ asset.ModelProfile.Connection }}]
-{% endif %}
-{% endfor %}
-{% endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
 ```
 
 ## Building and Running
