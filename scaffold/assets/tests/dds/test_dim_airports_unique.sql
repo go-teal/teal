@@ -1,4 +1,4 @@
-{{- define "profile.yaml" }}
+{{ define "profile.yaml" }}
     connection: 'default'
     description: |
         ## 🔍 Airport Dimension Uniqueness Test
@@ -22,12 +22,12 @@
         3. ETL process error
 
         **Pass Criteria**: Zero rows returned (no duplicates found)
-{{- end }}
+{{ end }}
 
 -- Test for duplicate airport keys
 select 
     airport_key, 
     count(*) as duplicate_count 
-from {{ Ref "dds.dim_airports" }} 
+from {{ Ref("dds.dim_airports") }} 
 group by airport_key 
 having count(*) > 1

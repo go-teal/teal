@@ -51,10 +51,10 @@ with crew_flights as (
         f.actual_flight_duration_minutes,
         r.route_category,
         r.distance_km
-    from {{ Ref "dds.fact_crew_assignments" }} ca
-    join {{ Ref "dds.dim_employees" }} e on ca.employee_key = e.employee_key
-    join {{ Ref "dds.fact_flights" }} f on ca.flight_key = f.flight_key
-    join {{ Ref "dds.dim_routes" }} r on f.route_key = r.route_key
+    from {{ Ref("dds.fact_crew_assignments") }} ca
+    join {{ Ref("dds.dim_employees") }} e on ca.employee_key = e.employee_key
+    join {{ Ref("dds.fact_flights") }} f on ca.flight_key = f.flight_key
+    join {{ Ref("dds.dim_routes") }} r on f.route_key = r.route_key
 )
 select
     employee_id,

@@ -43,4 +43,4 @@ select
     timezone,
     current_timestamp as dw_created_at,
     current_timestamp as dw_updated_at
-from {{ Ref "staging.stg_airports" }}
+from {{ Ref("staging.stg_airports") }}

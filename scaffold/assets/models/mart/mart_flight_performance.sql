@@ -74,10 +74,10 @@ select
         else 'Weekday'
     end as day_type
     
-from {{ Ref "dds.fact_flights" }} f
-join {{ Ref "dds.dim_routes" }} r on f.route_key = r.route_key
-join {{ Ref "dds.dim_airports" }} origin on f.origin_airport_key = origin.airport_key
-join {{ Ref "dds.dim_airports" }} dest on f.destination_airport_key = dest.airport_key
+from {{ Ref("dds.fact_flights") }} f
+join {{ Ref("dds.dim_routes") }} r on f.route_key = r.route_key
+join {{ Ref("dds.dim_airports") }} origin on f.origin_airport_key = origin.airport_key
+join {{ Ref("dds.dim_airports") }} dest on f.destination_airport_key = dest.airport_key
 group by
     r.origin_airport,
     origin.airport_name,

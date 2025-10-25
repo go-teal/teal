@@ -3,8 +3,8 @@ package generators
 import (
 	_ "embed"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
@@ -63,7 +63,20 @@ func (g *GenReadme) RenderToFile() error {
 		}
 	}
 
-	templ, err := template.New(README_FILENAME).Parse(readmeTemplate)
+	templ, err := pongo2.FromString(readmeTemplate)
+	if err != nil {
+		return err
+	}
+
+	output, err := templ.Execute(pongo2.Context{
+		"ProjectName": g.profile.Name,
+		"Module":      g.config.Module,
+		"Version":     g.config.Version,
+		"Stages":      stages,
+		"Assets":      g.modelsConfigs,
+		"RawAssets":   rawAssets,
+		"Connections": g.config.Connections,
+	})
 	if err != nil {
 		return err
 	}
@@ -74,24 +87,6 @@ func (g *GenReadme) RenderToFile() error {
 	}
 	defer file.Close()
 
-	data := struct {
-		ProjectName string
-		Module      string
-		Version     string
-		Stages      []struct{ Name string }
-		Assets      []*internalmodels.ModelConfig
-		RawAssets   []*internalmodels.ModelConfig
-		Connections []*configs.DBConnectionConfig
-	}{
-		ProjectName: g.profile.Name,
-		Module:      g.config.Module,
-		Version:     g.config.Version,
-		Stages:      stages,
-		Assets:      g.modelsConfigs,
-		RawAssets:   rawAssets,
-		Connections: g.config.Connections,
-	}
-
-	err = templ.Execute(file, data)
+	_, err = file.WriteString(output)
 	return err
 }

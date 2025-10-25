@@ -1,12 +1,12 @@
-# {{ .ProjectName }}
+# {{ ProjectName }}
 
 > Generated with [Teal](https://github.com/go-teal/teal) - A Go-based ETL framework for building data pipelines
 
 ## Project Information
 
-- **Name**: {{ .ProjectName }}
-- **Module**: {{ .Module }}
-- **Version**: {{ .Version }}
+- **Name**: {{ ProjectName }}
+- **Module**: {{ Module }}
+- **Version**: {{ Version }}
 
 ## Overview
 
@@ -18,80 +18,80 @@ For more information about Teal, see the [Teal README](https://github.com/go-tea
 
 The project uses the following database connections:
 
-{{ range .Connections }}
-### {{ .Name }}
-- **Type**: {{ .Type }}
-{{- if .Config }}
-{{- if .Config.Host }}
-- **Host**: {{ .Config.Host }}
-{{- end }}
-{{- if .Config.Port }}
-- **Port**: {{ .Config.Port }}
-{{- end }}
-{{- if .Config.Database }}
-- **Database**: {{ .Config.Database }}
-{{- end }}
-{{- if .Config.Path }}
-- **Path**: {{ .Config.Path }}
-{{- end }}
-{{- end }}
-{{ end }}
+{% for connection in Connections %}
+### {{ connection.Name }}
+- **Type**: {{ connection.Type }}
+{% if connection.Config %}
+{% if connection.Config.Host %}
+- **Host**: {{ connection.Config.Host }}
+{% endif %}
+{% if connection.Config.Port %}
+- **Port**: {{ connection.Config.Port }}
+{% endif %}
+{% if connection.Config.Database %}
+- **Database**: {{ connection.Config.Database }}
+{% endif %}
+{% if connection.Config.Path %}
+- **Path**: {{ connection.Config.Path }}
+{% endif %}
+{% endif %}
+{% endfor %}
 
 ## Data Models
 
 The project contains data models organized by stages:
 
-{{ range .Stages }}
-### {{ .Name }} Stage
-{{ $stageName := .Name }}
-{{ range $.Assets }}
-{{- if eq .Stage $stageName }}
-- **{{ .ModelName }}** ({{ .ModelProfile.Materialization }})
-  - Connection: `{{ .ModelProfile.Connection }}`
-{{- if .Upstreams }}
-  - Depends on: {{ range $i, $u := .Upstreams }}{{ if $i }}, {{ end }}`{{ $u }}`{{ end }}
-{{- end }}
-{{- if .Downstreams }}
-  - Used by: {{ range $i, $d := .Downstreams }}{{ if $i }}, {{ end }}`{{ $d }}`{{ end }}
-{{- end }}
-{{- if .ModelProfile.Tests }}
-  - Tests: {{ len .ModelProfile.Tests }} test(s)
-{{- end }}
-{{ end }}
-{{- end }}
-{{ end }}
+{% for stage in Stages %}
+### {{ stage.Name }} Stage
+{% set stageName = stage.Name %}
+{% for asset in Assets %}
+{% if asset.Stage == stageName %}
+- **{{ asset.ModelName }}** ({{ asset.ModelProfile.Materialization }})
+  - Connection: `{{ asset.ModelProfile.Connection }}`
+{% if asset.Upstreams %}
+  - Depends on: {% for u in asset.Upstreams %}{% if not loop.first %}, {% endif %}`{{ u }}`{% endfor %}
+{% endif %}
+{% if asset.Downstreams %}
+  - Used by: {% for d in asset.Downstreams %}{% if not loop.first %}, {% endif %}`{{ d }}`{% endfor %}
+{% endif %}
+{% if asset.ModelProfile.Tests %}
+  - Tests: {{ asset.ModelProfile.Tests|length }} test(s)
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endfor %}
 
 ## Raw Assets (Go Functions)
 
-{{ if .RawAssets }}
+{% if RawAssets %}
 The following raw assets are implemented as custom Go functions:
 
-{{ range .RawAssets }}
-- **{{ .ModelName }}**
-  - Connection: `{{ .ModelProfile.Connection }}`
-{{- if .Upstreams }}
-  - Depends on: {{ range $i, $u := .Upstreams }}{{ if $i }}, {{ end }}`{{ $u }}`{{ end }}
-{{- end }}
-{{- if .Downstreams }}
-  - Used by: {{ range $i, $d := .Downstreams }}{{ if $i }}, {{ end }}`{{ $d }}`{{ end }}
-{{- end }}
-{{ end }}
-{{ else }}
+{% for rawAsset in RawAssets %}
+- **{{ rawAsset.ModelName }}**
+  - Connection: `{{ rawAsset.ModelProfile.Connection }}`
+{% if rawAsset.Upstreams %}
+  - Depends on: {% for u in rawAsset.Upstreams %}{% if not loop.first %}, {% endif %}`{{ u }}`{% endfor %}
+{% endif %}
+{% if rawAsset.Downstreams %}
+  - Used by: {% for d in rawAsset.Downstreams %}{% if not loop.first %}, {% endif %}`{{ d }}`{% endfor %}
+{% endif %}
+{% endfor %}
+{% else %}
 No raw assets defined in this project.
-{{ end }}
+{% endif %}
 
 ## Model Tree
 
 ```
-{{ range .Stages }}
-{{ .Name }}/
-{{ $stageName := .Name }}
-{{- range $.Assets }}
-{{- if eq .Stage $stageName }}
-├── {{ .ModelName }} [{{ .ModelProfile.Connection }}]
-{{- end }}
-{{- end }}
-{{ end }}
+{% for stage in Stages %}
+{{ stage.Name }}/
+{% set stageName = stage.Name %}
+{% for asset in Assets %}
+{% if asset.Stage == stageName %}
+├── {{ asset.ModelName }} [{{ asset.ModelProfile.Connection }}]
+{% endif %}
+{% endfor %}
+{% endfor %}
 ```
 
 ## Building and Running
@@ -113,12 +113,12 @@ teal gen
 
 ### Run Production Binary
 ```bash
-go run cmd/{{ .ProjectName }}/{{ .ProjectName }}.go --input-data '{"key":"value"}'
+go run cmd/{{ ProjectName }}/{{ ProjectName }}.go --input-data '{"key":"value"}'
 ```
 
 ### Run Debug UI Binary
 ```bash
-go run cmd/{{ .ProjectName }}-ui/{{ .ProjectName }}-ui.go
+go run cmd/{{ ProjectName }}-ui/{{ ProjectName }}-ui.go
 ```
 
 The debug UI will be available at `http://localhost:8080`
@@ -138,8 +138,8 @@ go test ./...
 │   ├── models/          # SQL model files organized by stages
 │   └── tests/           # SQL test files
 ├── cmd/
-│   ├── {{ .ProjectName }}/      # Production binary
-│   └── {{ .ProjectName }}-ui/   # Debug UI binary
+│   ├── {{ ProjectName }}/      # Production binary
+│   └── {{ ProjectName }}-ui/   # Debug UI binary
 ├── internal/
 │   ├── assets/          # Generated Go code for models
 │   └── model_tests/     # Generated test implementations

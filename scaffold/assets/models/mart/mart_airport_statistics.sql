@@ -36,7 +36,7 @@ with airport_departures as (
         count(*) as departure_count,
         avg(f.departure_delay_minutes) as avg_departure_delay,
         sum(case when f.departure_delay_minutes > 15 then 1 else 0 end) as delayed_departures
-    from {{ Ref "dds.fact_flights" }} f
+    from {{ Ref("dds.fact_flights") }} f
     group by f.origin_airport_key
 ),
 airport_arrivals as (
@@ -45,7 +45,7 @@ airport_arrivals as (
         count(*) as arrival_count,
         avg(f.arrival_delay_minutes) as avg_arrival_delay,
         sum(case when f.arrival_delay_minutes > 15 then 1 else 0 end) as delayed_arrivals
-    from {{ Ref "dds.fact_flights" }} f
+    from {{ Ref("dds.fact_flights") }} f
     group by f.destination_airport_key
 ),
 airport_crew as (
@@ -55,7 +55,7 @@ airport_crew as (
         avg(salary) as avg_crew_salary,
         sum(salary) as total_crew_salary,
         count(distinct position) as unique_positions
-    from {{ Ref "dds.dim_employees" }}
+    from {{ Ref("dds.dim_employees") }}
     group by base_airport
 ),
 airport_routes as (
@@ -67,14 +67,14 @@ airport_routes as (
         select
             origin_airport_key as airport_key,
             count(distinct destination_airport_key) as destinations_served
-        from {{ Ref "dds.dim_routes" }}
+        from {{ Ref("dds.dim_routes") }}
         group by origin_airport_key
     ) o
     full outer join (
         select
             destination_airport_key as airport_key,
             count(distinct origin_airport_key) as origins_served
-        from {{ Ref "dds.dim_routes" }}
+        from {{ Ref("dds.dim_routes") }}
         group by destination_airport_key
     ) d on o.airport_key = d.airport_key
 )
@@ -125,7 +125,7 @@ select
         else 'Spoke'
     end as hub_type
     
-from {{ Ref "dds.dim_airports" }} a
+from {{ Ref("dds.dim_airports") }} a
 left join airport_departures dep on a.airport_key = dep.airport_key
 left join airport_arrivals arr on a.airport_key = arr.airport_key
 left join airport_crew crew on a.airport_key = crew.airport_key

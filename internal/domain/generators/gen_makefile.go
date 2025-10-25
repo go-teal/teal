@@ -3,8 +3,8 @@ package generators
 import (
 	_ "embed"
 	"os"
-	"text/template"
-	
+
+	pongo2 "github.com/flosch/pongo2/v6"
 	"github.com/go-teal/teal/pkg/configs"
 )
 
@@ -32,7 +32,15 @@ func (g *GenMakefile) GetFullPath() string {
 }
 
 func (g *GenMakefile) RenderToFile() error {
-	tmpl, err := template.New("makefile").Parse(makefileTemplate)
+	tmpl, err := pongo2.FromString(makefileTemplate)
+	if err != nil {
+		return err
+	}
+
+	output, err := tmpl.Execute(pongo2.Context{
+		"Config":         g.config,
+		"ProjectProfile": g.profile,
+	})
 	if err != nil {
 		return err
 	}
@@ -43,17 +51,6 @@ func (g *GenMakefile) RenderToFile() error {
 	}
 	defer file.Close()
 
-	var templateData = struct {
-		Config         *configs.Config
-		ProjectProfile *configs.ProjectProfile
-	}{
-		Config:         g.config,
-		ProjectProfile: g.profile,
-	}
-
-	if err := tmpl.Execute(file, templateData); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = file.WriteString(output)
+	return err
 }

@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -66,12 +65,11 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 				continue
 			}
 
-			// Execute the profile.yaml template if it exists
-			var inlineProfileByteBuffer bytes.Buffer
-			err = modelFileFinalTemplate.ExecuteTemplate(&inlineProfileByteBuffer, "profile.yaml", nil)
-			if err == nil && inlineProfileByteBuffer.Len() > 0 {
+			// Extract profile.yaml from define block if it exists
+			profileYAML := modelFileFinalTemplate.GetProfileYAML()
+			if profileYAML != "" {
 				var sqlProfile configs.ModelProfile
-				err = yaml.Unmarshal(inlineProfileByteBuffer.Bytes(), &sqlProfile)
+				err = yaml.Unmarshal([]byte(profileYAML), &sqlProfile)
 				if err != nil {
 					fmt.Printf("Cannot unmarshal profile from %s: %v\n", modelFileName, err)
 					continue

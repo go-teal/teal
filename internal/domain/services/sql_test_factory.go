@@ -74,27 +74,28 @@ func initTestConfig(
 		panic(err)
 	}
 
-	var inlineTestProfileByteBuffer bytes.Buffer
 	globalTestProfile := projectProfile.GetTestProfile(stage, fileName)
-	err = testFileFinalTemplate.ExecuteTemplate(&inlineTestProfileByteBuffer, "profile.yaml", nil)
-	if err == nil {
-		var newTestPrifile configs.TestProfile
-		err = yaml.Unmarshal(inlineTestProfileByteBuffer.Bytes(), &newTestPrifile)
+
+	// Extract profile.yaml from define block if it exists
+	profileYAML := testFileFinalTemplate.GetProfileYAML()
+	if profileYAML != "" {
+		var newTestProfile configs.TestProfile
+		err = yaml.Unmarshal([]byte(profileYAML), &newTestProfile)
 		if err != nil {
 			fmt.Printf("can not unmarshal test profile")
 			panic(err)
 		}
-		globalTestProfile.Connection = newTestPrifile.Connection
-		if newTestPrifile.Description != "" {
-			globalTestProfile.Description = newTestPrifile.Description
+		globalTestProfile.Connection = newTestProfile.Connection
+		if newTestProfile.Description != "" {
+			globalTestProfile.Description = newTestProfile.Description
 		}
 	}
 
-	var sqlByteBuffer bytes.Buffer
-	err = testFileFinalTemplate.Execute(&sqlByteBuffer, nil)
+	sqlString, err := testFileFinalTemplate.Execute(nil)
 	if err != nil {
 		return nil
 	}
+	sqlByteBuffer := *bytes.NewBufferString(sqlString)
 
 	return &internalmodels.TestConfig{
 		TestName:      refName,

@@ -1,4 +1,4 @@
-{{- define "profile.yaml" }}
+{{ define "profile.yaml" }}
     connection: 'default'
     description: |
         ## 🔍 Employee Dimension Uniqueness Test
@@ -24,12 +24,12 @@
         3. Review incremental load process
 
         **Success Criteria**: Empty result set
-{{- end }}
+{{ end }}
 
 -- Test for duplicate employee keys
 select 
     employee_key, 
     count(*) as duplicate_count 
-from {{ Ref "dds.dim_employees" }} 
+from {{ Ref("dds.dim_employees") }} 
 group by employee_key 
 having count(*) > 1

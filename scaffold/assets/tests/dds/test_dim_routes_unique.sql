@@ -1,4 +1,4 @@
-{{- define "profile.yaml" }}
+{{ define "profile.yaml" }}
     connection: 'default'
     description: |
         ## 🔍 Route Dimension Uniqueness Test
@@ -26,12 +26,12 @@
         - Data integration errors
 
         **Resolution**: Dedup at source or in staging
-{{- end }}
+{{ end }}
 
 -- Test for duplicate route keys
 select 
     route_key, 
     count(*) as duplicate_count 
-from {{ Ref "dds.dim_routes" }} 
+from {{ Ref("dds.dim_routes") }} 
 group by route_key 
 having count(*) > 1

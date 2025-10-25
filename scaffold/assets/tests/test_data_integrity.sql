@@ -1,4 +1,4 @@
-{{- define "profile.yaml" }}
+{{ define "profile.yaml" }}
     connection: 'default'
     description: |
         ## 🛡️ End-to-End Data Integrity Validation
@@ -31,7 +31,7 @@
         4. 🔄 **RERUN** - Restart pipeline
 
         **SLA**: Must pass for production release
-{{- end }}
+{{ end }}
 
 -- Root test to verify data integrity across the entire pipeline
 -- This test runs after all DAG tasks complete when using --with-tests flag
@@ -42,8 +42,8 @@ with orphaned_flights as (
         f.flight_id,
         f.route_key,
         'Missing route in dim_routes' as issue
-    from {{ Ref "dds.fact_flights" }} f
-    left join {{ Ref "dds.dim_routes" }} r on f.route_key = r.route_key
+    from {{ Ref("dds.fact_flights") }} f
+    left join {{ Ref("dds.dim_routes") }} r on f.route_key = r.route_key
     where r.route_key is null
 ),
 orphaned_assignments as (
@@ -52,8 +52,8 @@ orphaned_assignments as (
         ca.assignment_id,
         ca.employee_key,
         'Missing employee in dim_employees' as issue
-    from {{ Ref "dds.fact_crew_assignments" }} ca
-    left join {{ Ref "dds.dim_employees" }} e on ca.employee_key = e.employee_key
+    from {{ Ref("dds.fact_crew_assignments") }} ca
+    left join {{ Ref("dds.dim_employees") }} e on ca.employee_key = e.employee_key
     where e.employee_key is null
 ),
 invalid_airports as (
@@ -62,8 +62,8 @@ invalid_airports as (
         r.route_id,
         r.origin_airport_key,
         'Missing origin airport in dim_airports' as issue
-    from {{ Ref "dds.dim_routes" }} r
-    left join {{ Ref "dds.dim_airports" }} a on r.origin_airport_key = a.airport_key
+    from {{ Ref("dds.dim_routes") }} r
+    left join {{ Ref("dds.dim_airports") }} a on r.origin_airport_key = a.airport_key
     where a.airport_key is null
     
     union all
@@ -72,8 +72,8 @@ invalid_airports as (
         r.route_id,
         r.destination_airport_key,
         'Missing destination airport in dim_airports' as issue
-    from {{ Ref "dds.dim_routes" }} r
-    left join {{ Ref "dds.dim_airports" }} a on r.destination_airport_key = a.airport_key
+    from {{ Ref("dds.dim_routes") }} r
+    left join {{ Ref("dds.dim_airports") }} a on r.destination_airport_key = a.airport_key
     where a.airport_key is null
 )
 -- Return all integrity issues (test passes if no rows returned)

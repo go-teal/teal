@@ -54,4 +54,4 @@ select
     end as route_category,
     current_timestamp as dw_created_at,
     current_timestamp as dw_updated_at
-from {{ Ref "staging.stg_routes" }}
+from {{ Ref("staging.stg_routes") }}

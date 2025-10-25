@@ -64,12 +64,12 @@ with assignment_staging as (
         r.origin_airport,
         r.destination_airport,
         r.distance_km as route_distance
-    from {{ Ref "staging.stg_crew_assignments" }} ca
-    inner join {{ Ref "dds.fact_flights" }} f 
+    from {{ Ref("staging.stg_crew_assignments") }} ca
+    inner join {{ Ref("dds.fact_flights") }} f 
         on ca.flight_id = f.flight_id
-    inner join {{ Ref "dds.dim_employees" }} e 
+    inner join {{ Ref("dds.dim_employees") }} e 
         on ca.employee_id = e.employee_id
-    inner join {{ Ref "dds.dim_routes" }} r 
+    inner join {{ Ref("dds.dim_routes") }} r 
         on f.route_key = r.route_key
 )
 select

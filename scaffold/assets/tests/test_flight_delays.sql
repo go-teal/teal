@@ -1,4 +1,4 @@
-{{- define "profile.yaml" }}
+{{ define "profile.yaml" }}
     connection: 'default'
     description: |
         ## ⚠️ Flight Delay Anomaly Detection
@@ -34,7 +34,7 @@
         - Alert operations team
         - Investigate source systems
         - Add data validation at ingestion
-{{- end }}
+{{ end }}
 
 -- Root test to check for unrealistic flight delays
 -- Test passes if no flights have delays greater than 24 hours (1440 minutes)
@@ -50,7 +50,7 @@ select
         when departure_delay_minutes < -120 then 'Departed too early (>2 hours)'
         when arrival_delay_minutes < -120 then 'Arrived too early (>2 hours)'
     end as issue_type
-from {{ Ref "dds.fact_flights" }}
+from {{ Ref("dds.fact_flights") }}
 where 
     departure_delay_minutes > 1440 
     or arrival_delay_minutes > 1440

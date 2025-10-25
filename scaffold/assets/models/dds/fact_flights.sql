@@ -55,8 +55,8 @@ with flight_staging as (
         r.distance_km as route_distance_km,
         r.average_duration_minutes as route_avg_duration,
         r.route_category
-    from {{ Ref "staging.stg_flights" }} f
-    inner join {{ Ref "dds.dim_routes" }} r 
+    from {{ Ref("staging.stg_flights") }} f
+    inner join {{ Ref("dds.dim_routes") }} r 
         on f.route_id = r.route_id
     where f.status = 'COMPLETED'  -- Only finished flights
 )
@@ -117,6 +117,6 @@ select
     end as on_time_arrival,
     current_timestamp as dw_created_at
 from flight_staging
-{{{ if IsIncremental }}}
-where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from {{ this }})
-{{{ end }}}
+{% if IsIncremental() %}
+where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from {{ this() }})
+{% endif %}
