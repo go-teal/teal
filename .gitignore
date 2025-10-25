@@ -23,6 +23,7 @@ go.work
 .test.duckdb
 /bin/teal
 .DS_Store
+*.duckdb
 
 # Scaffold generated files (test artifacts)
 /scaffold/cmd/
@@ -30,3 +31,6 @@ go.work
 /scaffold/internal/
 /scaffold/go.mod
 *.out
+
+# Scaffold build artifacts
+scaffold/bin/

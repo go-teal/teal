@@ -11,16 +11,26 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// columnTypesToString converts array of ColumnType to array of strings in format "FieldName->DatabaseTypeName"
+func columnTypesToString(columnTypes []*sql.ColumnType) []string {
+	result := make([]string, len(columnTypes))
+	for i, c := range columnTypes {
+		result[i] = fmt.Sprintf("%s->%s", c.Name(), c.DatabaseTypeName())
+	}
+	return result
+}
+
 // ToDataFrame implements DBDriver.
 func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error) {
 	rows, err := d.db.Query(sqlQuery)
 	if err != nil {
-		log.Error().Stack().Err(err).Msg(sqlQuery)
+		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery).Msg("Failed to execute SQL query")
 		return nil, err
 	}
 	columnTypes, err := rows.ColumnTypes()
+	log.Debug().Any("column types", columnTypesToString(columnTypes)).Send()
 	if err != nil {
-		log.Error().Stack().Err(err).Msg("Can not extract column types")
+		log.Error().Caller().Stack().Err(err).Msg("Can not extract column types")
 		return nil, err
 	}
 	seriesData := make([]interface{}, len(columnTypes))
@@ -38,11 +48,14 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		case "TIMESTAMP":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
-		case "BIGINT":
+		case "TIMESTAMPTZ":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
+		case "BIGINT":
+			// TODO: Add this type to gota series
+			seriesData[i] = make([]int64, 0)
 		case "BOOLEAN":
-			seriesData[i] = make([]string, 0)
+			seriesData[i] = make([]bool, 0)
 		case "DATE":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
@@ -69,6 +82,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 				safeData[i] = &sql.NullInt32{}
 			case "TIMESTAMP":
 				safeData[i] = &sql.NullString{}
+			case "TIMESTAMPTZ":
+				safeData[i] = &sql.NullString{}
 			case "BIGINT":
 				safeData[i] = &sql.NullInt64{}
 			case "BOOLEAN":
@@ -81,11 +96,12 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		}
 		err := rows.Scan(safeData...)
 		if err != nil {
-			log.Error().Stack().Err(err).Msg("DuckDB Scan error")
+			log.Error().Caller().Stack().Err(err).Msg("DuckDB Scan error")
 			return nil, err
 		}
 
 		for i, c := range columnTypes {
+			log.Debug().Str("fieldName", c.Name()).Str("type", c.DatabaseTypeName()).Msg("serealizing")
 			switch c.DatabaseTypeName() {
 
 			case "VARCHAR":
@@ -113,6 +129,12 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 				seriesData[i] = sd
 
 			case "TIMESTAMP":
+				sd := seriesData[i].([]string)
+				val := safeData[i].(*sql.NullString)
+				sd = append(sd, val.String)
+				seriesData[i] = sd
+
+			case "TIMESTAMPTZ":
 				sd := seriesData[i].([]string)
 				val := safeData[i].(*sql.NullString)
 				sd = append(sd, val.String)
@@ -160,6 +182,9 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		case "TIMESTAMP":
 			// TODO: Add this type to gota series
 			dFseries[i] = series.New(seriesData[i], series.String, c.Name())
+		case "TIMESTAMPTZ":
+			// TODO: Add this type to gota series
+			dFseries[i] = series.New(seriesData[i], series.String, c.Name())
 		case "BIGINT":
 			// TODO: Add this type to gota series
 			dFseries[i] = series.New(seriesData[i], series.String, c.Name())
@@ -205,24 +230,24 @@ func (d *DuckDBEngine) PersistDataFrame(tx interface{}, name string, df *datafra
 			case series.Int:
 				val, err := df.Elem(rowIdx, colIdx).Int()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
 					return err
 				}
 				vals[colIdx] = fmt.Sprintf("%d", val)
 			case series.Bool:
 				val, err := df.Elem(rowIdx, colIdx).Bool()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
 					return err
 				}
-				vals[colIdx] = fmt.Sprintf("%t, ", val)
+				vals[colIdx] = fmt.Sprintf("%t", val)
 			default:
 				return fmt.Errorf("type %s not implemented", colType)
 			}
 		}
 		query += fmt.Sprintf("insert into %s(%s) values(%s);\n", name, strings.Join(colNames, ", "), strings.Join(vals, ", "))
 	}
-	log.Debug().Msg(query)
+	log.Debug().Str("sql", query).Str("name", name).Msg("query for the dataframe persistence")
 	_, err := tx.(*sql.Tx).Exec(query)
 	return err
 }

@@ -37,6 +37,7 @@ type SourceProfile struct {
 
 type ModelProfile struct {
 	Name             string         `yaml:"name"`
+	Description      string         `yaml:"description"`
 	Connection       string         `yaml:"connection"`
 	Materialization  MatType        `yaml:"materialization"`
 	PrimaryKeyFields []string       `yaml:"primary_key_fields"`
@@ -55,9 +56,10 @@ type DBIndex struct {
 }
 
 type TestProfile struct {
-	Name       string `yaml:"name"`
-	Connection string `yaml:"connection"`
-	Stage      string `yaml:"-"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Connection  string `yaml:"connection"`
+	Stage       string `yaml:"-"`
 }
 
 func (mp *ModelProfile) GetTempName() string {

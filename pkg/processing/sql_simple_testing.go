@@ -21,21 +21,24 @@ func InitSQLModelTesting(descriptor *models.SQLModelTestDescriptor) ModelTesting
 	}
 }
 
-func (mt *SQLModelTestCase) Execute() (bool, string, error) {
+func (mt *SQLModelTestCase) Execute(ctx *TaskContext) (bool, string, error) {
 
 	dbConnection := core.GetInstance().GetDBConnection(mt.descriptor.TestProfile.Connection)
 
 	sqlTestTemplate, err := pongo2.FromString(mt.descriptor.CountTestSQL)
 	if err != nil {
-		log.Error().Stack().Err(err).Msgf("Parsing template: %s", mt.descriptor.CountTestSQL)
+		log.Error().Caller().Stack().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Err(err).Str("sql", mt.descriptor.CountTestSQL).Msg("Failed to parse test SQL template")
 		return false, mt.descriptor.Name, err
 	}
 
-	context := FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(pongo2.Context))
+	context := MergeTemplateFuncs(
+		FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(pongo2.Context)),
+		FromTaskContext(ctx),
+	)
 	sqlQuery, err := sqlTestTemplate.Execute(context)
 
 	if err != nil {
-		log.Error().Stack().Err(err).Msgf("Execute template: %s", mt.descriptor.CountTestSQL)
+		log.Error().Caller().Stack().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Err(err).Str("sql", mt.descriptor.CountTestSQL).Msg("Failed to execute test SQL template")
 		return false, mt.descriptor.Name, err
 	}
 
@@ -50,4 +53,9 @@ func (mt *SQLModelTestCase) Execute() (bool, string, error) {
 	}
 
 	return true, mt.descriptor.Name, nil
+}
+
+// GetDescriptor implements ModelTesting.
+func (mt *SQLModelTestCase) GetDescriptor() any {
+	return mt.descriptor
 }

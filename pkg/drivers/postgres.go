@@ -124,10 +124,10 @@ func (d *PostgresDBEngine) Commit(tx interface{}) error {
 
 // Exec implements DBEngine.
 func (d *PostgresDBEngine) Exec(tx interface{}, sqlQuery string) error {
-	log.Debug().Msg(sqlQuery)
+	log.Debug().Str("sql", sqlQuery).Msg("Executing SQL query")
 	_, result := tx.(pgx.Tx).Exec(context.Background(), sqlQuery)
 	if result != nil {
-		log.Error().Msg(sqlQuery)
+		log.Error().Caller().Str("sql", sqlQuery).Err(result).Msg("SQL execution failed")
 	}
 	return result
 }

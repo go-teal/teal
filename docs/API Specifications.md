@@ -1,0 +1,941 @@
+# API Specifications
+
+This document provides comprehensive API specifications for the Teal Debug UI server endpoints.
+
+## Base URL
+```
+http://localhost:8080
+```
+
+## Table of Contents
+- [DAG Operations](#dag-operations)
+  - [GET /api/dag](#get-apidag)
+  - [POST /api/dag/run](#post-apidagrun)
+  - [GET /api/dag/status/:taskId](#get-apidagstatustaskid)
+  - [GET /api/dag/tasks](#get-apidagtasks)
+  - [POST /api/dag/reset](#post-apidagreset)
+- [Asset Operations](#asset-operations)
+  - [POST /api/dag/asset/:name/mutate](#post-apidagassetnamemutate)
+  - [GET /api/dag/asset/:name/data](#get-apidagassetnamedata)
+  - [POST /api/dag/asset/:name/select](#post-apidagassetnameselect)
+- [Test Operations](#test-operations)
+  - [GET /api/tests](#get-apitests)
+- [Log Operations](#log-operations)
+  - [GET /api/logs/:taskId](#get-apilogstaskid)
+  - [GET /api/logs](#get-apilogs)
+  - [DELETE /api/logs/:taskId](#delete-apilogstaskid)
+  - [DELETE /api/logs](#delete-apilogs)
+
+---
+
+## DAG Operations
+
+### GET /api/dag
+Retrieves the complete DAG structure with all nodes and their relationships.
+
+**Response: 200 OK**
+```json
+{
+  "projectName": "hello-world",
+  "moduleName": "github.com/you_git_user/your_project",
+  "dagInstanceName": "hello-world-dag",
+  "nodes": [
+    {
+      "name": "staging.hello",
+      "downstreams": ["dds.world"],
+      "upstreams": [],
+      "sqlSelectQuery": "SELECT 'Hello' as greeting, 1 as id",
+      "sqlCompiledQuery": "CREATE TABLE IF NOT EXISTS staging.hello AS SELECT 'Hello' as greeting, 1 as id",
+      "materialization": "table",
+      "connectionType": "duckdb",
+      "connectionName": "memory_duck",
+      "isDataFramed": false,
+      "persistInputs": false,
+      "tests": ["test_hello_exists"],
+      "state": "INITIAL",
+      "totalTests": 1,
+      "successfulTests": 0,
+      "lastExecutionDuration": 0,
+      "lastTestsDuration": 0,
+      "taskGroupIndex": 0
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `projectName` (string): Name of the Teal project
+- `moduleName` (string): Go module name from go.mod
+- `dagInstanceName` (string): Name of the DAG instance
+- `nodes` (array): Array of DAG node objects
+  - `name` (string): Unique identifier for the node (format: "stage.model")
+  - `downstreams` (array): Names of nodes that depend on this node
+  - `upstreams` (array): Names of nodes this node depends on
+  - `sqlSelectQuery` (string): Original SQL SELECT query
+  - `sqlCompiledQuery` (string): Compiled SQL with materialization
+  - `materialization` (string): Type of materialization - "table", "incremental", "view", "custom", "raw"
+  - `connectionType` (string): Database type - "duckdb", "postgres", etc.
+  - `connectionName` (string): Connection identifier from config.yaml
+  - `isDataFramed` (boolean): Whether data is passed as DataFrame
+  - `persistInputs` (boolean): Whether to persist input data
+  - `tests` (array): Names of tests associated with this node
+  - `state` (string): Current execution state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS", "TESTS_FAILED"
+  - `totalTests` (integer): Total number of tests for this node
+  - `successfulTests` (integer): Number of tests that passed
+  - `lastExecutionDuration` (integer): Last execution time in milliseconds
+  - `lastTestsDuration` (integer): Last test execution time in milliseconds
+  - `taskGroupIndex` (integer): Index of the task group (execution stage) in the DAG (0-based)
+
+---
+
+### POST /api/dag/run
+Triggers DAG execution with optional input data. Returns within 10 seconds with current status.
+
+**Request Body:**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "data": {
+    "input_param1": "value1",
+    "input_param2": 42
+  }
+}
+```
+
+**Response: 200 OK (Completed)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "status": "SUCCESS",
+  "completedAssets": 2,
+  "totalAssets": 2,
+  "failedAssets": 0,
+  "inProgressAssets": 0,
+  "rootTestResults": [
+    {
+      "testName": "root.test_data_integrity",
+      "status": "SUCCESS",
+      "errorMsg": "",
+      "durationMs": 125
+    },
+    {
+      "testName": "root.test_final_validation",
+      "status": "SUCCESS",
+      "errorMsg": "",
+      "durationMs": 89
+    }
+  ],
+  "tasks": [
+    {
+      "name": "staging.hello",
+      "state": "SUCCESS",
+      "order": 1,
+      "startTime": 1737816622000,
+      "endTime": 1737816623500,
+      "executionTimeMs": 1500,
+      "message": "",
+      "totalTests": 1,
+      "passedTests": 1,
+      "failedTests": 0
+    },
+    {
+      "name": "dds.world",
+      "state": "SUCCESS",
+      "order": 2,
+      "startTime": 1737816623500,
+      "endTime": 1737816625000,
+      "executionTimeMs": 1500,
+      "message": "",
+      "totalTests": 2,
+      "passedTests": 2,
+      "failedTests": 0
+    }
+  ],
+  "lastTaskName": "dds.world"
+}
+```
+
+**Response: 200 OK (Tests Failed)**
+```json
+{
+  "taskId": "task_20250125_143023",
+  "status": "TESTS_FAILED",
+  "completedAssets": 2,
+  "totalAssets": 2,
+  "failedAssets": 0,
+  "inProgressAssets": 0,
+  "tasks": [
+    {
+      "name": "staging.hello",
+      "state": "TESTS_FAILED",
+      "order": 1,
+      "startTime": 1737816622000,
+      "endTime": 1737816625500,
+      "executionTimeMs": 1500,
+      "testExecutionTimeMs": 2000,
+      "totalTests": 2,
+      "passedTests": 1,
+      "failedTests": 1,
+      "message": "",
+      "testResults": [
+        {
+          "testName": "test_hello_not_null",
+          "status": "SUCCESS",
+          "durationMs": 500
+        },
+        {
+          "testName": "test_hello_valid",
+          "status": "FAILED",
+          "error": "Test failed: found 3 rows",
+          "durationMs": 1500
+        }
+      ]
+    },
+    {
+      "name": "dds.world",
+      "state": "SUCCESS",
+      "order": 2,
+      "startTime": 1737816625600,
+      "endTime": 1737816627000,
+      "executionTimeMs": 1400,
+      "message": ""
+    }
+  ],
+  "lastTaskName": "dds.world"
+}
+```
+
+**Response: 202 Accepted (Still Running)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "status": "PENDING",
+  "completedAssets": 1,
+  "totalAssets": 2,
+  "failedAssets": 0,
+  "inProgressAssets": 1,
+  "tasks": [
+    {
+      "name": "staging.hello",
+      "state": "SUCCESS",
+      "order": 1,
+      "startTime": 1737816622000,
+      "endTime": 1737816623500,
+      "executionTimeMs": 1500,
+      "totalTests": 1,
+      "passedTests": 1,
+      "failedTests": 0,
+      "testResults": [
+        {
+          "testName": "test_hello_not_empty",
+          "status": "SUCCESS",
+          "durationMs": 45
+        }
+      ]
+    },
+    {
+      "name": "dds.world",
+      "state": "IN_PROGRESS",
+      "order": 2,
+      "startTime": 1737816623500,
+      "totalTests": 2,
+      "passedTests": 0,
+      "failedTests": 0,
+      "testResults": []
+    }
+  ],
+  "lastTaskName": "dds.world"
+}
+```
+
+**Response: 500 Internal Server Error (Failed)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "status": "FAILED",
+  "completedAssets": 0,
+  "totalAssets": 1,
+  "failedAssets": 1,
+  "inProgressAssets": 0,
+  "nodes": [
+    {
+      "name": "staging.hello",
+      "state": "FAILED",
+      "order": 1,
+      "startTime": 1737816622000,
+      "endTime": 1737816623500,
+      "executionTimeMs": 1500,
+      "message": "SQL execution failed: table not found",
+      "totalTests": 1,
+      "passedTests": 0,
+      "failedTests": 1,
+      "testResults": []
+    }
+  ],
+  "lastTaskName": "staging.hello"
+}
+```
+
+**Field Descriptions:**
+- `taskId` (string, required): Unique identifier for this execution
+- `data` (object, optional): Input data to pass to the DAG
+- `status` (string): Overall execution status - "NOT_STARTED", "IN_PROGRESS", "SUCCESS", "FAILED", "PENDING", "TESTS_FAILED"
+- `completedAssets` (integer): Total number of completed assets across all tasks
+- `totalAssets` (integer): Total number of assets in the DAG
+- `failedAssets` (integer): Total number of failed assets
+- `inProgressAssets` (integer): Total number of assets currently executing
+- `rootTestResults` (array, optional): Array of root test execution results (tests with "root." prefix executed after DAG completion)
+  - `testName` (string): Name of the root test
+  - `status` (string): Test status - "SUCCESS", "FAILED", "NOT_FOUND"
+  - `errorMsg` (string): Error message if test failed
+  - `durationMs` (integer): Test execution duration in milliseconds
+- `nodes` (array): Array of node execution status objects
+  - `name` (string): Node/asset name
+  - `state` (string): Node state - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS", "TESTS_FAILED"
+  - `order` (integer): Execution order (1-based)
+  - `startTime` (integer, optional): Unix timestamp in milliseconds
+  - `endTime` (integer, optional): Unix timestamp in milliseconds
+  - `executionTimeMs` (integer): Execution duration in milliseconds
+  - `message` (string): Error or status message
+  - `totalTests` (integer): Total number of tests for this node
+  - `passedTests` (integer): Number of tests that passed
+  - `failedTests` (integer): Number of tests that failed
+  - `testResults` (array, optional): Array of individual test results
+    - `testName` (string): Name of the test
+    - `status` (string): Test status - "SUCCESS", "FAILED", "NOT_FOUND"
+    - `error` (string, optional): Error message if test failed
+    - `durationMs` (integer): Test execution duration in milliseconds
+- `lastTaskName` (string): Name of the last executed task
+
+---
+
+### GET /api/dag/status/:taskId
+Retrieves the current status of a specific task execution.
+
+**Parameters:**
+- `taskId` (path parameter): The task ID to query
+
+**Response: 200 OK**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "status": "SUCCESS",
+  "completedAssets": 1,
+  "totalAssets": 1,
+  "failedAssets": 0,
+  "inProgressAssets": 0,
+  "rootTestResults": [
+    {
+      "testName": "root.test_data_integrity",
+      "status": "SUCCESS",
+      "errorMsg": "",
+      "durationMs": 125
+    }
+  ],
+  "nodes": [
+    {
+      "name": "staging.hello",
+      "state": "SUCCESS",
+      "order": 1,
+      "startTime": 1737816622000,
+      "endTime": 1737816623500,
+      "executionTimeMs": 1500,
+      "totalTests": 2,
+      "passedTests": 2,
+      "failedTests": 0,
+      "testResults": [
+        {
+          "testName": "test_hello_not_empty",
+          "status": "SUCCESS",
+          "durationMs": 45
+        },
+        {
+          "testName": "test_hello_has_greeting",
+          "status": "SUCCESS",
+          "durationMs": 32
+        }
+      ]
+    }
+  ],
+  "lastTaskName": "staging.hello"
+}
+```
+
+**Response: 404 Not Found**
+```json
+{
+  "taskId": "unknown_task",
+  "status": "NOT_STARTED",
+  "nodes": [],
+  "lastTaskName": ""
+}
+```
+
+---
+
+### GET /api/dag/tasks
+Retrieves a list of all task executions, sorted by start time (most recent first).
+
+**Response: 200 OK**
+```json
+{
+  "tasks": [
+    {
+      "taskId": "task_20250125_143022",
+      "status": "SUCCESS",
+      "startTime": 1737816622000,
+      "endTime": 1737816625000,
+      "totalAssets": 2,
+      "completedAssets": 2,
+      "failedAssets": 0,
+      "inProgressAssets": 0
+    },
+    {
+      "taskId": "task_20250125_142015",
+      "status": "FAILED",
+      "startTime": 1737816015000,
+      "endTime": 1737816018000,
+      "totalAssets": 2,
+      "completedAssets": 1,
+      "failedAssets": 1,
+      "inProgressAssets": 0
+    }
+  ],
+  "total": 2
+}
+```
+
+**Field Descriptions:**
+- `tasks` (array): Array of task summary objects
+  - `taskId` (string): Unique task identifier
+  - `status` (string): Overall task status
+  - `startTime` (integer, optional): Unix timestamp in milliseconds
+  - `endTime` (integer, optional): Unix timestamp in milliseconds
+  - `totalAssets` (integer): Total number of assets in the task
+  - `completedAssets` (integer): Number of successfully completed assets
+  - `failedAssets` (integer): Number of failed assets
+  - `inProgressAssets` (integer): Number of assets currently executing
+- `total` (integer): Total number of tasks
+
+---
+
+### POST /api/dag/reset
+Resets the DAG state, clearing all execution data and task history.
+
+**Response: 200 OK**
+```json
+{
+  "message": "DAG state reset successfully",
+  "status": "SUCCESS"
+}
+```
+
+**Response: 500 Internal Server Error**
+```json
+{
+  "error": "Failed to reset DAG state",
+  "details": "Cannot reset while execution is in progress"
+}
+```
+
+---
+
+## Asset Operations
+
+### POST /api/dag/asset/:name/mutate
+Executes a specific asset within the DAG context. Returns within 10 seconds.
+
+**Parameters:**
+- `name` (path parameter): Asset name (e.g., "staging.hello")
+
+**Request Body:**
+```json
+{
+  "taskId": "task_20250125_143022"
+}
+```
+
+**Response: 200 OK (Completed)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "SUCCESS",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500,
+  "result": {
+    "rows_affected": 100,
+    "data": [{"greeting": "Hello", "id": 1}]
+  },
+  "error": "",
+  "upstreamsUsed": []
+}
+```
+
+**Response: 202 Accepted (Still Running)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "IN_PROGRESS",
+  "startTime": 1737816622000,
+  "upstreamsUsed": []
+}
+```
+
+**Response: 500 Internal Server Error (Failed)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "FAILED",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500,
+  "error": "SQL execution failed: syntax error at line 5",
+  "upstreamsUsed": []
+}
+```
+
+**Field Descriptions:**
+- `taskId` (string, required): Task ID for tracking
+- `assetName` (string): Name of the asset being executed
+- `status` (string): Execution status - "INITIAL", "IN_PROGRESS", "TESTING", "FAILED", "SUCCESS", "TESTS_FAILED"
+- `startTime` (integer, optional): Unix timestamp in milliseconds
+- `endTime` (integer, optional): Unix timestamp in milliseconds
+- `executionTimeMs` (integer): Execution duration in milliseconds
+- `result` (object, optional): Execution result data
+- `error` (string): Error message if failed
+- `upstreamsUsed` (array): List of upstream assets used
+
+---
+
+### GET /api/dag/asset/:name/data
+Retrieves the execution result and metadata for an asset from a specific task execution with optional pagination.
+
+**Parameters:**
+- `name` (path parameter): Asset name (e.g., "staging.hello")
+
+**Query Parameters:**
+- `taskId` (required): Task ID from DAG execution
+- `offset` (optional): Starting index for pagination (0-based, default: 0)
+- `limit` (optional): Maximum number of records to return (default: 0 = no limit)
+
+**Response: 200 OK (DataFrame Result)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "SUCCESS",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500,
+  "result": [
+    {"greeting": "Hello", "id": 1},
+    {"greeting": "World", "id": 2}
+  ],
+  "upstreamsUsed": [],
+  "totalRecords": 100,
+  "offset": 0,
+  "limit": 2
+}
+```
+
+**Response: 200 OK (Map Result)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "dds.world",
+  "status": "SUCCESS",
+  "startTime": 1737816623500,
+  "endTime": 1737816625000,
+  "executionTimeMs": 1500,
+  "result": {
+    "key1": "value1",
+    "key2": 42
+  },
+  "upstreamsUsed": ["staging.hello"]
+}
+```
+
+**Response: 200 OK (Not Executed)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "INITIAL",
+  "upstreamsUsed": []
+}
+```
+
+**Response: 200 OK (Failed)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "FAILED",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500,
+  "error": "SQL execution failed: table not found",
+  "upstreamsUsed": []
+}
+```
+
+**Field Descriptions:**
+- `taskId` (string): Task ID for this execution
+- `assetName` (string): Name of the asset
+- `status` (string): Execution status - "INITIAL", "IN_PROGRESS", "SUCCESS", "FAILED", "TESTS_FAILED"
+- `startTime` (integer, optional): Unix timestamp in milliseconds
+- `endTime` (integer, optional): Unix timestamp in milliseconds
+- `executionTimeMs` (integer): Execution duration in milliseconds
+- `result` (any, optional): The execution result. DataFrames are automatically serialized as arrays of objects. Paginated based on offset and limit
+- `error` (string, optional): Error message if execution failed
+- `upstreamsUsed` (array): List of upstream assets used in execution
+- `totalRecords` (integer, optional): Total number of records available (before pagination)
+- `offset` (integer, optional): Starting index used for this response
+- `limit` (integer, optional): Maximum records returned in this response (0 = no limit)
+
+**Notes:**
+- DataFrame results are automatically serialized to JSON as arrays of objects, where each object represents a row
+- Pagination is applied after serialization: `offset` specifies the starting record index (0-based), and `limit` specifies the maximum number of records to return
+- `totalRecords` shows the complete dataset size before pagination, allowing clients to calculate total pages
+- **Important**: The `result` field contains data from the node's `LastResult`, which is overwritten on each new execution. If Task B executes after Task A, querying `?taskId=taskA` will return Task B's result, not Task A's original result. The endpoint only guarantees metadata (status, timing, error) is task-specific; the actual data reflects the most recent execution of that asset
+- This endpoint returns execution metadata from a specific task, unlike `/select` which executes a fresh query
+
+**Pagination Examples:**
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123` - Returns all records
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123&limit=10` - Returns first 10 records
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123&offset=10&limit=10` - Returns records 11-20
+- `GET /api/dag/asset/staging.hello/data?taskId=task_123&offset=100` - Returns all records starting from index 100
+
+---
+
+### POST /api/dag/asset/:name/select
+Executes the asset's SQL query using the `ToDataFrame` method, renders the SQL template (executing all template functions like `Ref` and `IsIncremental`), and saves the result to the node's `LastResult`. The result can then be retrieved using the `/api/dag/asset/:name/data` endpoint.
+
+**Parameters:**
+- `name` (path parameter): Asset name (e.g., "staging.hello")
+
+**Request Body:**
+```json
+{
+  "taskId": "task_select_20250115"
+}
+```
+
+**Field Descriptions (Request):**
+- `taskId` (string, required): Task ID to associate with this execution
+
+**Response: 200 OK (Success)**
+```json
+{
+  "taskId": "task_select_20250115",
+  "assetName": "staging.hello",
+  "status": "SUCCESS",
+  "startTime": 1737816622000,
+  "endTime": 1737816623500,
+  "executionTimeMs": 1500
+}
+```
+
+**Response: 200 OK (Failed)**
+```json
+{
+  "taskId": "task_select_20250115",
+  "assetName": "staging.hello",
+  "status": "FAILED",
+  "error": "Failed to execute query: syntax error at line 5"
+}
+```
+
+**Field Descriptions (Response):**
+- `taskId` (string): Task ID for this execution
+- `assetName` (string): Name of the asset
+- `status` (string): Execution status - "SUCCESS" or "FAILED"
+- `startTime` (integer, optional): Unix timestamp in milliseconds when execution started
+- `endTime` (integer, optional): Unix timestamp in milliseconds when execution completed
+- `executionTimeMs` (integer, optional): Execution duration in milliseconds
+- `error` (string, optional): Error message if query failed
+
+**Notes:**
+- This endpoint only works with SQL assets (not raw assets)
+- **Template Rendering**: The SQL template is rendered before execution, which means:
+  - `{{ Ref "stage.model" }}` functions are executed to resolve table references
+  - `{{ IsIncremental() }}` returns `true` if materialization is incremental and the table exists
+  - All other template functions are evaluated
+- The result is saved to the node's `LastResult` and can be retrieved via `GET /api/dag/asset/:name/data?taskId=<taskId>`
+- To get paginated data, use `GET /api/dag/asset/:name/data?taskId=<taskId>&offset=0&limit=100`
+- The result is stored against the taskId in execution metadata
+- Uses the asset's configured database connection
+- **Important**: The data in `LastResult` is overwritten on subsequent executions (see `/data` endpoint notes)
+
+---
+
+## Test Operations
+
+### GET /api/tests
+Retrieves all test profiles defined in the DAG.
+
+**Response: 200 OK**
+```json
+{
+  "tests": [
+    {
+      "name": "test_hello_exists",
+      "sql": "SELECT * FROM staging.hello WHERE greeting IS NULL",
+      "connectionName": "memory_duck",
+      "connectionType": "duckdb"
+    },
+    {
+      "name": "test_world_count",
+      "sql": "SELECT * FROM dds.world WHERE count < 0",
+      "connectionName": "memory_duck",
+      "connectionType": "duckdb"
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `tests` (array): Array of test profile objects
+  - `name` (string): Unique test identifier
+  - `sql` (string): SQL query that should return zero rows to pass
+  - `connectionName` (string): Database connection to use
+  - `connectionType` (string): Type of database connection
+
+---
+
+### GET /api/tests/:taskId
+Retrieves test execution results for a specific task execution.
+
+**Parameters:**
+- `taskId` (string, required): The task ID from DAG execution
+
+**Response: 200 OK**
+```json
+{
+  "taskId": "task_20250125_143023",
+  "tests": [
+    {
+      "name": "test_hello_exists",
+      "sql": "SELECT * FROM staging.hello WHERE greeting IS NULL",
+      "connectionName": "memory_duck",
+      "connectionType": "duckdb"
+    },
+    {
+      "name": "test_world_count",
+      "sql": "SELECT * FROM dds.world WHERE count < 0",
+      "connectionName": "memory_duck",
+      "connectionType": "duckdb"
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `taskId` (string): The task ID for this test execution
+- `tests` (array): Array of test profiles for this specific task execution
+  - `name` (string): Unique test identifier
+  - `sql` (string): SQL query that was executed
+  - `connectionName` (string): Database connection used
+  - `connectionType` (string): Type of database connection
+
+---
+
+## Log Operations
+
+The log endpoints are only available when the UI server is started with the StoringConsoleWriter logger configured (default in UI mode). These endpoints provide access to structured log data captured during DAG execution, organized by task ID.
+
+### GET /api/logs/:taskId
+Retrieves all log entries for a specific task.
+
+**Parameters:**
+- `taskId` (path parameter): The task ID to retrieve logs for
+
+**Response: 200 OK**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "logs": [
+    {
+      "level": "info",
+      "time": "2025-01-25T14:30:22Z",
+      "message": "Starting DAG execution",
+      "taskId": "task_20250125_143022",
+      "stage": "initialization"
+    },
+    {
+      "level": "debug",
+      "time": "2025-01-25T14:30:23Z",
+      "message": "Executing asset: staging.hello",
+      "taskId": "task_20250125_143022",
+      "asset": "staging.hello",
+      "connection": "memory_duck"
+    }
+  ],
+  "count": 2
+}
+```
+
+**Response: 501 Not Implemented (Logger not configured)**
+```json
+{
+  "error": "Log writer not configured"
+}
+```
+
+**Field Descriptions:**
+- `taskId` (string): The task ID requested
+- `logs` (array): Array of log entry objects with varying fields based on log content
+  - Common fields include: `level`, `time`, `message`, `taskId`
+  - Additional fields vary based on the specific log entry
+- `count` (integer): Total number of log entries for this task
+
+---
+
+### GET /api/logs
+Retrieves all log entries for all tasks.
+
+**Response: 200 OK**
+```json
+{
+  "logs": {
+    "task_20250125_143022": [
+      {
+        "level": "info",
+        "time": "2025-01-25T14:30:22Z",
+        "message": "Starting DAG execution",
+        "taskId": "task_20250125_143022"
+      }
+    ],
+    "task_20250125_142015": [
+      {
+        "level": "error",
+        "time": "2025-01-25T14:20:15Z",
+        "message": "Asset execution failed",
+        "taskId": "task_20250125_142015",
+        "error": "Connection timeout"
+      }
+    ]
+  },
+  "taskCount": 2,
+  "totalLogCount": 2
+}
+```
+
+**Field Descriptions:**
+- `logs` (object): Map of task IDs to their respective log entries
+  - Keys are task IDs
+  - Values are arrays of log entry objects
+- `taskCount` (integer): Number of unique tasks with logs
+- `totalLogCount` (integer): Total number of log entries across all tasks
+
+---
+
+### DELETE /api/logs/:taskId
+Clears all log entries for a specific task.
+
+**Parameters:**
+- `taskId` (path parameter): The task ID to clear logs for
+
+**Response: 200 OK**
+```json
+{
+  "message": "Logs cleared for task: task_20250125_143022",
+  "taskId": "task_20250125_143022"
+}
+```
+
+**Response: 400 Bad Request**
+```json
+{
+  "error": "taskId is required"
+}
+```
+
+---
+
+### DELETE /api/logs
+Clears all log entries for all tasks.
+
+**Response: 200 OK**
+```json
+{
+  "message": "All logs cleared successfully"
+}
+```
+
+**Response: 501 Not Implemented (Logger not configured)**
+```json
+{
+  "error": "Log writer not configured"
+}
+```
+
+---
+
+## Error Responses
+
+All endpoints may return the following error responses:
+
+### 400 Bad Request
+```json
+{
+  "error": "Invalid request format: missing required field 'taskId'"
+}
+```
+
+### 500 Internal Server Error
+```json
+{
+  "error": "Internal server error",
+  "details": "Database connection failed"
+}
+```
+
+## Status Enumerations
+
+### Node/Asset States
+- `INITIAL` - Not yet executed
+- `IN_PROGRESS` - Currently executing
+- `TESTING` - Running tests
+- `FAILED` - Asset execution failed
+- `SUCCESS` - Execution successful (all tests passed)
+- `TESTS_FAILED` - Asset executed successfully but one or more tests failed
+
+### DAG Execution Status
+- `NOT_STARTED` - Execution not initiated
+- `IN_PROGRESS` - Currently executing
+- `SUCCESS` - All assets and tests executed successfully
+- `FAILED` - One or more assets failed execution
+- `PENDING` - Execution ongoing (returned after timeout)
+- `TESTS_FAILED` - All assets executed successfully but one or more tests failed
+
+### Test Status
+- `INITIAL` - Test not yet run
+- `IN_PROGRESS` - Test executing
+- `FAILED` - Test failed (returned rows)
+- `SUCCESS` - Test passed (zero rows)
+
+### Materialization Types
+- `table` - Creates or replaces table
+- `incremental` - Appends to existing table
+- `view` - Creates or replaces view
+- `custom` - Custom materialization logic
+- `raw` - Raw Go function execution
+
+## Notes
+
+1. **Timeout Behavior**: POST endpoints (`/api/dag/run`, `/api/dag/asset/:name/execute`) return within 10 seconds. If execution is not complete, they return status `PENDING` or `IN_PROGRESS` with HTTP 202 Accepted.
+
+2. **Task ID Format**: Recommended format is `task_YYYYMMDD_HHMMSS` or any unique string identifier.
+
+3. **Data Persistence**: Asset execution results are stored in memory and cleared on server restart or when `/api/dag/reset` is called.
+
+4. **DataFrame Serialization**: DataFrames are converted to JSON arrays of objects where each object represents a row.
+
+5. **Cross-Database Support**: Assets can use different database connections as specified in their configuration.
+
+6. **Log Storage**: When UI mode is enabled with StoringConsoleWriter (default), all structured log entries are captured in memory organized by task ID. Logs are preserved across DAG executions but cleared on server restart. The log writer extracts task IDs from either the log field `taskId` or from the execution context.

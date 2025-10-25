@@ -1,0 +1,11 @@
+airport_code,airport_name,city,country,latitude,longitude,timezone
+JFK,John F. Kennedy International Airport,New York,USA,40.6413,-73.7781,America/New_York
+LAX,Los Angeles International Airport,Los Angeles,USA,33.9425,-118.4081,America/Los_Angeles
+ORD,O'Hare International Airport,Chicago,USA,41.9742,-87.9073,America/Chicago
+DFW,Dallas/Fort Worth International Airport,Dallas,USA,32.8998,-97.0403,America/Chicago
+ATL,Hartsfield-Jackson Atlanta International Airport,Atlanta,USA,33.6407,-84.4277,America/New_York
+SFO,San Francisco International Airport,San Francisco,USA,37.6213,-122.3790,America/Los_Angeles
+BOS,Logan International Airport,Boston,USA,42.3656,-71.0096,America/New_York
+SEA,Seattle-Tacoma International Airport,Seattle,USA,47.4502,-122.3088,America/Los_Angeles
+MIA,Miami International Airport,Miami,USA,25.7959,-80.2870,America/New_York
+DEN,Denver International Airport,Denver,USA,39.8561,-104.6737,America/Denver

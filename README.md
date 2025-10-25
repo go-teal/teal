@@ -2,6 +2,14 @@
 
 - [Teal](#teal)
   - [QuickStart](#quickstart)
+    - [Installation](#installation)
+    - [Creating your project](#creating-your-project)
+    - [Init your project from scratch](#init-your-project-from-scratch)
+    - [Update config.yaml](#update-configyaml)
+    - [Update profile.yaml](#update-profileyaml)
+    - [Generate go project](#generate-go-project)
+    - [Run your project](#run-your-project)
+    - [Understanding the Generated Main Files](#understanding-the-generated-main-files)
   - [Configuration](#configuration)
     - [config.yaml](#configyaml)
     - [profile.yaml](#profileyaml)
@@ -109,118 +117,343 @@ models:
 teal gen
 ```
 
-You'll see the following outpout
+You'll see the following output
 
 ```bash
 project-path: .
 config-file: ./config.yaml
-Building: staging.addresses.sql
-Building: staging.transactions.sql
-Building: staging.wallets.sql
-Building: dds.dim_addresses.sql
-Building: dds.fact_transactions.sql
-Building: mart.mart_wallet_report.sql
-Files 10
-./cmd/my-test-project/main._go .................................................. [OK]
-./go.mod ........................................................................ [OK]
-./internal/assets/staging.addresses.go .......................................... [OK]
-./internal/assets/staging.transactions.go ....................................... [OK]
-./internal/assets/staging.wallets.go ............................................ [OK]
-./internal/assets/dds.dim_addresses.go .......................................... [OK]
-./internal/assets/dds.fact_transactions.go ...................................... [OK]
-./internal/assets/mart.mart_wallet_report.go .................................... [OK]
-./internal/assets/configs.go .................................................... [OK]
-./docs/graph.wsd ................................................................ [OK]
+Building: staging.stg_airports.sql
+Building: staging.stg_crew_assignments.sql
+Building: staging.stg_employees.sql
+Building: staging.stg_flights.sql
+Building: staging.stg_routes.sql
+Building: dds.dim_airports.sql
+Building: dds.dim_employees.sql
+Building: dds.dim_routes.sql
+Building: dds.fact_crew_assignments.sql
+Building: dds.fact_flights.sql
+Building: mart.mart_airport_statistics.sql
+Building: mart.mart_crew_utilization.sql
+Building: mart.mart_flight_performance.sql
+Files 26
+./cmd/hello-world/hello-world.go ...................................... [OK]
+./cmd/hello-world-ui/hello-world-ui.go ................................ [OK]
+./go.mod .............................................................. [OK]
+./Makefile ............................................................ [OK]
+./internal/assets/staging.stg_airports.go ............................. [OK]
+./internal/assets/staging.stg_crew_assignments.go ..................... [OK]
+./internal/assets/staging.stg_employees.go ............................ [OK]
+./internal/assets/staging.stg_flights.go .............................. [OK]
+./internal/assets/staging.stg_routes.go ............................... [OK]
+./internal/assets/dds.dim_airports.go ................................. [OK]
+./internal/assets/dds.dim_employees.go ................................ [OK]
+./internal/assets/dds.dim_routes.go ................................... [OK]
+./internal/assets/dds.fact_crew_assignments.go ........................ [OK]
+./internal/assets/dds.fact_flights.go ................................. [OK]
+./internal/assets/mart.mart_airport_statistics.go ..................... [OK]
+./internal/assets/mart.mart_crew_utilization.go ....................... [OK]
+./internal/assets/mart.mart_flight_performance.go ..................... [OK]
+./internal/model_tests/root.test_data_integrity.go .................... [OK]
+./internal/model_tests/root.test_flight_delays.go ..................... [OK]
+./internal/model_tests/dds.test_dim_airports_unique.go ................ [OK]
+./internal/model_tests/dds.test_dim_employees_unique.go ............... [OK]
+./internal/model_tests/dds.test_dim_routes_unique.go .................. [OK]
+./internal/assets/configs.go .......................................... [OK]
+./docs/graph.wsd ...................................................... [OK]
+./docs/README.md ...................................................... [OK]
+./internal/model_tests/configs.go ..................................... [OK]
 ```
+
+**Important:**
+Teal automatically generates **`docs/README.md`** with comprehensive project documentation:
+- Project configuration and database connections
+- Complete model tree with dependencies and asset counts
+- RAW assets documentation (if any)
+- Build and run instructions
+
+**This documentation is designed to be used with AI code assistants** like Claude Code, GitHub Copilot, Cursor, and Gemini Code Assist. See the "Using with AI Assistants" section below.
 
 Your DAG is depicted in the PlantUML file `graph.wsd`
 ![DAG](docs/hello-world.svg)
 
-1. Rename `main._go` to `my-test-project.go`
-2. Uncomment the following line: `_ "github.com/marcboeker/go-duckdb"` in `my-test-project.go`.
-3. Run `go mod tidy`
-4. Final project structure:
+**Note:** Teal generates two main.go files:
+- `cmd/my-test-project/my-test-project.go` - Production binary with Channel DAG for efficient execution
+- `cmd/my-test-project-ui/my-test-project-ui.go` - Debug UI binary with Debug DAG and REST API server for development
+
+1. Uncomment the following line: `_ "github.com/marcboeker/go-duckdb"` in both generated main files if using DuckDB.
+2. Run `go mod tidy`
+3. Final project structure:
 
 ```bash
 .
+├── Makefile
 ├── assets
-│   └── models
-│       ├── dds
-│       │   ├── dim_addresses.sql
-│       │   └── fact_transactions.sql
-│       ├── mart
-│       │   └── mart_wallet_report.sql
-│       └── staging
-│           ├── addresses.sql
-│           ├── transactions.sql
-│           └── wallets.sql
+│   ├── models
+│   │   ├── dds
+│   │   │   ├── dim_airports.sql
+│   │   │   ├── dim_employees.sql
+│   │   │   ├── dim_routes.sql
+│   │   │   ├── fact_crew_assignments.sql
+│   │   │   └── fact_flights.sql
+│   │   ├── mart
+│   │   │   ├── mart_airport_statistics.sql
+│   │   │   ├── mart_crew_utilization.sql
+│   │   │   └── mart_flight_performance.sql
+│   │   └── staging
+│   │       ├── stg_airports.sql
+│   │       ├── stg_crew_assignments.sql
+│   │       ├── stg_employees.sql
+│   │       ├── stg_flights.sql
+│   │       └── stg_routes.sql
+│   └── tests
+│       ├── dds
+│       │   ├── test_dim_airports_unique.sql
+│       │   ├── test_dim_employees_unique.sql
+│       │   └── test_dim_routes_unique.sql
+│       ├── test_data_integrity.sql
+│       └── test_flight_delays.sql
 ├── cmd
-│   └── my-test-project
-│       └── main.go
+│   ├── hello-world
+│   │   └── hello-world.go
+│   └── hello-world-ui
+│       └── hello-world-ui.go
 ├── config.yaml
 ├── docs
-│   └── graph.wsd
+│   ├── README.md
+│   └── graph.wsd
 ├── go.mod
 ├── go.sum
 ├── internal
-│   └── assets
-│       ├── configs.go
-│       ├── dds.dim_addresses.go
-│       ├── dds.fact_transactions.go
-│       ├── mart.mart_wallet_report.go
-│       ├── staging.addresses.go
-│       ├── staging.transactions.go
-│       └── staging.wallets.go
+│   ├── assets
+│   │   ├── configs.go
+│   │   ├── dds.dim_airports.go
+│   │   ├── dds.dim_employees.go
+│   │   ├── dds.dim_routes.go
+│   │   ├── dds.fact_crew_assignments.go
+│   │   ├── dds.fact_flights.go
+│   │   ├── mart.mart_airport_statistics.go
+│   │   ├── mart.mart_crew_utilization.go
+│   │   ├── mart.mart_flight_performance.go
+│   │   ├── staging.stg_airports.go
+│   │   ├── staging.stg_crew_assignments.go
+│   │   ├── staging.stg_employees.go
+│   │   ├── staging.stg_flights.go
+│   │   └── staging.stg_routes.go
+│   └── model_tests
+│       ├── configs.go
+│       ├── dds.test_dim_airports_unique.go
+│       ├── dds.test_dim_employees_unique.go
+│       ├── dds.test_dim_routes_unique.go
+│       ├── root.test_data_integrity.go
+│       └── root.test_flight_delays.go
+├── pkg
+│   └── services
 ├── profile.yaml
 └── store
-    ├── addresses.csv    
-    ├── transactions.csv
-    └── wallets.csv
+    ├── airports.csv
+    ├── crew_assignments.csv
+    ├── employees.csv
+    ├── flights.csv
+    └── routes.csv
 ```
+
+### Using Generated Documentation with AI Assistants <!-- omit from toc -->
+
+The `docs/README.md` file generated by Teal contains comprehensive project information that can be directly included in AI code assistant contexts:
+
+**Claude.ai / Claude Code:**
+```
+@docs/README.md - Include this file to provide complete project context
+```
+
+**Cursor IDE:**
+- Add `docs/README.md` to `.cursorrules` or reference it: `@docs/README.md`
+
+**GitHub Copilot (VS Code):**
+- Open `docs/README.md` in a tab or reference: `// See docs/README.md`
+
+**Gemini Code Assist:**
+- Add `docs/README.md` to workspace context
+
+**Example Prompts:**
+```
+"Based on @docs/README.md, add a new mart layer asset aggregating transactions by address"
+"Using @docs/README.md, which database connection should staging models use?"
+"According to @docs/README.md, create an incremental model in the dds stage"
+```
+
+The generated README provides AI assistants with complete understanding of your pipeline structure, connections, dependencies, and patterns.
 
 ### Run your project <!-- omit from toc -->
 
+**Using Make (recommended for development):**
+
+The generated project includes a Makefile with convenient targets:
+
 ```bash
-go run ./cmd/my-test-project
+# Generate assets and run UI debug server (default port 8080)
+make run
+
+# Run on custom port
+make run PORT=9090
+
+# Build production binary
+make build
+
+# Build UI debug binary
+make build-ui
+
+# Run with tests
+make run-with-tests
+
+# View all available commands
+make help
 ```
 
-### Explore my-test-project.go <!-- omit from toc -->
+**Production mode (Channel DAG):**
 
+First, build the production binary:
+```bash
+# Build the production binary
+go build -o bin/my-test-project ./cmd/my-test-project/my-test-project.go
+
+# Make it executable (Unix/Linux/Mac)
+chmod +x bin/my-test-project
+```
+
+Then run the compiled binary with various options:
+```bash
+# Basic run with auto-generated task name and tests
+./bin/my-test-project
+
+# Run with custom task name
+./bin/my-test-project --task-name "etl_batch_001"
+
+# Run with input data and human-readable logs
+./bin/my-test-project \
+  --input-data '{"source":"api","date":"2024-01-01"}' \
+  --log-output raw \
+  --log-level info
+
+# Run without tests for faster execution
+./bin/my-test-project --with-tests=false
+
+# Production deployment with minimal logging
+./bin/my-test-project \
+  --task-name "prod_$(date +%Y%m%d_%H%M%S)" \
+  --log-level error \
+  --log-output json
+
+# Schedule with cron (example)
+# 0 */6 * * * /path/to/bin/my-test-project --task-name "scheduled_$(date +\%Y\%m\%d_\%H\%M\%S)" --log-level info
+```
+
+**Debug UI mode:**
+
+```bash
+# Run UI debug server directly
+go run ./cmd/my-test-project-ui/my-test-project-ui.go
+
+# Run on custom port
+go run ./cmd/my-test-project-ui/my-test-project-ui.go --port 9090
+```
+
+**Note:** For production deployments, always use the compiled binary rather than `go run` for better performance and reliability.
+
+
+### Understanding the Generated Main Files <!-- omit from toc -->
+
+Teal generates two entry points for different use cases:
+
+#### Production Binary (my-test-project.go)
+- Uses **Channel DAG** for high-performance concurrent execution
+- Generates unique task names with timestamps (e.g., `my-test-project_1703123456`)
+- Optimized for production deployments with minimal dependencies
+- No UI server or debugging overhead
+
+**Command-line arguments:**
+- `--task-name` - Custom task name (optional, auto-generated if not provided)
+- `--input-data` - Input data in JSON format (optional)
+- `--log-output` - Log output format: `json` or `raw` (default: `json`)
+- `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `debug`)
+- `--with-tests` - Run with tests enabled (default: `true`)
+
+#### Debug UI Binary (my-test-project-ui.go)
+- Uses **Debug DAG** for visualization and monitoring
+- Provides REST API endpoints for DAG control and status
+- Includes execution tracking and task history
+- Ideal for development and debugging
+
+**Command-line arguments:**
+- `--port` - Port for debug UI server (default: `8080`)
+- `--log-output` - Log output format: `json` or `raw` (default: `raw`)
+- `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `info`)
+
+Example production code structure:
 ```go
 package main
 
 import (
-  _ "github.com/marcboeker/go-duckdb"
-
-  "fmt"
-  "os"
-
-  "github.com/rs/zerolog"
-  "github.com/rs/zerolog/log"
-
-  "github.com/go-teal/teal/pkg/core"
-  "github.com/go-teal/teal/pkg/dags"
-  "github.com/my_user/my_test_project/internal/assets"
+    _ "github.com/marcboeker/go-duckdb"  // Uncomment for DuckDB
+    "encoding/json"
+    "flag"
+    "fmt"
+    "time"
+    "github.com/rs/zerolog"
+    "github.com/rs/zerolog/log"
+    modeltests "github.com/my_user/my_test_project/internal/model_tests"
+    "github.com/go-teal/teal/pkg/core"
+    "github.com/go-teal/teal/pkg/dags"
+    "github.com/my_user/my_test_project/internal/assets"
 )
 
 func main() {
-  log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-  fmt.Println("my-test-project")
-  core.GetInstance().Init("config.yaml", ".")
-  config := core.GetInstance().Config
-  dag := dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, "instance 1")
-  wg := dag.Run()
-  result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))
-  fmt.Println(result)
-  dag.Stop()
-  wg.Wait()
+    // Parse command-line flags
+    inputData := flag.String("input-data", "", "Input data in JSON format")
+    logOutput := flag.String("log-output", "json", "Log output format")
+    logLevel := flag.String("log-level", "debug", "Log level")
+    withTests := flag.Bool("with-tests", true, "Run with tests")
+    customTaskName := flag.String("task-name", "", "Custom task name")
+    flag.Parse()
+
+    // Configure logging
+    if *logOutput == "raw" {
+        log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+    }
+    
+    // Initialize core and config
+    core.GetInstance().Init("config.yaml", ".")
+    config := core.GetInstance().Config
+    
+    // Generate unique task name or use custom
+    var taskName string
+    if *customTaskName != "" {
+        taskName = *customTaskName
+    } else {
+        taskName = fmt.Sprintf("my-test-project_%d", time.Now().Unix())
+    }
+    
+    // Initialize and run DAG
+    var dag dags.DAG
+    if *withTests {
+        dag = dags.InitChannelDagWithTests(assets.DAG, assets.ProjectAssets, 
+                                          modeltests.ProjectTests, config, taskName)
+    } else {
+        dag = dags.InitChannelDag(assets.DAG, assets.ProjectAssets, config, taskName)
+    }
+    
+    wg := dag.Run()
+    result := <-dag.Push(taskName, inputDataMap, make(chan map[string]interface{}))
+    log.Info().Str("taskName", taskName).Any("Result", result).Send()
+    dag.Stop()
+    wg.Wait()
 }
 ```
 
 What this code does:
 
 1. `dag.Run()` builds a DAG based on Ref from your .sql models, where each node is an asset and each edge is a GO channel.
-2. `result := <-dag.Push("TEST", nil, make(chan map[string]interface{}))` triggers the execution of this DAG synchronously.
+2. `dag.Push()` triggers the execution of this DAG with a unique task name for tracking.
 3. `dag.Stop()` sends the deactivation command.
 
 ## Configuration
@@ -268,10 +501,10 @@ models:
     - name: staging
       models:
         - name: model1
-        # see models pfofiles
+        # see model profiles
           tests:
-            - name: "test.name"
-            # see test pfofiles
+            - name: "root.test_model1_unique"
+            # see test profiles
     - name: dds  
     - name: mart
       models:
@@ -286,7 +519,7 @@ models:
 |Param|Type|Description|
 |-----|----|-----------|
 |version|String constant|`1.0.0`|
-|name|String|Generated folder name for `main.go`.|
+|name|String|Base name for generated binaries. Creates both `cmd/<name>/` for production and `cmd/<name>-ui/` for debug UI.|
 |connection|String|Connection from `config.yaml` by default.|
 |models.stages|Array of stages|List of stages for models. For each stage, a folder `assets/models/<stage name>` must be created in advance.|
 |models.stages|See: [Model Profile](#model-profile)||
@@ -300,7 +533,8 @@ The asset profile can be specified via the `profile.yaml` file or via a GO templ
 ```yaml
 {{ define "profile.yaml" }}
     connection: 'default'
-    materialization: 'table'  
+    description: 'Staging addresses from CSV file'  # Optional: Describes the model's purpose
+    materialization: 'table'
     is_data_framed: true
     primary_key_fields:
       - "id"
@@ -330,6 +564,7 @@ select
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
 |name|String|filename|The model name must match the file name, disregarding the system extension (.sql).|
+|description|String||Optional description of the model's purpose, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
 |materialization|String|table|See [Materializations](#materializations).|
 |is_data_framed|boolean|false|See [Cross-database references](#cross-database-references).|
@@ -366,6 +601,10 @@ Native available functions:
 |Ref|`"<staging name>.<model name>"`|string|`Ref` is the main function on which the DAG is based. It points to the model that will be replaced by the table name after the template is executed.|
 |this|None|string|The `this` function returns the name of the current table.|
 |IsIncremental|None|boolean|The `IsIncremental` function returns a flag indicating whether the model is being executed in incremental mode.|
+|TaskID|None|string|Returns the task identifier from the Push method.|
+|TaskUUID|None|string|Returns the unique UUID assigned in the Push method for task tracking.|
+|InstanceName|None|string|Returns the DAG instance name.|
+|InstanceUUID|None|string|Returns the unique UUID assigned to the DAG instance at initialization.|
 
 ## Databases
 
@@ -429,8 +668,14 @@ Raw assets are custom functions written in Go that can accept and return datafra
 Raw assets must implement the following function interface:
 
 ```go
-type ExecutorFunc func(input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
+type ExecutorFunc func(ctx *TaskContext, input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
 ```
+
+The `TaskContext` provides runtime information about the current execution:
+- `TaskID`: Task identifier from the Push method
+- `TaskUUID`: Unique UUID assigned for task tracking
+- `InstanceName`: DAG instance name
+- `InstanceUUID`: Unique UUID assigned to the DAG instance
 
 Retrieving a dataframe from an upstream is done as follows:
 
@@ -446,7 +691,7 @@ A custom asset can return a dataframe, which can then be seamlessly (see: [Cross
 A raw asset must be registered in the main function.
 
 ```Go
-processing.GetExecutors().Execurots["<staging>.<asset name>"] = youPackage.YouRawAssetFunction
+processing.GetExecutors().Executors["<staging>.<asset name>"] = youPackage.YouRawAssetFunction
 ```
 
 Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in the model profile (see: [profile.yaml](#profileyaml)).
@@ -457,7 +702,11 @@ Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in
 
 Simple tests verify data integrity after processing an SQL query, which should return the number of rows. If the returned count is zero, the test is considered successfully passed.
 
-Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`.
+Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`. Tests located directly in `assets/tests/` folder have the virtual stage name `root`.
+
+Test names follow the pattern `<stage>.<test_name>`, where:
+- Tests in `assets/tests/` use `root` as the stage (e.g., `root.test_dim_addresses_unique`)
+- Tests in `assets/tests/<stage>/` use their stage name (e.g., `dds.test_fact_transactions_unique`)
 
 Example:
 
@@ -469,7 +718,7 @@ select pk_id, count(pk_id) as c from {{ Ref "dds.fact_transactions" }} group by 
 ```
 
 The generated source code for testing is located in the `modeltests` package.  
-To call all test cases, add the following line to your `main.go` file: `modeltests.TestAll()`.
+Root tests (tests located in `assets/tests/` with `root.` prefix) are automatically executed after all DAG tasks complete when running with the `--with-tests` flag.
 
 Test cases defined in the model profiles are executed immediately after the execution of the model itself.  
 For the tests to be executed immediately after the models, the DAG must be initialized with the following command:  
@@ -477,8 +726,19 @@ For the tests to be executed immediately after the models, the DAG must be initi
 
 #### Test profile
 
+Test profiles can be defined in test SQL files using the same template syntax as models:
+
+```yaml
+{{ define "profile.yaml" }}
+    connection: 'default'
+    description: 'Test that ensures airport keys are unique'  # Optional: Describes what the test validates
+{{ end }}
+```
+
 |Param|Type|Default value|Description|
 |-----|----|-------------|-----------|
+|name|String|`<stage>.<filename>`|The test name following the pattern `<stage>.<test_name>`. Can be specified in the test file's profile or in the model profile when defining tests. For tests in `assets/tests/`, stage is `root`.|
+|description|String||Optional description of what the test validates, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
 
 ## Road Map

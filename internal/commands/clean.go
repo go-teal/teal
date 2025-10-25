@@ -67,11 +67,35 @@ func (cleanCommand *CleanCommand) Run() error {
 		if cleanErr != nil {
 			fmt.Println(cleanErr)
 		}
+		
+		// Also remove model_tests directory
+		cleanErr = os.RemoveAll(cleanCommand.projectPath + "/internal/model_tests")
+		if cleanErr != nil {
+			fmt.Println(cleanErr)
+		}
 
 	}
 
 	if cleanCommand.cleanMain {
+		// Remove production main.go
 		cleanErr := os.Remove(cleanCommand.projectPath + "/cmd/" + profile.Name + "/" + profile.Name + ".go")
+		if cleanErr != nil {
+			fmt.Println(cleanErr)
+		}
+		
+		// Remove UI debug main.go
+		cleanErr = os.Remove(cleanCommand.projectPath + "/cmd/" + profile.Name + "-ui/" + profile.Name + "-ui.go")
+		if cleanErr != nil {
+			fmt.Println(cleanErr)
+		}
+		
+		// Remove cmd directories
+		cleanErr = os.RemoveAll(cleanCommand.projectPath + "/cmd/" + profile.Name)
+		if cleanErr != nil {
+			fmt.Println(cleanErr)
+		}
+		
+		cleanErr = os.RemoveAll(cleanCommand.projectPath + "/cmd/" + profile.Name + "-ui")
 		if cleanErr != nil {
 			fmt.Println(cleanErr)
 		}

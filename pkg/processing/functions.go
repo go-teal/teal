@@ -35,3 +35,35 @@ func FromConnectionContext(dbConnection drivers.DBDriver, tx interface{}, modelN
 	}
 	return functions
 }
+
+func MergeTemplateFuncs(funcMaps ...template.FuncMap) template.FuncMap {
+	result := make(template.FuncMap)
+	for _, funcMap := range funcMaps {
+		for key, value := range funcMap {
+			result[key] = value
+		}
+	}
+	return result
+}
+
+func FromTaskContext(ctx *TaskContext) template.FuncMap {
+	functions := make(template.FuncMap)
+
+	functions["TaskID"] = func() string {
+		return ctx.TaskID
+	}
+
+	functions["TaskUUID"] = func() string {
+		return ctx.TaskUUID
+	}
+
+	functions["InstanceName"] = func() string {
+		return ctx.InstanceName
+	}
+
+	functions["InstanceUUID"] = func() string {
+		return ctx.InstanceUUID
+	}
+
+	return functions
+}
