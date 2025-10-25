@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
@@ -37,20 +36,19 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 				if err != nil {
 					panic(err)
 				}
-				_, _, err = prepareModelTemplate(modelFileByte, refName, modelsProjetDir, projectProfile)
+				preparedTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, projectProfile)
 				if err != nil {
 					fmt.Printf("can not parse model profile %s\n", string(modelFileByte))
+					continue
 				}
 				var newModelProfile configs.ModelProfile
 
-				// Note: ExecuteTemplate is not supported in pongo2
-				// This inline profile feature is currently disabled
-				// TODO: Implement profile.yaml block extraction for pongo2
-				err = fmt.Errorf("ExecuteTemplate not supported")
-				if err == nil {
-					var inlineProfileByteBuffer bytes.Buffer
+				// Extract profile.yaml from define block if present
+				profileYAML := preparedTemplate.GetProfileYAML()
+				if profileYAML != "" {
+					inlineProfileBytes := []byte(profileYAML)
 					fmt.Printf("Overriding profile: %s\n", refName)
-					err = yaml.Unmarshal(inlineProfileByteBuffer.Bytes(), &newModelProfile)
+					err = yaml.Unmarshal(inlineProfileBytes, &newModelProfile)
 					if err != nil {
 						fmt.Printf("can not unmarshal parse model profile")
 						continue

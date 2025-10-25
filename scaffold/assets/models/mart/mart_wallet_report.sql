@@ -1,8 +1,6 @@
-{{define "profile.yaml"}}
+{{ define "profile.yaml" }}
     connection: 'default'
     materialization: 'view'
-{{end}}
+{{ end }}
 
-SELECT * from {{ Ref "dds.fact_transactions" }}
-
-
+SELECT * from {{ Ref("dds.fact_transactions") }}

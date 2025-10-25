@@ -1,11 +1,11 @@
 {{ define "profile.yaml" }}
     connection: 'default'
-    materialization: 'table'  
+    materialization: 'table'
     is_data_framed: false
 {{ end }}
 
 select
-      id,    
+      id,
       name,
       ledger_id,
       wallet_address,

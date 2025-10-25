@@ -1,6 +1,6 @@
 {{ define "profile.yaml" }}
     connection: 'default'
-    materialization: 'table'  
+    materialization: 'table'
     is_data_framed: true
 {{ end }}
 
