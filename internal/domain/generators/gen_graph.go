@@ -3,8 +3,8 @@ package generators
 import (
 	_ "embed"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
@@ -47,10 +47,20 @@ func (g *GenGraph) RenderToFile() error {
 		stages[i] = stage.Name
 	}
 
-	templ, err := template.New(GRAPH_FILENAME).Parse(graphTemplate)
+	templ, err := pongo2.FromString(graphTemplate)
 	if err != nil {
 		panic(err)
 	}
+
+	output, err := templ.Execute(pongo2.Context{
+		"ProjectName": g.profile.Name,
+		"Stages":      stages,
+		"Assets":      g.modelsConfigs,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	file, err := os.Create(g.GetFullPath())
 
 	if err != nil {
@@ -59,15 +69,6 @@ func (g *GenGraph) RenderToFile() error {
 
 	defer file.Close()
 
-	data := struct {
-		ProjectName string
-		Stages      []string
-		Assets      []*internalmodels.ModelConfig
-	}{
-		ProjectName: g.profile.Name,
-		Stages:      stages,
-		Assets:      g.modelsConfigs,
-	}
-	err = templ.Execute(file, data)
+	_, err = file.WriteString(output)
 	return err
 }

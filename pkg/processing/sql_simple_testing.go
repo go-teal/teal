@@ -1,10 +1,9 @@
 package processing
 
 import (
-	"bytes"
 	"fmt"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/rs/zerolog/log"
@@ -12,13 +11,13 @@ import (
 
 type SQLModelTestCase struct {
 	descriptor *models.SQLModelTestDescriptor
-	functions  template.FuncMap
+	functions  pongo2.Context
 }
 
 func InitSQLModelTesting(descriptor *models.SQLModelTestDescriptor) ModelTesting {
 	return &SQLModelTestCase{
 		descriptor: descriptor,
-		functions:  make(template.FuncMap),
+		functions:  make(pongo2.Context),
 	}
 }
 
@@ -26,24 +25,21 @@ func (mt *SQLModelTestCase) Execute() (bool, string, error) {
 
 	dbConnection := core.GetInstance().GetDBConnection(mt.descriptor.TestProfile.Connection)
 
-	sqlTestTemplate, err := template.New("runSQTestTemplate").
-		Funcs(FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(template.FuncMap))).
-		Parse(mt.descriptor.CountTestSQL)
+	sqlTestTemplate, err := pongo2.FromString(mt.descriptor.CountTestSQL)
 	if err != nil {
 		log.Error().Stack().Err(err).Msgf("Parsing template: %s", mt.descriptor.CountTestSQL)
 		return false, mt.descriptor.Name, err
 	}
 
-	var sqlQuery bytes.Buffer
-
-	err = sqlTestTemplate.Execute(&sqlQuery, nil)
+	context := FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(pongo2.Context))
+	sqlQuery, err := sqlTestTemplate.Execute(context)
 
 	if err != nil {
 		log.Error().Stack().Err(err).Msgf("Execute template: %s", mt.descriptor.CountTestSQL)
 		return false, mt.descriptor.Name, err
 	}
 
-	msg, err := dbConnection.SimpleTest(sqlQuery.String())
+	msg, err := dbConnection.SimpleTest(sqlQuery)
 
 	if err != nil {
 		return false, mt.descriptor.Name, err

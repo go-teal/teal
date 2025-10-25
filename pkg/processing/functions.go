@@ -3,13 +3,13 @@ package processing
 import (
 	"os"
 	"strings"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	"github.com/go-teal/teal/pkg/drivers"
 )
 
-func FromConnectionContext(dbConnection drivers.DBDriver, tx interface{}, modelName string, inPlaceFunctions template.FuncMap) template.FuncMap {
-	functions := make(template.FuncMap)
+func FromConnectionContext(dbConnection drivers.DBDriver, tx interface{}, modelName string, inPlaceFunctions pongo2.Context) pongo2.Context {
+	functions := make(pongo2.Context)
 	for funcName, f := range inPlaceFunctions {
 		functions[funcName] = f
 	}

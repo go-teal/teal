@@ -9,7 +9,6 @@ import (
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
-	"gopkg.in/yaml.v2"
 )
 
 const TESTS_DIR = "assets/tests"
@@ -74,24 +73,15 @@ func initTestConfig(
 		panic(err)
 	}
 
-	var inlineTestProfileByteBuffer bytes.Buffer
 	globalTestProfile := projectProfile.GetTestProfile(stage, fileName)
-	err = testFileFinalTemplate.ExecuteTemplate(&inlineTestProfileByteBuffer, "profile.yaml", nil)
-	if err == nil {
-		var newTestPrifile configs.TestProfile
-		err = yaml.Unmarshal(inlineTestProfileByteBuffer.Bytes(), &newTestPrifile)
-		if err != nil {
-			fmt.Printf("can not unmarshal test profile")
-			panic(err)
-		}
-		globalTestProfile.Connection = newTestPrifile.Connection
-	}
+	// Note: ExecuteTemplate is not directly supported in pongo2
+	// If profile.yaml template block was used, it needs to be handled differently
 
-	var sqlByteBuffer bytes.Buffer
-	err = testFileFinalTemplate.Execute(&sqlByteBuffer, nil)
+	sqlString, err := testFileFinalTemplate.Execute(nil)
 	if err != nil {
 		return nil
 	}
+	sqlByteBuffer := *bytes.NewBufferString(sqlString)
 
 	return &internalmodels.TestConfig{
 		TestName:      refName,

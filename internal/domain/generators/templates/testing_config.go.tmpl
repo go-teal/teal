@@ -1,14 +1,14 @@
 package modeltests
 
 import (
-	"github.com/go-teal/teal/pkg/processing"	
+	"github.com/go-teal/teal/pkg/processing"
 	"github.com/rs/zerolog/log"
 )
 
 var ProjectTests = map[string] processing.ModelTesting{
-{{- range $tst := .Tests }}
-	"{{ $tst.TestName }}":{{$tst.GoName}}SimpleTestCase,
-{{- end }}
+{% for tst in Tests %}
+	"{{ tst.TestName }}":{{ tst.GoName }}SimpleTestCase,
+{% endfor %}
 }
 
 

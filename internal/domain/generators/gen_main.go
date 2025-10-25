@@ -3,8 +3,8 @@ package generators
 import (
 	_ "embed"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
 )
@@ -42,7 +42,7 @@ func (g *GenMain) RenderToFile() error {
 	}
 	utils.CreateDir(mainDirName)
 
-	templ, err := template.New(g.GetFileName()).Parse(mainTemplate)
+	templ, err := pongo2.FromString(mainTemplate)
 	if err != nil {
 		panic(err)
 	}
@@ -53,6 +53,21 @@ func (g *GenMain) RenderToFile() error {
 		return nil
 	}
 
+	connectionsFlags := make(map[string]bool)
+
+	for _, c := range g.config.Connections {
+		connectionsFlags[c.Type] = true
+	}
+
+	output, err := templ.Execute(pongo2.Context{
+		"Profile":     g.profile,
+		"Config":      g.config,
+		"Connections": connectionsFlags,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	file, err := os.Create(g.GetFullPath())
 
 	if err != nil {
@@ -61,23 +76,7 @@ func (g *GenMain) RenderToFile() error {
 
 	defer file.Close()
 
-	connectionsFlags := make(map[string]bool)
-
-	for _, c := range g.config.Connections {
-		connectionsFlags[c.Type] = true
-	}
-
-	data := struct {
-		Profile     *configs.ProjectProfile
-		Config      *configs.Config
-		Connections map[string]bool
-	}{
-		Profile:     g.profile,
-		Config:      g.config,
-		Connections: connectionsFlags,
-	}
-
-	err = templ.Execute(file, data)
+	_, err = file.WriteString(output)
 
 	return err
 }

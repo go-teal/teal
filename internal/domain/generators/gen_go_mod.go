@@ -3,8 +3,8 @@ package generators
 import (
 	_ "embed"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	"github.com/go-teal/teal/pkg/configs"
 )
 
@@ -43,10 +43,19 @@ func (g *GenGoMod) RenderToFile() error {
 		return nil
 	}
 
-	templ, err := template.New(GO_MOD_FILE_NAME).Parse(goModTemplate)
+	templ, err := pongo2.FromString(goModTemplate)
 	if err != nil {
 		panic(err)
 	}
+
+	output, err := templ.Execute(pongo2.Context{
+		"Config":  g.config,
+		"Version": configs.TEAL_VERSION,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	file, err := os.Create(g.GetFullPath())
 
 	if err != nil {
@@ -55,13 +64,6 @@ func (g *GenGoMod) RenderToFile() error {
 
 	defer file.Close()
 
-	data := struct {
-		Config  *configs.Config
-		Version string
-	}{
-		Config:  g.config,
-		Version: configs.TEAL_VERSION,
-	}
-	err = templ.Execute(file, data)
+	_, err = file.WriteString(output)
 	return err
 }

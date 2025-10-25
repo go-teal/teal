@@ -1,23 +1,23 @@
-{{ $assets := .Assets }}
-@startuml {{ .ProjectName }}
+{% set assets = Assets %}
+@startuml {{ ProjectName }}
 left to right direction
 
-{{- range $s := .Stages }}
-state {{ $s }} {
-    {{- range $asset := $assets }}
-        {{- if eq $asset.Stage $s}}
-    state {{ $asset.ModelName  }}: {{ $asset.ModelProfile.Materialization }}            
-        {{- end }} 
-    {{- end}}
+{% for s in Stages %}
+state {{ s }} {
+    {% for asset in assets %}
+        {% if asset.Stage == s %}
+    state {{ asset.ModelName }}: {{ asset.ModelProfile.Materialization }}
+        {% endif %}
+    {% endfor %}
 }
-{{- end }}
+{% endfor %}
 
 
-{{- range $asset := $assets }}
-    {{- range $ds := $asset.Downstreams }}
-{{ $asset.ModelName }}-->{{ $ds }}: Ref {{ $asset.ModelName }}
-    {{- end}}
-{{- end}}
+{% for asset in assets %}
+    {% for ds in asset.Downstreams %}
+{{ asset.ModelName }}-->{{ ds }}: Ref {{ asset.ModelName }}
+    {% endfor %}
+{% endfor %}
 
 
 @enduml

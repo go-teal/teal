@@ -3,8 +3,8 @@ package generators
 import (
 	_ "embed"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
@@ -50,10 +50,20 @@ func (g *GenAssetsConfig) RenderToFile() error {
 	// fmt.Printf("Rendering: %s", g.GetFullPath())
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
-	templ, err := template.New(GO_ASSETS_CONFIG_FILE_NAME).Parse(goQuerySetConfigGlobalDeclarationTemplate)
+	templ, err := pongo2.FromString(goQuerySetConfigGlobalDeclarationTemplate)
 	if err != nil {
 		panic(err)
 	}
+
+	output, err := templ.Execute(pongo2.Context{
+		"Config":         g.config,
+		"Assets":         g.modelsConfig,
+		"PriorityGroups": g.priorityGroups,
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	file, err := os.Create(g.GetFullPath())
 
 	if err != nil {
@@ -62,15 +72,6 @@ func (g *GenAssetsConfig) RenderToFile() error {
 
 	defer file.Close()
 
-	data := struct {
-		Config         *configs.Config
-		Assets         []*internalmodels.ModelConfig
-		PriorityGroups [][]string
-	}{
-		Config:         g.config,
-		Assets:         g.modelsConfig,
-		PriorityGroups: g.priorityGroups,
-	}
-	err = templ.Execute(file, data)
+	_, err = file.WriteString(output)
 	return err
 }
