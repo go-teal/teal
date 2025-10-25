@@ -43,7 +43,7 @@ func (g *GenSQLModelTest) RenderToFile() error {
 		"TestName":      g.testConfig.TestName,
 		"GoName":        g.testConfig.GoName,
 		"NameUpperCase": g.testConfig.NameUpperCase,
-		"SqlByteBuffer": g.testConfig.SqlByteBuffer,
+		"SqlByteBuffer": g.testConfig.SqlByteBuffer.String(),
 		"TestProfile":   g.testConfig.TestProfile,
 	})
 	if err != nil {

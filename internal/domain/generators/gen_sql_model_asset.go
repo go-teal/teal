@@ -58,7 +58,7 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 		"ModelName":            g.modelConfig.ModelName,
 		"GoName":               g.modelConfig.GoName,
 		"NameUpperCase":        g.modelConfig.NameUpperCase,
-		"SqlByteBuffer":        g.modelConfig.SqlByteBuffer,
+		"SqlByteBuffer":        g.modelConfig.SqlByteBuffer.String(),
 		"ModelFieldsFunc":      g.modelConfig.ModelFieldsFunc,
 		"ModelProfile":         g.modelConfig.ModelProfile,
 		"PrimaryKeyExpression": g.modelConfig.PrimaryKeyExpression,

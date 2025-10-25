@@ -7,13 +7,13 @@ import (
 )
 
 const RAW_SQL_{{ NameUpperCase }} = `
-{{ SqlByteBuffer }}
+{{ SqlByteBuffer|safe }}
 `
 
 const COUNT_TEST_SQL_{{ NameUpperCase }} = `
 select count(*) as test_count from
 (
-{{ SqlByteBuffer }}
+{{ SqlByteBuffer|safe }}
 ) having test_count > 0 limit 1
 `
 

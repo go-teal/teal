@@ -23,8 +23,8 @@ var {{ GoName }}ModelDescriptor = &models.RawModelDescriptor{
 		Stage: 				"{{ ModelProfile.Stage }}",
 		Connection: 		"{{ ModelProfile.Connection }}",
 		Materialization: 	"{{ ModelProfile.Materialization }}",
-		IsDataFramed: 		{{ ModelProfile.IsDataFramed }},
-		PersistInputs: 		{{ ModelProfile.PersistInputs }},
+		IsDataFramed: 		{{ ModelProfile.IsDataFramed|lower }},
+		PersistInputs: 		{{ ModelProfile.PersistInputs|lower }},
 		Tests: []*configs.TestProfile {
 {% for test in ModelProfile.Tests %}
 			{

@@ -47,10 +47,9 @@ func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProf
 				profileYAML := preparedTemplate.GetProfileYAML()
 				if profileYAML != "" {
 					inlineProfileBytes := []byte(profileYAML)
-					fmt.Printf("Overriding profile: %s\n", refName)
 					err = yaml.Unmarshal(inlineProfileBytes, &newModelProfile)
 					if err != nil {
-						fmt.Printf("can not unmarshal parse model profile")
+						fmt.Printf("can not unmarshal parse model profile: %v\n", err)
 						continue
 					}
 					newModelProfile.Name = strings.Replace(modelFileName, ".sql", "", -1)

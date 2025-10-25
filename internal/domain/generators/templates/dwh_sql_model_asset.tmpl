@@ -9,13 +9,13 @@ import (
 )
 
 const RAW_SQL_{{ NameUpperCase }} = `
-{{ SqlByteBuffer }}
+{{ SqlByteBuffer|safe }}
 `
 
 {% if ModelProfile.Materialization == "table" or ModelProfile.Materialization == "incremental" %}
 const SQL_{{ NameUpperCase }}_CREATE_TABLE = `
 create table {{ ModelName }}
-as ({{ SqlByteBuffer }});
+as ({{ SqlByteBuffer|safe }});
 
 {% if PrimaryKeyExpression != "" %}
 create unique index {{ ModelProfile.Name }}_pkey on {{ ModelName }} ({{ PrimaryKeyExpression }});
@@ -31,7 +31,7 @@ create index {{ mp.Name }}_{{ index.IndexName }}_idx on {{ modelName }} ({{ inde
 
 `
 const SQL_{{ NameUpperCase }}_INSERT = `
-insert into {{ ModelName }} ({{ ModelFieldsFunc }}) ({{ SqlByteBuffer }})
+insert into {{ ModelName }} ({{ ModelFieldsFunc }}) ({{ SqlByteBuffer|safe }})
 `
 const SQL_{{ NameUpperCase }}_DROP_TABLE = `
 drop table {{ ModelName }}
@@ -44,7 +44,7 @@ truncate table {{ ModelName }};
 
 {% if ModelProfile.Materialization == "view" %}
 const SQL_{{ NameUpperCase }}_CREATE_VIEW = `
-create view {{ ModelName }} as ({{ SqlByteBuffer }})
+create view {{ ModelName }} as ({{ SqlByteBuffer|safe }})
 `
 const SQL_{{ NameUpperCase }}_DROP_VIEW = `
 drop view {{ ModelName }}
@@ -79,8 +79,8 @@ var {{ GoName }}ModelDescriptor = &models.SQLModelDescriptor{
 		Stage: 				"{{ ModelProfile.Stage }}",
 		Connection: 		"{{ ModelProfile.Connection }}",
 		Materialization: 	"{{ ModelProfile.Materialization }}",
-		IsDataFramed: 		{{ ModelProfile.IsDataFramed }},
-		PersistInputs: 		{{ ModelProfile.PersistInputs }},
+		IsDataFramed: 		{{ ModelProfile.IsDataFramed|lower }},
+		PersistInputs: 		{{ ModelProfile.PersistInputs|lower }},
 		Tests: []*configs.TestProfile {
 {% for test in ModelProfile.Tests %}
 			{
