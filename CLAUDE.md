@@ -119,11 +119,60 @@ This dual-generation approach ensures:
 
 ### Key Concepts
 
+- **Template Engine**: Uses pongo2/v6 (Django-compatible template syntax)
 - **Ref Function**: Template function `{{ Ref "stage.model" }}` creates DAG dependencies
 - **Materializations**: table, incremental, view, custom, raw
 - **Cross-DB References**: Models can consume data from different database connections using dataframes
 - **Model Profiles**: Configuration embedded in SQL files or profile.yaml
-- **Static vs Dynamic Templates**: `{{}}` for generation-time, `{{{}}}` for runtime execution
+- **Static vs Dynamic Templates**: `{{ }}` for generation-time, `{ }` for runtime execution
+- **Graph Visualization**: Generates Mermaid (.mmd) diagrams for DAG visualization
+
+### Template System
+
+Teal uses **pongo2/v6**, a Django-compatible template engine for Go. All code generation and runtime SQL rendering uses pongo2 syntax.
+
+**Template Syntax:**
+- Variables: `{{ variable }}`
+- Control structures: `{% if condition %}...{% endif %}`, `{% for item in items %}...{% endfor %}`
+- Filters: `{{ variable|lower }}`, `{{ variable|safe }}`
+- Whitespace control: `{%- ... -%}` to trim surrounding whitespace
+- Comments: `{# This is a comment #}`
+
+**Code Generation Templates:**
+All generator templates in `internal/domain/generators/templates/` use pongo2:
+- `dwh_sql_model_asset.tmpl` - Generates SQL model Go code
+- `dwh_raw_model_asset.tmpl` - Generates raw asset Go code
+- `graph.mmd.tmpl` - Generates Mermaid DAG diagrams
+- `readme.md.tmpl` - Generates project documentation
+- `go.mod.tmpl`, `testing_config.go.tmpl`, etc.
+
+**Important Code Generation Details:**
+- Model descriptions are base64-encoded before template execution to avoid special character issues
+- Field access on pointer structs requires extracting values to direct variables (pongo2 limitation)
+- Use `pongo2.Context` (map[string]interface{}) instead of structs for template data
+- Template functions are registered as context values, not as FuncMap
+
+**Example Generator Pattern:**
+```go
+// Extract pointer fields to direct variables
+var materialization string
+if modelConfig.ModelProfile != nil {
+    materialization = string(modelConfig.ModelProfile.Materialization)
+}
+
+// Base64 encode descriptions
+if modelConfig.ModelProfile != nil && modelConfig.ModelProfile.Description != "" {
+    encoded := base64.StdEncoding.EncodeToString([]byte(modelConfig.ModelProfile.Description))
+    modelConfig.ModelProfile.Description = encoded
+}
+
+// Execute template with pongo2.Context
+output, err := tmpl.Execute(pongo2.Context{
+    "ModelName":       modelConfig.ModelName,
+    "Materialization": materialization,  // Direct variable, not pointer access
+    "ModelProfile":    modelConfig.ModelProfile,
+})
+```
 
 ## Usage Examples
 
@@ -289,6 +338,7 @@ Assets can then reference these connections and data flows seamlessly between th
 
 ## Development Notes
 
+### General
 - Always check for existing CLAUDE.md improvements when using `teal init`
 - Generated Go files use the module name from `config.yaml`
 - DuckDB driver requires uncommenting import in generated main.go
@@ -298,3 +348,22 @@ Assets can then reference these connections and data flows seamlessly between th
 - Task names in production are unique by default (timestamp-based) to support tracking
 - When implementing new database drivers, ensure proper DataFrame serialization for cross-database compatibility
 - Database drivers are initialized once and reused throughout the DAG execution
+
+### Template Engine (pongo2)
+- All templates use pongo2/v6 (Django-compatible syntax)
+- Cannot access fields on pointer structs directly in templates - extract to variables first
+- Always use `pongo2.Context` (map) for template data, never structs
+- Runtime template functions in `pkg/processing/functions.go`:
+  - `MergePongo2Context()` - Merges multiple pongo2 contexts
+  - `FromTaskContextPongo2()` - Converts task context to pongo2 context
+  - `FromConnectionContext()` - Database connection context (returns pongo2.Context)
+- Generation-time vs runtime: `{{ Ref() }}` is evaluated during `teal gen`, `{ TaskID }` at runtime
+- Use `|safe` filter for SQL to prevent HTML escaping
+- Whitespace control: `{%- endif -%}` removes surrounding blank lines
+
+### Graph Visualization
+- Generates Mermaid (.mmd) diagrams, not PlantUML (.wsd)
+- Node IDs must be sanitized (dots → underscores) for Mermaid compatibility
+- Graph generator creates `GraphNode` struct with pre-sanitized IDs
+- Template: `internal/domain/generators/templates/graph.mmd.tmpl`
+- Output: `docs/graph.mmd` in generated projects
