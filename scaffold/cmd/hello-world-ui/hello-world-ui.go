@@ -1,27 +1,28 @@
 package main
 
 import (
+
 	_ "github.com/marcboeker/go-duckdb/v2"
+
 
 	"context"
 	"flag"
 	"os"
-
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	modeltests "github.com/you_git_user/your_project/internal/model_tests"
 	"github.com/go-teal/teal/pkg/core"
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/services/logwriter"
 	"github.com/go-teal/teal/pkg/ui"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/you_git_user/your_project/internal/assets"
-	modeltests "github.com/you_git_user/your_project/internal/model_tests"
 )
 
 func main() {
 	// Parse command line flags
 	port := flag.Int("port", 8080, "Port for debug UI server")
 	logOutput := flag.String("log-output", "raw", "Log output format: json or raw")
-	logLevel := flag.String("log-level", "debug", "Log level: panic, fatal, error, warn, info, debug, trace")
+	logLevel := flag.String("log-level", "info", "Log level: panic, fatal, error, warn, info, debug, trace")
 	flag.Parse()
 
 	// Create a context for the application

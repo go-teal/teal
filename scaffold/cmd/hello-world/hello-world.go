@@ -5,7 +5,6 @@ import (
 	_ "github.com/marcboeker/go-duckdb/v2"
 
 
-
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -45,7 +44,7 @@ func main() {
 		"debug": zerolog.DebugLevel,
 		"trace": zerolog.TraceLevel,
 	}
-	
+
 	if level, ok := logLevels[*logLevel]; ok {
 		zerolog.SetGlobalLevel(level)
 	} else {
