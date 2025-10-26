@@ -12,22 +12,20 @@ const RAW_SQL_{{ NameUpperCase }} = `
 {{ SqlByteBuffer|safe }}
 `
 
-{% if ModelProfile.Materialization == "table" or ModelProfile.Materialization == "incremental" %}
+{% if Materialization == "table" or Materialization == "incremental" %}
 const SQL_{{ NameUpperCase }}_CREATE_TABLE = `
 create table {{ ModelName }}
 as ({{ SqlByteBuffer|safe }});
-
-{% if PrimaryKeyExpression != "" %}
+{%- if PrimaryKeyExpression != "" %}
 create unique index {{ ModelProfile.Name }}_pkey on {{ ModelName }} ({{ PrimaryKeyExpression }});
-{% endif %}
-
-{% for index in Indexes %}
-	{% if index.Unique %}
+{%- endif -%}
+{%- for index in Indexes %}
+{% if index.Unique -%}
 create unique index {{ mp.Name }}_{{ index.IndexName }}_idx on {{ modelName }} ({{ index.IndexFields }});
-	{% else %}
+{%- else -%}
 create index {{ mp.Name }}_{{ index.IndexName }}_idx on {{ modelName }} ({{ index.IndexFields }});
-	{% endif %}
-{% endfor %}
+{%- endif -%}
+{%- endfor %}
 
 `
 const SQL_{{ NameUpperCase }}_INSERT = `
@@ -42,7 +40,7 @@ truncate table {{ ModelName }};
 `
 {% endif %}
 
-{% if ModelProfile.Materialization == "view" %}
+{% if Materialization == "view" %}
 const SQL_{{ NameUpperCase }}_CREATE_VIEW = `
 create view {{ ModelName }} as ({{ SqlByteBuffer|safe }})
 `
@@ -54,13 +52,13 @@ drop view {{ ModelName }}
 var {{ GoName }}ModelDescriptor = &models.SQLModelDescriptor{
 	Name: 				"{{ ModelName }}",
 	RawSQL: 			RAW_SQL_{{ NameUpperCase }},
-{% if ModelProfile.Materialization == "table" or ModelProfile.Materialization == "incremental" %}
+{% if Materialization == "table" or Materialization == "incremental" %}
 	CreateTableSQL: 	SQL_{{ NameUpperCase }}_CREATE_TABLE,
 	InsertSQL: 			SQL_{{ NameUpperCase }}_INSERT,
 	DropTableSQL: 		SQL_{{ NameUpperCase }}_DROP_TABLE,
 	TruncateTableSQL: 	SQL_{{ NameUpperCase }}_TRUNCATE,
 {% endif %}
-{% if ModelProfile.Materialization == "view" %}
+{% if Materialization == "view" %}
 	CreateViewSQL: 		SQL_{{ NameUpperCase }}_CREATE_VIEW,
 	DropViewSQL: 		SQL_{{ NameUpperCase }}_DROP_VIEW,
 {% endif %}

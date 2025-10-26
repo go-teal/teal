@@ -31,9 +31,9 @@ func (mt *SQLModelTestCase) Execute(ctx *TaskContext) (bool, string, error) {
 		return false, mt.descriptor.Name, err
 	}
 
-	context := MergeTemplateFuncs(
+	context := MergePongo2Context(
 		FromConnectionContext(dbConnection, nil, mt.descriptor.Name, make(pongo2.Context)),
-		FromTaskContext(ctx),
+		FromTaskContextPongo2(ctx),
 	)
 	sqlQuery, err := sqlTestTemplate.Execute(context)
 

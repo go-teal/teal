@@ -57,14 +57,22 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 
 	log.Debug().
 		Str("taskId", ctx.TaskID).
-		Str("s.descriptor.Name", s.descriptor.Name).
-		Str("s.descriptor.ModelProfile.Connection", s.descriptor.ModelProfile.Connection).
+		Str("taskUUID", ctx.TaskUUID).
+		Str("assetName", s.descriptor.Name).
+		Str("connection", s.descriptor.ModelProfile.Connection).
 		Msg("Executing asset")
-	log.Debug().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("s.descriptor.Name", s.descriptor.Name).Msgf("input params: %v", input)
+	log.Debug().
+		Str("taskId", ctx.TaskID).
+		Str("taskUUID", ctx.TaskUUID).
+		Str("assetName", s.descriptor.Name).
+		Msgf("input params: %v", input)
 
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("taskId", ctx.TaskID).
+			Str("taskUUID", ctx.TaskUUID).
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -75,7 +83,11 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 
 	if !isSchemaExists {
 		splitted := strings.Split(s.descriptor.Name, ".")
-		log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msgf("Schema %s does not exist", splitted[0])
+		log.Info().
+			Str("taskId", ctx.TaskID).
+			Str("taskUUID", ctx.TaskUUID).
+			Str("assetName", s.descriptor.Name).
+			Msgf("Schema %s does not exist", splitted[0])
 		// TODO: Move this to the driver
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
@@ -83,6 +95,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 			log.Error().Caller().
 				Str("taskId", ctx.TaskID).
 				Str("taskUUID", ctx.TaskUUID).
+				Str("assetName", s.descriptor.Name).
 				Err(err).
 				Msg("Failed to create schema")
 
@@ -98,6 +111,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 		log.Error().Caller().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to create schema or table")
 		defer dbConnection.Rallback(tx)
@@ -112,6 +126,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 				log.Error().Caller().
 					Str("taskId", ctx.TaskID).
 					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -143,7 +158,11 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 				}
 			}
 			if s.descriptor.ModelProfile.IsDataFramed {
-				log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+				log.Warn().
+				Str("taskId", ctx.TaskID).
+				Str("taskUUID", ctx.TaskUUID).
+				Str("assetName", s.descriptor.Name).
+				Msg("Dataframe can slow this operation, considner custom or incremental materialization")
 				data, err = s.getDataFrame(ctx, false)
 				if err != nil {
 					return nil, err
@@ -152,7 +171,11 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 			err = s.createTable(ctx)
 		} else {
 			if err = s.truncateTable(); err == nil {
-				log.Debug().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("table has been truncated")
+				log.Debug().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
+					Msg("table has been truncated")
 				if s.descriptor.ModelProfile.PersistInputs {
 					err := s.persistInputs(input)
 					if err != nil {
@@ -163,7 +186,11 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 					}
 				}
 				if s.descriptor.ModelProfile.IsDataFramed {
-					log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+					log.Warn().
+				Str("taskId", ctx.TaskID).
+				Str("taskUUID", ctx.TaskUUID).
+				Str("assetName", s.descriptor.Name).
+				Msg("Dataframe can slow this operation, considner custom or incremental materialization")
 					data, err = s.getDataFrame(ctx, false)
 					if err != nil {
 						return nil, err
@@ -176,6 +203,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 					log.Error().Caller().
 						Str("taskId", ctx.TaskID).
 						Str("taskUUID", ctx.TaskUUID).
+						Str("assetName", s.descriptor.Name).
 						Err(err).
 						Msg("Failed to insert to table")
 					return nil, err
@@ -184,6 +212,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 				log.Error().Caller().
 					Str("taskId", ctx.TaskID).
 					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
 					Err(err).
 					Msg("Failed to truncate table")
 				return nil, err
@@ -205,7 +234,11 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 		}
 
 		if s.descriptor.ModelProfile.IsDataFramed {
-			log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+			log.Warn().
+				Str("taskId", ctx.TaskID).
+				Str("taskUUID", ctx.TaskUUID).
+				Str("assetName", s.descriptor.Name).
+				Msg("Dataframe can slow this operation, considner custom or incremental materialization")
 			data, err = s.getDataFrame(ctx, false)
 			if err != nil {
 				return nil, err
@@ -222,6 +255,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 				log.Error().Caller().
 					Str("taskId", ctx.TaskID).
 					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
 					Err(err).
 					Msg("Failed to persist inputs")
 				return nil, err
@@ -251,7 +285,11 @@ func (s *SQLModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTest
 		return results
 	}
 
-	log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msgf("Testing %s", s.descriptor.Name)
+	log.Info().
+		Str("taskId", ctx.TaskID).
+		Str("taskUUID", ctx.TaskUUID).
+		Str("assetName", s.descriptor.Name).
+		Msgf("Testing %s", s.descriptor.Name)
 	for _, testConfig := range s.descriptor.ModelProfile.Tests {
 		startTime := time.Now()
 		result := TestResult{
@@ -265,18 +303,35 @@ func (s *SQLModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTest
 			if status {
 				result.Status = TestStatusSuccess
 				result.Message = testName
-				log.Info().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testName", testName).Int64("durationMs", result.DurationMs).Msg("Success")
+				log.Info().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
+					Str("testName", testName).
+					Int64("durationMs", result.DurationMs).
+					Msg("Success")
 			} else {
 				result.Status = TestStatusFailed
 				result.Error = err
 				result.Message = testName
-				log.Error().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Str("testName", testName).Err(err).Int64("durationMs", result.DurationMs).Msg("Failed")
+				log.Error().
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
+					Str("testName", testName).
+					Err(err).
+					Int64("durationMs", result.DurationMs).
+					Msg("Failed")
 			}
 		} else {
 			result.Status = TestStatusNotFound
 			result.DurationMs = time.Since(startTime).Milliseconds()
 			result.Message = fmt.Sprintf("Test %s not found", testConfig.Name)
-			log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg(result.Message)
+			log.Warn().
+				Str("taskId", ctx.TaskID).
+				Str("taskUUID", ctx.TaskUUID).
+				Str("assetName", s.descriptor.Name).
+				Msg(result.Message)
 		}
 
 		results = append(results, result)
@@ -291,6 +346,7 @@ func (s *SQLModelAsset) createView(ctx *TaskContext) error {
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -300,24 +356,35 @@ func (s *SQLModelAsset) createView(ctx *TaskContext) error {
 	createViewSQLTemplate, err := pongo2.FromString(s.descriptor.CreateViewSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Str("sql", s.descriptor.CreateViewSQL).Msg("Failed to parse view SQL")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Str("sql", s.descriptor.CreateViewSQL).
+			Err(err).
+			Msg("Failed to parse view SQL")
 		return err
 	}
 
-	context := MergeTemplateFuncs(
+	context := MergePongo2Context(
 		FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions),
-		FromTaskContext(ctx),
+		FromTaskContextPongo2(ctx),
 	)
 	sqlQuery, err := createViewSQLTemplate.Execute(context)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery).Msg("Failed to render view SQL")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Str("sql", sqlQuery).
+			Err(err).
+			Msg("Failed to render view SQL")
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msg("Failed to create view")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Err(err).
+			Msg("Failed to create view")
 		return err
 	}
 	return dbConnection.Commit(tx)
@@ -330,6 +397,7 @@ func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -343,24 +411,35 @@ func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 	createTableSQLTempl, err := pongo2.FromString(s.descriptor.CreateTableSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Str("sql", s.descriptor.CreateTableSQL).Msg("Failed to parse table SQL template")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Str("sql", s.descriptor.CreateTableSQL).
+			Err(err).
+			Msg("Failed to parse table SQL template")
 		return err
 	}
 
-	context := MergeTemplateFuncs(
+	context := MergePongo2Context(
 		FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions),
-		FromTaskContext(ctx),
+		FromTaskContextPongo2(ctx),
 	)
 	sqlQuery, err := createTableSQLTempl.Execute(context)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery).Msg("Failed to execute table SQL template")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Str("sql", sqlQuery).
+			Err(err).
+			Msg("Failed to execute table SQL template")
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msg("Failed to create table")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Err(err).
+			Msg("Failed to create table")
 		return err
 	}
 	return dbConnection.Commit(tx)
@@ -373,6 +452,7 @@ func (s *SQLModelAsset) truncateTable() error {
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -382,7 +462,10 @@ func (s *SQLModelAsset) truncateTable() error {
 	err = dbConnection.Exec(tx, s.descriptor.TruncateTableSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msg("Failed to run truncate")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Err(err).
+			Msg("Failed to run truncate")
 		return err
 	}
 	return dbConnection.Commit(tx)
@@ -399,6 +482,7 @@ func (s *SQLModelAsset) customQuery(ctx *TaskContext) error {
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -408,17 +492,19 @@ func (s *SQLModelAsset) customQuery(ctx *TaskContext) error {
 	simleSQLQueryTemplate, err := pongo2.FromString(s.descriptor.RawSQL)
 	if err != nil {
 		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to parse asset query")
 		return err
 	}
-	context := MergeTemplateFuncs(
+	context := MergePongo2Context(
 		FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions),
-		FromTaskContext(ctx),
+		FromTaskContextPongo2(ctx),
 	)
 	sqlQuery, err := simleSQLQueryTemplate.Execute(context)
 	if err != nil {
 		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msgf("Rendering template: %s", sqlQuery)
 		return err
@@ -426,7 +512,10 @@ func (s *SQLModelAsset) customQuery(ctx *TaskContext) error {
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msg("Failed to run a custom query")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Err(err).
+			Msg("Failed to run a custom query")
 		return err
 	}
 	return dbConnection.Commit(tx)
@@ -438,6 +527,7 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -451,24 +541,35 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 	runSQLTemplate, err := pongo2.FromString(s.descriptor.InsertSQL)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Str("sql", s.descriptor.InsertSQL).Msg("Failed to parse insert SQL template")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Str("sql", s.descriptor.InsertSQL).
+			Err(err).
+			Msg("Failed to parse insert SQL template")
 		return err
 	}
 
-	context := MergeTemplateFuncs(
+	context := MergePongo2Context(
 		FromConnectionContext(dbConnection, tx, s.descriptor.Name, s.functions),
-		FromTaskContext(ctx),
+		FromTaskContextPongo2(ctx),
 	)
 	sqlQuery, err := runSQLTemplate.Execute(context)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery).Msg("Failed to render insert SQL template")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Str("sql", sqlQuery).
+			Err(err).
+			Msg("Failed to render insert SQL template")
 		return err
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
 		defer dbConnection.Rallback(tx)
-		log.Error().Caller().Stack().Err(err).Msg("Failed to insert")
+		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
+			Err(err).
+			Msg("Failed to insert")
 		return err
 	}
 	return dbConnection.Commit(tx)
@@ -484,17 +585,19 @@ func (s *SQLModelAsset) getDataFrame(ctx *TaskContext, isIncremental bool) (*dat
 	simleSQLQueryTemplate, err := pongo2.FromString(s.descriptor.RawSQL)
 	if err != nil {
 		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to parse asset query")
 		return nil, err
 	}
-	context := MergeTemplateFuncs(
+	context := MergePongo2Context(
 		FromConnectionContext(dbConnection, nil, s.descriptor.Name, s.functions),
-		FromTaskContext(ctx),
+		FromTaskContextPongo2(ctx),
 	)
 	sqlQuery, err := simleSQLQueryTemplate.Execute(context)
 	if err != nil {
 		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msgf("Rendering template: %s", sqlQuery)
 		return nil, err
@@ -503,6 +606,7 @@ func (s *SQLModelAsset) getDataFrame(ctx *TaskContext, isIncremental bool) (*dat
 	data, err := dbConnection.ToDataFrame(sqlQuery)
 	if err != nil {
 		log.Error().Caller().Stack().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msgf("Failed to create a DataFrame for: %s", sqlQuery)
 		return nil, err
@@ -516,6 +620,7 @@ func (s *SQLModelAsset) persistInputs(inputs map[string]interface{}) error {
 	tx, err := dbConnection.Begin()
 	if err != nil {
 		log.Error().Caller().
+			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
 		defer dbConnection.Rallback(tx)
@@ -534,15 +639,18 @@ func (s *SQLModelAsset) persistInputs(inputs map[string]interface{}) error {
 			if err != nil {
 
 				log.Error().Caller().Stack().
-					Err(err).
-					Str("model", s.descriptor.Name).
+					Str("assetName", s.descriptor.Name).
 					Str("connection", s.descriptor.ModelProfile.Connection).
+					Err(err).
 					Msg("Failed to persist inputs")
 				defer dbConnection.Rallback(tx)
 				return err
 			}
 		default:
-			log.Warn().Str("sourceModelName", sourceModelName).Msg("Input is not a *dataframe")
+			log.Warn().
+				Str("assetName", s.descriptor.Name).
+				Str("sourceModelName", sourceModelName).
+				Msg("Input is not a *dataframe")
 		}
 	}
 	return dbConnection.Commit(tx)

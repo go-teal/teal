@@ -5,7 +5,7 @@ make:
 	rm -rf scaffold/cmd
 	rm -rf scaffold/internal
 
-	if [ -f scaffold/docs/graph.wsd ]; then rm scaffold/docs/graph.wsd; fi;
+	if [ -f scaffold/docs/graph.mmd ]; then rm scaffold/docs/graph.mmd; fi;
 	if [ -f scaffold/Makefile ]; then rm scaffold/Makefile; fi;
 	if [ -f scaffold/store/test.duckdb ]; then rm scaffold/store/test.duckdb; fi;
 	if [ -f internal/application/templates/scaffold.tar.gz ]; then rm internal/application/templates/scaffold.tar.gz; fi;

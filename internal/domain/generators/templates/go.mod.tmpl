@@ -1,5 +1,7 @@
 module {{ Config.Module }}
 
-go 1.21.7
+go 1.25.1
 
 require github.com/go-teal/teal {{ Version }}
+
+// replace github.com/go-teal/teal => ./..

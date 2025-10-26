@@ -159,7 +159,7 @@ Files 26
 ./internal/model_tests/dds.test_dim_employees_unique.go ............... [OK]
 ./internal/model_tests/dds.test_dim_routes_unique.go .................. [OK]
 ./internal/assets/configs.go .......................................... [OK]
-./docs/graph.wsd ...................................................... [OK]
+./docs/graph.mmd ...................................................... [OK]
 ./docs/README.md ...................................................... [OK]
 ./internal/model_tests/configs.go ..................................... [OK]
 ```
@@ -173,8 +173,7 @@ Teal automatically generates **`docs/README.md`** with comprehensive project doc
 
 **This documentation is designed to be used with AI code assistants** like Claude Code, GitHub Copilot, Cursor, and Gemini Code Assist. See the "Using with AI Assistants" section below.
 
-Your DAG is depicted in the PlantUML file `graph.wsd`
-![DAG](docs/hello-world.svg)
+Your DAG is depicted in the Mermaid diagram file `docs/graph.mmd`
 
 **Note:** Teal generates two main.go files:
 - `cmd/my-test-project/my-test-project.go` - Production binary with Channel DAG for efficient execution
@@ -220,7 +219,7 @@ Your DAG is depicted in the PlantUML file `graph.wsd`
 ├── config.yaml
 ├── docs
 │   ├── README.md
-│   └── graph.wsd
+│   └── graph.mmd
 ├── go.mod
 ├── go.sum
 ├── internal
@@ -587,24 +586,81 @@ select
 
 ## Template functions
 
+Teal uses the **[pongo2](https://github.com/flosch/pongo2) template engine** (v6), which is **Django-compatible**. This means you can use familiar Django/Jinja2 template syntax in your SQL models.
+
+### Template Engine Features
+
+- **Django-compatible syntax**: If you know Django templates or Jinja2, you already know pongo2
+- **Control structures**: `{% if condition %}...{% endif %}`, `{% for item in items %}...{% endfor %}`
+- **Variables and filters**: `{{ variable }}`, `{{ variable|upper }}`, `{{ variable|safe }}`
+- **Template inheritance**: `{% extends %}` and `{% block %}` (for advanced use cases)
+- **Comments**: `{# This is a comment #}`
+
 ### Static and dynamic functions
 
-Functions in double braces `{{ Ref "staging.model" }}` are static, i.e. values are substituted at the moment of project generation.
-Functions in triple braces `{{{ Ref "staging.model" }}}` are dynamic, i.e. they are executed at the moment of activation of your asset. After project generation, triple brackets are replaced by double brackets in the source code of assetts
+Teal uses different brace syntaxes to distinguish between generation-time and runtime template evaluation:
+
+**Static functions** (evaluated during `teal gen` - **double braces** `{{ }}`):
+```sql
+{{ Ref("staging.model") }}  -- Replaced with actual table name during code generation
+```
+
+**Dynamic variables and functions** (evaluated at runtime - **single braces** `{ }`):
+```sql
+'{ TaskID }' as task_id                    -- Current task identifier
+'{ TaskUUID }' as task_uuid                -- Unique task UUID
+'{ InstanceName }' as instance             -- DAG instance name
+'{ InstanceUUID }' as instance_uuid        -- DAG instance UUID
+'{ ENV("SOURCE_SCHEMA", "public") }' as schema  -- Environment variable at runtime
+```
+
+**Dynamic control structures** (evaluated at runtime - Django/Jinja2 syntax):
+```sql
+{% if IsIncremental() %}
+    WHERE updated_at > (SELECT MAX(updated_at) FROM {{ this() }})
+{% endif %}
+```
+
+**Processing Flow:**
+1. **During `teal gen`**: Double-brace static functions like `{{ Ref(...) }}` are executed and replaced with actual values. Single braces `{ }` and control structures `{% %}` are preserved in the generated Go code.
+2. **At runtime**: Single-brace expressions and control structures are evaluated by pongo2 when the SQL executes during DAG execution.
 
 ### List of functions
 
-Native available functions:
+Native available functions and variables:
 
-|Function|Input Parameters|Output data|Description|
-|--|--|--|--|
-|Ref|`"<staging name>.<model name>"`|string|`Ref` is the main function on which the DAG is based. It points to the model that will be replaced by the table name after the template is executed.|
-|this|None|string|The `this` function returns the name of the current table.|
-|IsIncremental|None|boolean|The `IsIncremental` function returns a flag indicating whether the model is being executed in incremental mode.|
-|TaskID|None|string|Returns the task identifier from the Push method.|
-|TaskUUID|None|string|Returns the unique UUID assigned in the Push method for task tracking.|
-|InstanceName|None|string|Returns the DAG instance name.|
-|InstanceUUID|None|string|Returns the unique UUID assigned to the DAG instance at initialization.|
+|Name|Input Parameters|Output|When Evaluated|Description|Example Usage|
+|--|--|--|--|--|--|
+|Ref|`"<stage>.<model>"`|string|Static|Main function for DAG dependencies. Replaced with actual table name during `teal gen`.|`{{ Ref("staging.customers") }}`|
+|this|None|string|Both|Returns the name of the current table.|`{{ this() }}` (static) or `{ this() }` (dynamic)|
+|ENV|`envName`, `defaultValue`|string|Dynamic|Gets environment variable value at runtime.|`{ ENV("DB_SCHEMA", "public") }`|
+|IsIncremental|None|boolean|Dynamic|Returns true if model is in incremental mode. Use in control structures.|`{% if IsIncremental() %}...{% endif %}`|
+|TaskID|(variable)|string|Dynamic|The task identifier from the Push method.|`{ TaskID }`|
+|TaskUUID|(variable)|string|Dynamic|The unique UUID assigned for task tracking.|`{ TaskUUID }`|
+|InstanceName|(variable)|string|Dynamic|The DAG instance name.|`{ InstanceName }`|
+|InstanceUUID|(variable)|string|Dynamic|The unique UUID assigned to the DAG instance.|`{ InstanceUUID }`|
+
+**Complete Example:**
+
+```sql
+{{ define "profile.yaml" }}
+    materialization: 'incremental'
+    is_data_framed: true
+{{ end }}
+
+SELECT
+    order_id,
+    customer_id,
+    order_date,
+    total_amount,
+    '{ TaskID }' as etl_task_id,
+    '{ TaskUUID }' as etl_run_id,
+    current_timestamp as processed_at
+FROM {{ Ref("staging.raw_orders") }}
+{% if IsIncremental() %}
+    WHERE order_date > (SELECT COALESCE(MAX(order_date), '1900-01-01') FROM {{ this() }})
+{% endif %}
+```
 
 ## Databases
 

@@ -1,0 +1,17 @@
+{% set nodes = Nodes -%}
+flowchart LR
+{% for s in Stages %}
+    subgraph {{ s }}
+    {%- for node in nodes %}
+        {%- if node.Stage == s %}
+        {{ node.NodeID }}["{{ node.ModelName }}<br/>({{ node.Materialization }})"]
+        {%- endif %}
+    {%- endfor %}
+    end
+{% endfor %}
+
+{%- for node in nodes %}
+    {%- for dsID in node.DownstreamIDs %}
+    {{ node.NodeID }} --> {{ dsID }}
+    {%- endfor %}
+{%- endfor %}

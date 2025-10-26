@@ -59,8 +59,6 @@ func (g *GenRawModelAsset) RenderToFile() error {
 		return err
 	}
 
-	g.modelConfig.ModelFieldsFunc = "{{ ModelFields }}"
-
 	output, err := goTempl.Execute(pongo2.Context{
 		"ModelName":    g.modelConfig.ModelName,
 		"GoName":       g.modelConfig.GoName,

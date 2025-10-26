@@ -26,10 +26,10 @@ go.work
 *.duckdb
 
 # Scaffold generated files (test artifacts)
-/scaffold/cmd/
-/scaffold/docs/
-/scaffold/internal/
-/scaffold/go.mod
+# /scaffold/cmd/
+# /scaffold/docs/
+# /scaffold/internal/
+# /scaffold/go.mod
 *.out
 
 # Scaffold build artifacts

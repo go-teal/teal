@@ -61,6 +61,12 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 
 	g.modelConfig.ModelFieldsFunc = "{{ ModelFields }}"
 
+	// Extract materialization for easier template access
+	var materialization string
+	if g.modelConfig.ModelProfile != nil {
+		materialization = string(g.modelConfig.ModelProfile.Materialization)
+	}
+
 	output, err := goTempl.Execute(pongo2.Context{
 		"ModelName":            g.modelConfig.ModelName,
 		"GoName":               g.modelConfig.GoName,
@@ -68,6 +74,7 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 		"SqlByteBuffer":        g.modelConfig.SqlByteBuffer.String(),
 		"ModelFieldsFunc":      g.modelConfig.ModelFieldsFunc,
 		"ModelProfile":         g.modelConfig.ModelProfile,
+		"Materialization":      materialization,
 		"PrimaryKeyExpression": g.modelConfig.PrimaryKeyExpression,
 		"Indexes":              g.modelConfig.Indexes,
 		"Upstreams":            g.modelConfig.Upstreams,

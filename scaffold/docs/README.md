@@ -175,7 +175,7 @@ go test ./...
 
 ## DAG Visualization
 
-See [graph.wsd](graph.wsd) for the PlantUML diagram of the data pipeline.
+See [graph.mmd](graph.mmd) for the Mermaid diagram of the data pipeline.
 
 ---
 

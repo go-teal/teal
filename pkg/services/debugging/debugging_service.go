@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"text/template"
 	"time"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/go-teal/teal/pkg/core"
@@ -1059,28 +1059,25 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) AssetExe
 		}
 	}
 
-	// Create template functions map with IsIncremental
-	templateFuncs := template.FuncMap{
+	// Create pongo2 context with IsIncremental
+	templateFuncs := pongo2.Context{
 		"IsIncremental": func() bool {
 			return isIncremental
 		},
 	}
 
-	// Render the SQL template with template functions
-	sqlTemplate, err := template.New("selectQueryTemplate").
-		Funcs(processing.MergeTemplateFuncs(
-			processing.FromConnectionContext(dbConnection, nil, sqlModelDesc.Name, templateFuncs),
-		)).
-		Parse(sqlModelDesc.RawSQL)
-
+	// Render the SQL template with pongo2
+	sqlTemplate, err := pongo2.FromString(sqlModelDesc.RawSQL)
 	if err != nil {
 		response.Error = fmt.Sprintf("Failed to parse SQL template: %v", err)
 		s.storeAssetExecutionMetadata(taskId, assetName, response)
 		return response
 	}
 
-	var renderedSQL strings.Builder
-	err = sqlTemplate.Execute(&renderedSQL, nil)
+	context := processing.MergePongo2Context(
+		processing.FromConnectionContext(dbConnection, nil, sqlModelDesc.Name, templateFuncs),
+	)
+	renderedSQL, err := sqlTemplate.Execute(context)
 	if err != nil {
 		response.Error = fmt.Sprintf("Failed to render SQL template: %v", err)
 		s.storeAssetExecutionMetadata(taskId, assetName, response)
@@ -1088,7 +1085,7 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) AssetExe
 	}
 
 	// Execute the rendered SQL using ToDataFrame
-	df, err := dbConnection.ToDataFrame(renderedSQL.String())
+	df, err := dbConnection.ToDataFrame(renderedSQL)
 	if err != nil {
 		response.Error = fmt.Sprintf("Failed to execute query: %v", err)
 		s.storeAssetExecutionMetadata(taskId, assetName, response)
