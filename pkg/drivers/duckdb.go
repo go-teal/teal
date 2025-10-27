@@ -17,29 +17,6 @@ type DuckDBEngine struct {
 	Mutex        *sync.Mutex
 }
 
-// MountSource implements DBDriver.
-func (d *DuckDBEngine) MountSource(sourceProfile *configs.SourceProfile) error {
-	params := make([]string, len(sourceProfile.Params))
-	for i, p := range sourceProfile.Params {
-		params[i] = fmt.Sprintf("%s=%s", p.Name, p.Value)
-	}
-	var asParams []string
-	asParams = append(asParams, strings.ToUpper(sourceProfile.Type))
-	if sourceProfile.ReadOnly {
-		asParams = append(asParams, "READ_ONLY")
-	}
-	command := fmt.Sprintf("ATTACH '%s' as %s (%s);", sourceProfile.Name, strings.Join(params, " "), strings.Join(asParams, ", "))
-	_, err := d.db.Exec(command)
-	return err
-}
-
-// UnMountSource implements DBDriver.
-func (d *DuckDBEngine) UnMountSource(sourceProfile *configs.SourceProfile) error {
-	command := fmt.Sprintf("DETATTACH %s", sourceProfile.Name)
-	_, err := d.db.Exec(command)
-	return err
-}
-
 type DuckDBEngineFactory struct {
 }
 

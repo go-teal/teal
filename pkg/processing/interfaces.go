@@ -2,10 +2,11 @@ package processing
 
 // TaskContext holds runtime context for task execution
 type TaskContext struct {
-	TaskID       string // Task identifier from Push method
-	TaskUUID     string // Unique UUID assigned in Push method
-	InstanceName string // DAG instance name
-	InstanceUUID string // Unique UUID assigned in constructor
+	TaskID       string                 // Task identifier from Push method
+	TaskUUID     string                 // Unique UUID assigned in Push method
+	InstanceName string                 // DAG instance name
+	InstanceUUID string                 // Unique UUID assigned in constructor
+	Input        map[string]interface{} // Input data from upstream tasks
 }
 
 // TestStatus represents the status of a test execution
@@ -27,7 +28,7 @@ type TestResult struct {
 }
 
 type Asset interface {
-	Execute(ctx *TaskContext, input map[string]interface{}) (interface{}, error)
+	Execute(ctx *TaskContext) (interface{}, error)
 	RunTests(ctx *TaskContext, testsMap map[string]ModelTesting) []TestResult
 	GetUpstreams() []string
 	GetDownstreams() []string

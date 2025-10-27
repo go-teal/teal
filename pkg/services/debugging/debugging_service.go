@@ -754,8 +754,9 @@ func (s *DebuggingService) MutateAsset(assetName string, taskId string, taskUUID
 				TaskUUID:     taskUUID,
 				InstanceName: s.dag.DagInstanceName,
 				InstanceUUID: s.dag.DagInstanceUUID,
+				Input:        inputData,
 			}
-			result, err := node.Asset.Execute(ctx, inputData)
+			result, err := node.Asset.Execute(ctx)
 
 			endTime := time.Now()
 			endTimeMs := endTime.UnixMilli()

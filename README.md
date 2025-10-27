@@ -702,21 +702,6 @@ FROM {{ Ref("staging.raw_orders") }}
 | db_sslnmode      | String | The SSL mode for connections to the PostgreSQL server. Options include `disable`, `require`, `verify-ca`, and `verify-full`. |
 | db_sslnmode_env  | String | The environment variable name for specifying the SSL mode for connections.                                   |
 
-## General Architecture
-
-![Classes](docs/classes.svg)
-
-### Cross database references
-
-Cross-database references allow seamless queries to be executed, enabling the retrieval of results from an asset connected to another database, even if it uses a different database driver.
-
-The following two model profile parameters control cross-database references:
-
-- **is_data_framed**: When this flag is set to `True`, the result of the query execution is saved to the [gota.DataFrame](https://github.com/go-gota/) structure. This structure is then passed to the next node in your DAG.
-- **persist_inputs**: When this flag is set to `True`, all incoming parameters in the form of a `gota.DataFrame` structure are saved to a temporary table in the database connection configured in the model profile's `connection` parameter. You don't need to modify the reference to the asset for this to happen.
-
-![cross-db-ref](docs/cross-db-ref.drawio.svg)
-
 ## Raw Assets
 
 Raw assets are custom functions written in Go that can accept and return dataframes and contain any other custom logic.
@@ -724,19 +709,20 @@ Raw assets are custom functions written in Go that can accept and return datafra
 Raw assets must implement the following function interface:
 
 ```go
-type ExecutorFunc func(ctx *TaskContext, input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
+type ExecutorFunc func(ctx *TaskContext, modelProfile *configs.ModelProfile) (interface{}, error)
 ```
 
-The `TaskContext` provides runtime information about the current execution:
+The `TaskContext` provides runtime information and input data for the current execution:
 - `TaskID`: Task identifier from the Push method
 - `TaskUUID`: Unique UUID assigned for task tracking
 - `InstanceName`: DAG instance name
 - `InstanceUUID`: Unique UUID assigned to the DAG instance
+- `Input`: Map of upstream asset results (key: asset name, value: result data)
 
 Retrieving a dataframe from an upstream is done as follows:
 
 ```Go
-df := input["dds.model1"].(*dataframe.DataFrame)
+df := ctx.Input["dds.model1"].(*dataframe.DataFrame)
 ```
 
 At the same time, the `is_data_framed` flag must be set in the upstream asset.  
@@ -797,19 +783,156 @@ Test profiles can be defined in test SQL files using the same template syntax as
 |description|String||Optional description of what the test validates, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
 
+## General Architecture
+
+```mermaid
+classDiagram
+    class Asset {
+        <<interface>>
+        +Execute(ctx) any, error
+        +GetUpstreams() []string
+        +GetDownstreams() []string
+        +GetName() string
+    }
+
+    class SQLModelAsset {
+        <<class>>
+    }
+
+    class RawAsset {
+        <<class>>
+    }
+
+    class DBDriver {
+        <<interface>>
+        +Connect() error
+        +Begin() any, error
+        +Commit(tx any) error
+        +Rallback(tx any) error
+        +Close() error
+        +Exec(tx any, sql string) error
+        +GetListOfFields(tx any, tableName string) []string
+        +CheckTableExists(tx any, tableName string) bool
+        +CheckSchemaExists(tx any, schemaName string) bool
+        +ToDataFrame(sql string) DataFrame, error
+        +PersistDataFrame(tx any, name string, df DataFrame) error
+        +SimpleTest(sql string) string, error
+        +GetRawConnection() any
+        +ConcurrencyLock()
+        +ConcurrencyUnlock()
+    }
+
+    class DuckDB {
+        <<class>>
+    }
+
+    class PostgreSQL {
+        <<class>>
+    }
+
+    class ClickHouse {
+        <<class>>
+    }
+
+    class MySQL {
+        <<class>>
+    }
+
+    class SQLModelDescriptor {
+        <<class>>
+    }
+
+    class DAG {
+        <<interface>>
+        +Run() WaitGroup
+        +Push(...)
+        +Stop()
+    }
+
+    class ChannelDAG {
+        <<class>>
+    }
+
+    class Executor {
+        <<interface>>
+        +func(ctx, modelProfile) any, error
+    }
+
+    class Routine {
+        <<class>>
+    }
+
+    %% Relationships
+    Asset <|.. SQLModelAsset : implements
+    Asset <|.. RawAsset : implements
+    SQLModelAsset o-- DBDriver : uses
+    SQLModelAsset o-- SQLModelDescriptor : uses
+    RawAsset o-- Executor : uses
+    DBDriver <|.. DuckDB : implements
+    DBDriver <|.. PostgreSQL : implements
+    DBDriver <|.. ClickHouse : implements
+    DBDriver <|.. MySQL : implements
+    DAG <|.. ChannelDAG : implements
+    ChannelDAG *-- Routine : contains
+    Routine o-- Asset : uses
+```
+
+### Cross database references
+
+Cross-database references allow seamless queries to be executed, enabling the retrieval of results from an asset connected to another database, even if it uses a different database driver.
+
+The following two model profile parameters control cross-database references:
+
+- **is_data_framed**: When this flag is set to `True`, the result of the query execution is saved to the [gota.DataFrame](https://github.com/go-gota/) structure. This structure is then passed to the next node in your DAG.
+- **persist_inputs**: When this flag is set to `True`, all incoming parameters in the form of a `gota.DataFrame` structure are saved to a temporary table in the database connection configured in the model profile's `connection` parameter. You don't need to modify the reference to the asset for this to happen.
+
+```mermaid
+flowchart TB
+    subgraph gen["Generation Time - Stage: example"]
+        direction LR
+        subgraph db1gen["database1.example"]
+            model1gen["example.model1.sql"]
+        end
+        subgraph db2gen["database2.example"]
+            model2gen["example.model2.sql"]
+        end
+        model2gen -.->|"Ref 'example.model1.sql'"| model1gen
+    end
+
+    gen ==>|"On Runtime"| runtime
+
+    subgraph runtime["Runtime - Stage: example"]
+        direction LR
+        subgraph db1run["database1.example"]
+            model1run["example.model1.sql"]
+        end
+
+        df["gota.DataFrame"]
+
+        subgraph db2run["database2.example"]
+            model2run["example.model2.sql"]
+            tmp["tmp_example_model1<br/>table"]
+        end
+
+        model1run --> df
+        df --> tmp
+        tmp -.->|"Ref 'tmp_example_model1'"| model2run
+    end
+
+
+```
+
 ## Road Map
 
 see CHANGELOG.md
 
-### [0.3.0+]
+### [1.0.0+]
 
 #### Features <!-- omit from toc -->
 
 - [ ] Advanced Tests
 - [ ] Seeds
-- [ ] Database Sources
 - [ ] Pre/Post-hooks
-- [ ] Embedded UI Dashboard
 - [ ] DataVault
 
 #### Database support <!-- omit from toc -->

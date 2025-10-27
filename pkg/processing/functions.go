@@ -1,7 +1,6 @@
 package processing
 
 import (
-	"html/template"
 	"os"
 	"strings"
 
@@ -48,45 +47,9 @@ func MergePongo2Context(contexts ...pongo2.Context) pongo2.Context {
 	return result
 }
 
-// MergeTemplateFuncs merges multiple template.FuncMap maps into one
-// Kept for backwards compatibility with runtime template rendering
-func MergeTemplateFuncs(funcMaps ...template.FuncMap) template.FuncMap {
-	result := make(template.FuncMap)
-	for _, funcMap := range funcMaps {
-		for key, value := range funcMap {
-			result[key] = value
-		}
-	}
-	return result
-}
-
 // FromTaskContextPongo2 creates a pongo2.Context with task-related functions
 func FromTaskContextPongo2(ctx *TaskContext) pongo2.Context {
 	functions := make(pongo2.Context)
-
-	functions["TaskID"] = func() string {
-		return ctx.TaskID
-	}
-
-	functions["TaskUUID"] = func() string {
-		return ctx.TaskUUID
-	}
-
-	functions["InstanceName"] = func() string {
-		return ctx.InstanceName
-	}
-
-	functions["InstanceUUID"] = func() string {
-		return ctx.InstanceUUID
-	}
-
-	return functions
-}
-
-// FromTaskContext creates a template.FuncMap with task-related functions
-// Kept for backwards compatibility with runtime template rendering (e.g., debugging service)
-func FromTaskContext(ctx *TaskContext) template.FuncMap {
-	functions := make(template.FuncMap)
 
 	functions["TaskID"] = func() string {
 		return ctx.TaskID

@@ -16,17 +16,6 @@ type PostgresDBEngine struct {
 	db           *pgx.Conn
 }
 
-// MountSource implements PGDriver.
-func (d *PostgresDBEngine) MountSource(sourceProfile *configs.SourceProfile) error {
-
-	return nil
-}
-
-// UnMountSource implements PGDriver.
-func (d *PostgresDBEngine) UnMountSource(sourceProfile *configs.SourceProfile) error {
-	return nil
-}
-
 type PostgresDBEngineFactory struct {
 }
 

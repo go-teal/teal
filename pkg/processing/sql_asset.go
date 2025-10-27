@@ -47,7 +47,7 @@ func (s *SQLModelAsset) GetUpstreams() []string {
 }
 
 // Execute implements Asset.
-func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) (interface{}, error) {
+func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 
 	var data *dataframe.DataFrame
 	dbConnection := core.GetInstance().GetDBConnection(s.descriptor.ModelProfile.Connection)
@@ -65,7 +65,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 		Str("taskId", ctx.TaskID).
 		Str("taskUUID", ctx.TaskUUID).
 		Str("assetName", s.descriptor.Name).
-		Msgf("input params: %v", input)
+		Msgf("input params: %v", ctx.Input)
 
 	tx, err := dbConnection.Begin()
 	if err != nil {
@@ -121,7 +121,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 	switch s.descriptor.ModelProfile.Materialization {
 	case configs.MAT_INCREMENTAL:
 		if s.descriptor.ModelProfile.PersistInputs {
-			err := s.persistInputs(input)
+			err := s.persistInputs(ctx.Input)
 			if err != nil {
 				log.Error().Caller().
 					Str("taskId", ctx.TaskID).
@@ -149,7 +149,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 
 		if !isTableExists {
 			if s.descriptor.ModelProfile.PersistInputs {
-				err := s.persistInputs(input)
+				err := s.persistInputs(ctx.Input)
 				if err != nil {
 					log.Error().Caller().
 						Err(err).
@@ -177,7 +177,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 					Str("assetName", s.descriptor.Name).
 					Msg("table has been truncated")
 				if s.descriptor.ModelProfile.PersistInputs {
-					err := s.persistInputs(input)
+					err := s.persistInputs(ctx.Input)
 					if err != nil {
 						log.Error().Caller().
 							Err(err).
@@ -221,7 +221,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 	case configs.MAT_VIEW:
 
 		if s.descriptor.ModelProfile.PersistInputs {
-			err := s.persistInputs(input)
+			err := s.persistInputs(ctx.Input)
 			if err != nil {
 				defer dbConnection.Rallback(tx)
 				log.Error().Caller().
@@ -250,7 +250,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) 
 	case configs.MAT_CUSTOM:
 
 		if s.descriptor.ModelProfile.PersistInputs {
-			err := s.persistInputs(input)
+			err := s.persistInputs(ctx.Input)
 			if err != nil {
 				log.Error().Caller().
 					Str("taskId", ctx.TaskID).

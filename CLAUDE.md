@@ -263,7 +263,6 @@ Teal uses a clean interface-based abstraction pattern for database drivers, impl
 3. **Supported Databases**:
    - **DuckDB** (`duckdb.go`): In-memory/file-based analytical database
      - Extension support (auto-install and load)
-     - Source mounting for federated queries
      - Mutex-based concurrency control (single-writer limitation)
      - DataFrame integration via `duckdb_dataframe.go`
 

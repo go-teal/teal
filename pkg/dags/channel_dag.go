@@ -223,8 +223,9 @@ func (routine *DagRoutine) run(wg *sync.WaitGroup) {
 				TaskUUID:     taskUUID,
 				InstanceName: routine.dag.DagInstanceName,
 				InstanceUUID: routine.dag.DagInstanceUUID,
+				Input:        params,
 			}
-			outputData, err := routine.Asset.Execute(ctx, params)
+			outputData, err := routine.Asset.Execute(ctx)
 			stopTaskTs := time.Now().UnixMilli()
 			if err != nil {
 				log.Error().Caller().Stack().

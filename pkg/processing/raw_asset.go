@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type ExecutorFunc func(ctx *TaskContext, input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
+type ExecutorFunc func(ctx *TaskContext, modelProfile *configs.ModelProfile) (interface{}, error)
 
 // GO singletone
 type GlobalExecutors struct {
@@ -34,9 +34,9 @@ type RawModelAsset struct {
 }
 
 // Execute implements Asset.
-func (r *RawModelAsset) Execute(ctx *TaskContext, input map[string]interface{}) (interface{}, error) {
+func (r *RawModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 	if f, ok := GetExecutors().Execurots[r.descriptor.Name]; ok {
-		return f(ctx, input, r.descriptor.ModelProfile)
+		return f(ctx, r.descriptor.ModelProfile)
 	} else {
 		return nil, fmt.Errorf("executor %v is not registered", r.descriptor.Name)
 	}

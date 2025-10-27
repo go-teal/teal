@@ -252,8 +252,9 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					TaskUUID:     taskUUID,
 					InstanceName: d.DagInstanceName,
 					InstanceUUID: d.DagInstanceUUID,
+					Input:        inputData,
 				}
-				result, err := node.Asset.Execute(ctx, inputData)
+				result, err := node.Asset.Execute(ctx)
 				endTime := time.Now()
 				node.EndTime = &endTime
 				node.LastExecutionDuration = endTime.Sub(startTime).Milliseconds()
