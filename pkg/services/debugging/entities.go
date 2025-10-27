@@ -146,8 +146,8 @@ type AssetExecuteResponseDTO struct {
 	Error           string      `json:"error,omitempty"`
 	UpstreamsUsed   []string    `json:"upstreamsUsed"`
 	TotalRecords    int         `json:"totalRecords,omitempty"`
-	Offset          int         `json:"offset,omitempty"`
-	Limit           int         `json:"limit,omitempty"`
+	// Offset          int         `json:"offset,omitempty"`
+	// Limit           int         `json:"limit,omitempty"`
 }
 
 type AssetDataResponseDTO struct {
@@ -160,4 +160,22 @@ type AssetDataResponseDTO struct {
 	ColumnCount  int         `json:"columnCount,omitempty"` // For dataframes
 	Columns      []string    `json:"columns,omitempty"`     // For dataframes
 	Error        string      `json:"error,omitempty"`
+}
+
+// ConnectionConfigDTO represents configuration details for a database connection
+type ConnectionConfigDTO struct {
+	Name       string   `json:"name"`
+	Type       string   `json:"type"`
+	Host       string   `json:"host,omitempty"`
+	Port       int      `json:"port,omitempty"`
+	Database   string   `json:"database,omitempty"`
+	User       string   `json:"user,omitempty"`
+	Path       string   `json:"path,omitempty"`
+	Extensions []string `json:"extensions,omitempty"`
+}
+
+// ConnectionStatusResponseDTO represents the overall connection status
+type ConnectionStatusResponseDTO struct {
+	IsConnected bool                  `json:"isConnected"`
+	Connections []ConnectionConfigDTO `json:"connections"`
 }

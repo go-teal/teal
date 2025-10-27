@@ -57,6 +57,7 @@ type DebugDag struct {
 	LeafNodes       []*DagAssetDebugService          // Nodes with no downstreams
 	RootTestResults []processing.TestResult          // Results from root tests
 	TaskUUIDMap     map[string]string                // Map of taskId to taskUUID
+	isConnected     bool                             // Track database connection status
 	mu              sync.RWMutex                     // Mutex for thread-safe access
 }
 
@@ -189,8 +190,6 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 
 	// Execute in a goroutine to not block
 	go func() {
-		core.GetInstance().ConnectAll()
-		defer core.GetInstance().Shutdown()
 		d.mu.Lock()
 		defer d.mu.Unlock()
 
@@ -499,4 +498,35 @@ func (d *DebugDag) GetNodeResults() map[string]interface{} {
 		}
 	}
 	return results
+}
+
+// Connect establishes all database connections
+func (d *DebugDag) Connect() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	log.Info().Msg("Connecting to all databases")
+	core.GetInstance().ConnectAll()
+	d.isConnected = true
+	log.Info().Msg("All database connections established")
+	return nil
+}
+
+// Disconnect closes all database connections
+func (d *DebugDag) Disconnect() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	log.Info().Msg("Disconnecting from all databases")
+	core.GetInstance().Shutdown()
+	d.isConnected = false
+	log.Info().Msg("All database connections closed")
+	return nil
+}
+
+// IsConnected returns the current connection status
+func (d *DebugDag) IsConnected() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.isConnected
 }

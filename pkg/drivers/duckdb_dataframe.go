@@ -40,6 +40,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 			seriesData[i] = make([]string, 0)
 		case "DOUBLE":
 			seriesData[i] = make([]float64, 0)
+		case "FLOAT":
+			seriesData[i] = make([]float64, 0)
 		case "HUGEINT":
 			// TODO: Add this type to gota series
 			seriesData[i] = make([]string, 0)
@@ -74,6 +76,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 			case "VARCHAR":
 				safeData[i] = &sql.NullString{}
 			case "DOUBLE":
+				safeData[i] = &sql.NullFloat64{}
+			case "FLOAT":
 				safeData[i] = &sql.NullFloat64{}
 			case "HUGEINT":
 				var bigIntStub = new(big.Int)
@@ -111,6 +115,12 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 				seriesData[i] = sd
 
 			case "DOUBLE":
+				sd := seriesData[i].([]float64)
+				val := safeData[i].(*sql.NullFloat64)
+				sd = append(sd, val.Float64)
+				seriesData[i] = sd
+
+			case "FLOAT":
 				sd := seriesData[i].([]float64)
 				val := safeData[i].(*sql.NullFloat64)
 				sd = append(sd, val.Float64)
@@ -173,6 +183,8 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		case "VARCHAR":
 			dFseries[i] = series.New(seriesData[i], series.String, c.Name())
 		case "DOUBLE":
+			dFseries[i] = series.New(seriesData[i], series.Float, c.Name())
+		case "FLOAT":
 			dFseries[i] = series.New(seriesData[i], series.Float, c.Name())
 		case "HUGEINT":
 			// TODO: Add this type to gota series

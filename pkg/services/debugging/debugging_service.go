@@ -452,6 +452,27 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 		return responseChan
 	}
 
+	// Check if DAG is connected to databases
+	if !s.dag.IsConnected() {
+		response := DagExecutionResponseDTO{
+			TaskId:      taskId,
+			Status:      DagExecutionStatusFailed,
+			NodesStatus: []NodeStatusDTO{{
+				Name:    "connection_check",
+				State:   NodeStateFailed,
+				Message: "Database connections not established. Please connect to databases first using POST /api/dag/connect",
+			}},
+		}
+		// Store failed result in history
+		s.mu.Lock()
+		s.taskHistory[taskId] = response
+		s.mu.Unlock()
+
+		responseChan <- response
+		close(responseChan)
+		return responseChan
+	}
+
 	// Store initial status
 	s.mu.Lock()
 	s.taskHistory[taskId] = DagExecutionResponseDTO{
@@ -709,6 +730,14 @@ func (s *DebuggingService) MutateAsset(assetName string, taskId string, taskUUID
 			return
 		}
 
+		// Check if DAG is connected to databases
+		if !s.dag.IsConnected() {
+			response.Status = NodeStateFailed
+			response.Error = "Database connections not established. Please connect to databases first using POST /api/dag/connect"
+			responseChan <- response
+			return
+		}
+
 		// Get the node from the DAG
 		node := s.dag.GetNode(assetName)
 		if node == nil {
@@ -800,10 +829,17 @@ func (s *DebuggingService) MutateAsset(assetName string, taskId string, taskUUID
 				Status:        NodeStateInProgress,
 				StartTime:     response.StartTime,
 				UpstreamsUsed: response.UpstreamsUsed,
-				Error:         "Execution still in progress after 10 seconds",
+				Error:         "Execution timeout (still processing in background)",
 			}
+
+			// Store intermediate metadata so GET /api/dag/asset/:name/data can retrieve status
+			// The execution continues in background and will update this when complete
+			s.mu.Lock()
+			s.storeAssetExecutionMetadata(taskId, assetName, timeoutResponse)
+			s.mu.Unlock()
+
 			responseChan <- timeoutResponse
-			// Execution continues in background and will update metadata when done
+			// Execution continues in background and will update metadata when done (line 785)
 		}
 	}()
 
@@ -845,8 +881,8 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit 
 		TaskId:    taskId,
 		AssetName: assetName,
 		Status:    NodeStateInitial,
-		Offset:    offset,
-		Limit:     limit,
+		// Offset:    offset,
+		// Limit:     limit,
 	}
 
 	// First check if we have execution metadata for this task
@@ -855,8 +891,8 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit 
 			// Start with stored metadata
 			response = assetMetadata
 			// Update pagination parameters
-			response.Offset = offset
-			response.Limit = limit
+			// response.Offset = offset
+			// response.Limit = limit
 
 			// Now fetch the actual data from the node if execution completed
 			if s.dag != nil && (response.Status == NodeStateSuccess || response.Status == NodeStateFailed) {
@@ -929,13 +965,6 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit 
 	}
 
 	return response
-}
-
-// serializeResult converts the result to a JSON-serializable format
-// If the result is a DataFrame, it converts it to an array of maps
-func (s *DebuggingService) serializeResult(result interface{}) interface{} {
-	serialized, _ := s.serializeResultWithPagination(result, 0, 0)
-	return serialized
 }
 
 // serializeResultWithPagination converts the result to a JSON-serializable format with pagination support
@@ -1011,112 +1040,241 @@ func (s *DebuggingService) serializeResultWithPagination(result interface{}, off
 // ExecuteAssetSelect executes the asset's SQL query using ToDataFrame and saves the result to the DAG node
 // The SQL template is rendered first, executing all template functions (like Ref)
 // Returns a response with taskId that can be used to retrieve the data via GetAssetData endpoint
-func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) AssetExecuteResponseDTO {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan AssetExecuteResponseDTO {
+	responseChan := make(chan AssetExecuteResponseDTO, 1)
 
-	startTime := time.Now()
-	response := AssetExecuteResponseDTO{
-		AssetName: assetName,
-		TaskId:    taskId,
-		Status:    NodeStateFailed,
+	go func() {
+		defer close(responseChan)
+
+		response := AssetExecuteResponseDTO{
+			AssetName: assetName,
+			TaskId:    taskId,
+			Status:    NodeStateFailed,
+		}
+
+		// Create a channel for the actual execution
+		executionChan := make(chan AssetExecuteResponseDTO, 1)
+
+		go func() {
+			startTime := time.Now()
+			startTimeMs := startTime.UnixMilli()
+			execResponse := AssetExecuteResponseDTO{
+				AssetName:  assetName,
+				TaskId:     taskId,
+				Status:     NodeStateFailed,
+				StartTime:  &startTimeMs,
+			}
+
+			// Validate and get node (with lock)
+			s.mu.RLock()
+			if s.dag == nil {
+				s.mu.RUnlock()
+				execResponse.Error = "DAG not initialized"
+				executionChan <- execResponse
+				return
+			}
+
+			// Check if DAG is connected to databases
+			if !s.dag.IsConnected() {
+				s.mu.RUnlock()
+				execResponse.Error = "Database connections not established. Please connect to databases first using POST /api/dag/connect"
+				executionChan <- execResponse
+				return
+			}
+
+			node := s.dag.GetNode(assetName)
+			if node == nil {
+				s.mu.RUnlock()
+				execResponse.Error = "Asset not found in DAG"
+				executionChan <- execResponse
+				return
+			}
+
+			descriptor := node.Asset.GetDescriptor()
+			s.mu.RUnlock()
+
+			// Validate asset type and get connection (no lock needed)
+			sqlModelDesc, ok := descriptor.(*models.SQLModelDescriptor)
+			if !ok {
+				execResponse.Error = "Asset is not a SQL model (only SQL assets support select)"
+				executionChan <- execResponse
+				return
+			}
+
+			dbConnection := core.GetInstance().GetDBConnection(sqlModelDesc.ModelProfile.Connection)
+			if dbConnection == nil {
+				execResponse.Error = fmt.Sprintf("Connection '%s' not found", sqlModelDesc.ModelProfile.Connection)
+				executionChan <- execResponse
+				return
+			}
+
+			// Check if table exists for incremental materialization (no lock needed - DB operation)
+			isIncremental := false
+			if sqlModelDesc.ModelProfile.Materialization == configs.MAT_INCREMENTAL {
+				tx, err := dbConnection.Begin()
+				if err == nil {
+					isIncremental = dbConnection.CheckTableExists(tx, sqlModelDesc.Name)
+					dbConnection.Commit(tx)
+				}
+			}
+
+			// Store initial in-progress state
+			s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
+
+			// Update node state to in-progress (with lock)
+			s.mu.Lock()
+			node.State = dags.NodeStateInProgress
+			node.StartTime = &startTime
+			s.mu.Unlock()
+
+			// Render and execute SQL (no lock needed - long operation)
+			templateFuncs := pongo2.Context{
+				"IsIncremental": func() bool {
+					return isIncremental
+				},
+			}
+
+			sqlTemplate, err := pongo2.FromString(sqlModelDesc.RawSQL)
+			if err != nil {
+				execResponse.Error = fmt.Sprintf("Failed to parse SQL template: %v", err)
+				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
+				executionChan <- execResponse
+				return
+			}
+
+			context := processing.MergePongo2Context(
+				processing.FromConnectionContext(dbConnection, nil, sqlModelDesc.Name, templateFuncs),
+			)
+			renderedSQL, err := sqlTemplate.Execute(context)
+			if err != nil {
+				execResponse.Error = fmt.Sprintf("Failed to render SQL template: %v", err)
+				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
+				executionChan <- execResponse
+				return
+			}
+
+			// Execute the SQL query (long operation - no lock)
+			df, err := dbConnection.ToDataFrame(renderedSQL)
+
+			endTime := time.Now()
+			endTimeMs := endTime.UnixMilli()
+			execResponse.EndTime = &endTimeMs
+			execResponse.ExecutionTimeMs = endTime.Sub(startTime).Milliseconds()
+
+			if err != nil {
+				execResponse.Error = fmt.Sprintf("Failed to execute query: %v", err)
+				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
+				executionChan <- execResponse
+				return
+			}
+
+			if df == nil {
+				execResponse.Error = "Query returned nil DataFrame"
+				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
+				executionChan <- execResponse
+				return
+			}
+
+			// Update node with results (with lock)
+			s.mu.Lock()
+			node.LastResult = df
+			node.State = dags.NodeStateSuccess
+			node.EndTime = &endTime
+			node.LastExecutionDuration = execResponse.ExecutionTimeMs
+			s.mu.Unlock()
+
+			// Build successful response
+			execResponse.Status = NodeStateSuccess
+
+			// Store metadata in asset history (function handles its own locking)
+			s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
+
+			executionChan <- execResponse
+		}()
+
+		// Wait for execution with 10-second timeout
+		select {
+		case execResult := <-executionChan:
+			response = execResult
+		case <-time.After(10 * time.Second):
+			response.Status = NodeStateInProgress
+			response.Error = "Execution timeout (still processing in background)"
+
+			// Store intermediate metadata so GET /api/dag/asset/:name/data can retrieve status
+			// The execution continues in background and will update this when complete
+			s.mu.Lock()
+			s.storeAssetExecutionMetadata(taskId, assetName, response)
+			s.mu.Unlock()
+
+			// Continue listening for completion in background (don't block response)
+			go func() {
+				// Wait for the actual execution to complete
+				if execResult := <-executionChan; execResult.Status == NodeStateSuccess {
+					// Update stored metadata with final result when execution completes
+					s.mu.Lock()
+					s.storeAssetExecutionMetadata(taskId, assetName, execResult)
+					s.mu.Unlock()
+				}
+			}()
+		}
+
+		responseChan <- response
+	}()
+
+	return responseChan
+}
+
+// Connect establishes connections to all databases
+func (s *DebuggingService) Connect() error {
+	if s.dag == nil {
+		return fmt.Errorf("DAG not initialized")
+	}
+	return s.dag.Connect()
+}
+
+// Disconnect closes all database connections
+func (s *DebuggingService) Disconnect() error {
+	if s.dag == nil {
+		return fmt.Errorf("DAG not initialized")
+	}
+	return s.dag.Disconnect()
+}
+
+// GetConnectionStatus returns the connection status with configuration details for each connection
+func (s *DebuggingService) GetConnectionStatus() ConnectionStatusResponseDTO {
+	response := ConnectionStatusResponseDTO{
+		IsConnected: false,
+		Connections: []ConnectionConfigDTO{},
 	}
 
 	if s.dag == nil {
-		response.Error = "DAG not initialized"
 		return response
 	}
 
-	// Get the node from the DAG
-	node := s.dag.GetNode(assetName)
-	if node == nil {
-		response.Error = "Asset not found in DAG"
-		return response
-	}
+	// Get connection status from DAG
+	response.IsConnected = s.dag.IsConnected()
 
-	// Get the asset descriptor to access SQL and connection info
-	descriptor := node.Asset.GetDescriptor()
-	sqlModelDesc, ok := descriptor.(*models.SQLModelDescriptor)
-	if !ok {
-		response.Error = "Asset is not a SQL model (only SQL assets support select)"
-		return response
-	}
+	// Build connections list from config
+	if s.dag.Config != nil && s.dag.Config.Connections != nil {
+		for _, conn := range s.dag.Config.Connections {
+			connDTO := ConnectionConfigDTO{
+				Name: conn.Name,
+				Type: conn.Type,
+			}
 
-	// Get the database connection using core singleton
-	dbConnection := core.GetInstance().GetDBConnection(sqlModelDesc.ModelProfile.Connection)
-	if dbConnection == nil {
-		response.Error = fmt.Sprintf("Connection '%s' not found", sqlModelDesc.ModelProfile.Connection)
-		return response
-	}
+			// Add configuration details if available
+			if conn.Config != nil {
+				connDTO.Host = conn.Config.Host
+				connDTO.Port = conn.Config.Port
+				connDTO.Database = conn.Config.Database
+				connDTO.User = conn.Config.User
+				connDTO.Path = conn.Config.Path
+				connDTO.Extensions = conn.Config.Extensions
+			}
 
-	// Check if table exists for incremental materialization
-	isIncremental := false
-	if sqlModelDesc.ModelProfile.Materialization == configs.MAT_INCREMENTAL {
-		// Need to check within a transaction
-		tx, err := dbConnection.Begin()
-		if err == nil {
-			isIncremental = dbConnection.CheckTableExists(tx, sqlModelDesc.Name)
-			dbConnection.Commit(tx)
+			response.Connections = append(response.Connections, connDTO)
 		}
 	}
-
-	// Create pongo2 context with IsIncremental
-	templateFuncs := pongo2.Context{
-		"IsIncremental": func() bool {
-			return isIncremental
-		},
-	}
-
-	// Render the SQL template with pongo2
-	sqlTemplate, err := pongo2.FromString(sqlModelDesc.RawSQL)
-	if err != nil {
-		response.Error = fmt.Sprintf("Failed to parse SQL template: %v", err)
-		s.storeAssetExecutionMetadata(taskId, assetName, response)
-		return response
-	}
-
-	context := processing.MergePongo2Context(
-		processing.FromConnectionContext(dbConnection, nil, sqlModelDesc.Name, templateFuncs),
-	)
-	renderedSQL, err := sqlTemplate.Execute(context)
-	if err != nil {
-		response.Error = fmt.Sprintf("Failed to render SQL template: %v", err)
-		s.storeAssetExecutionMetadata(taskId, assetName, response)
-		return response
-	}
-
-	// Execute the rendered SQL using ToDataFrame
-	df, err := dbConnection.ToDataFrame(renderedSQL)
-	if err != nil {
-		response.Error = fmt.Sprintf("Failed to execute query: %v", err)
-		s.storeAssetExecutionMetadata(taskId, assetName, response)
-		return response
-	}
-
-	if df == nil {
-		response.Error = "Query returned nil DataFrame"
-		s.storeAssetExecutionMetadata(taskId, assetName, response)
-		return response
-	}
-
-	// Save the result to the node's LastResult
-	node.LastResult = df
-	node.State = dags.NodeStateSuccess
-	endTime := time.Now()
-	node.StartTime = &startTime
-	node.EndTime = &endTime
-	node.LastExecutionDuration = endTime.Sub(startTime).Milliseconds()
-
-	// Build successful response
-	startTimeMs := startTime.UnixMilli()
-	endTimeMs := endTime.UnixMilli()
-	response.Status = NodeStateSuccess
-	response.StartTime = &startTimeMs
-	response.EndTime = &endTimeMs
-	response.ExecutionTimeMs = node.LastExecutionDuration
-
-	// Store metadata in asset history
-	s.storeAssetExecutionMetadata(taskId, assetName, response)
 
 	return response
 }

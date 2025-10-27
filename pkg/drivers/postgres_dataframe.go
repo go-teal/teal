@@ -245,6 +245,8 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 			dFseries[i] = series.New(seriesData[i], series.Float, c.Name)
 		case "int2", "int4":
 			dFseries[i] = series.New(seriesData[i], series.Int, c.Name)
+		case "int8":
+			dFseries[i] = series.New(seriesData[i], series.Int, c.Name)
 		case "bool":
 			dFseries[i] = series.New(seriesData[i], series.Bool, c.Name)
 		default:

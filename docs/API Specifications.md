@@ -14,6 +14,10 @@ http://localhost:8080
   - [GET /api/dag/status/:taskId](#get-apidagstatustaskid)
   - [GET /api/dag/tasks](#get-apidagtasks)
   - [POST /api/dag/reset](#post-apidagreset)
+- [Connection Management](#connection-management)
+  - [POST /api/dag/connect](#post-apidagconnect)
+  - [POST /api/dag/disconnect](#post-apidagdisconnect)
+  - [GET /api/dag/connection-status](#get-apidagconnection-status)
 - [Asset Operations](#asset-operations)
   - [POST /api/dag/asset/:name/mutate](#post-apidagassetnamemutate)
   - [GET /api/dag/asset/:name/data](#get-apidagassetnamedata)
@@ -440,6 +444,119 @@ Resets the DAG state, clearing all execution data and task history.
 
 ---
 
+## Connection Management
+
+Database connections must be explicitly established before executing DAG operations (RUN, SELECT, MUTATE). These endpoints manage the connection lifecycle.
+
+### POST /api/dag/connect
+Establishes connections to all configured databases.
+
+**Response: 200 OK**
+```json
+{
+  "message": "Successfully connected to all databases",
+  "status": "CONNECTED"
+}
+```
+
+**Response: 500 Internal Server Error**
+```json
+{
+  "error": "Failed to connect to databases",
+  "details": "Connection refused for database 'postgres_prod' at localhost:5432"
+}
+```
+
+**Field Descriptions:**
+- `message` (string): Success message
+- `status` (string): Connection status ("CONNECTED")
+- `error` (string): Error message if connection failed
+- `details` (string): Detailed error information
+
+**Notes:**
+- Must be called before any DAG execution or asset operation
+- Connects to all databases defined in `config.yaml`
+- Connection state is shared across all API calls
+
+---
+
+### POST /api/dag/disconnect
+Closes all database connections gracefully.
+
+**Response: 200 OK**
+```json
+{
+  "message": "Successfully disconnected from all databases",
+  "status": "DISCONNECTED"
+}
+```
+
+**Response: 500 Internal Server Error**
+```json
+{
+  "error": "Failed to disconnect from databases",
+  "details": "Error closing connection to 'duckdb_analytics'"
+}
+```
+
+**Field Descriptions:**
+- `message` (string): Success message
+- `status` (string): Connection status ("DISCONNECTED")
+- `error` (string): Error message if disconnection failed
+- `details` (string): Detailed error information
+
+**Notes:**
+- Safely closes all active database connections
+- Should be called when shutting down or when connections are no longer needed
+- Attempting DAG operations after disconnect will result in connection errors
+
+---
+
+### GET /api/dag/connection-status
+Retrieves the current connection status and configuration details for all databases.
+
+**Response: 200 OK**
+```json
+{
+  "isConnected": true,
+  "connections": [
+    {
+      "name": "memory_duck",
+      "type": "duckdb",
+      "path": ":memory:",
+      "extensions": ["parquet", "json"]
+    },
+    {
+      "name": "postgres_prod",
+      "type": "postgres",
+      "host": "localhost",
+      "port": 5432,
+      "database": "production",
+      "user": "etl_user"
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `isConnected` (boolean): Whether the DAG is currently connected to databases
+- `connections` (array): Array of connection configuration objects
+  - `name` (string): Connection identifier from config.yaml
+  - `type` (string): Database type ("duckdb", "postgres", etc.)
+  - `host` (string, optional): Database host (for network databases)
+  - `port` (integer, optional): Database port
+  - `database` (string, optional): Database name
+  - `user` (string, optional): Database user
+  - `path` (string, optional): File path (for file-based databases)
+  - `extensions` (array, optional): DuckDB extensions to load
+
+**Notes:**
+- Returns configuration details without sensitive information (passwords are excluded)
+- `isConnected` reflects the overall connection state, not individual connection health
+- Sensitive fields (passwords, certificates) are intentionally omitted from the response
+
+---
+
 ## Asset Operations
 
 ### POST /api/dag/asset/:name/mutate
@@ -559,6 +676,18 @@ Retrieves the execution result and metadata for an asset from a specific task ex
 }
 ```
 
+**Response: 202 Accepted (In Progress)**
+```json
+{
+  "taskId": "task_20250125_143022",
+  "assetName": "staging.hello",
+  "status": "IN_PROGRESS",
+  "startTime": 1737816622000,
+  "error": "Execution timeout (still processing in background)",
+  "upstreamsUsed": []
+}
+```
+
 **Response: 200 OK (Not Executed)**
 ```json
 {
@@ -613,7 +742,7 @@ Retrieves the execution result and metadata for an asset from a specific task ex
 ---
 
 ### POST /api/dag/asset/:name/select
-Executes the asset's SQL query using the `ToDataFrame` method, renders the SQL template (executing all template functions like `Ref` and `IsIncremental`), and saves the result to the node's `LastResult`. The result can then be retrieved using the `/api/dag/asset/:name/data` endpoint.
+Executes the asset's SQL query using the `ToDataFrame` method, renders the SQL template (executing all template functions like `Ref` and `IsIncremental`), and saves the result to the node's `LastResult`. Returns within 10 seconds. The result can then be retrieved using the `/api/dag/asset/:name/data` endpoint.
 
 **Parameters:**
 - `name` (path parameter): Asset name (e.g., "staging.hello")
@@ -640,6 +769,17 @@ Executes the asset's SQL query using the `ToDataFrame` method, renders the SQL t
 }
 ```
 
+**Response: 202 Accepted (Still Running)**
+```json
+{
+  "taskId": "task_select_20250115",
+  "assetName": "staging.hello",
+  "status": "IN_PROGRESS",
+  "startTime": 1737816622000,
+  "error": "Execution timeout (still processing in background)"
+}
+```
+
 **Response: 200 OK (Failed)**
 ```json
 {
@@ -653,11 +793,11 @@ Executes the asset's SQL query using the `ToDataFrame` method, renders the SQL t
 **Field Descriptions (Response):**
 - `taskId` (string): Task ID for this execution
 - `assetName` (string): Name of the asset
-- `status` (string): Execution status - "SUCCESS" or "FAILED"
+- `status` (string): Execution status - "SUCCESS", "IN_PROGRESS", or "FAILED"
 - `startTime` (integer, optional): Unix timestamp in milliseconds when execution started
 - `endTime` (integer, optional): Unix timestamp in milliseconds when execution completed
 - `executionTimeMs` (integer, optional): Execution duration in milliseconds
-- `error` (string, optional): Error message if query failed
+- `error` (string, optional): Error message if query failed or timeout message if still processing
 
 **Notes:**
 - This endpoint only works with SQL assets (not raw assets)
@@ -928,14 +1068,20 @@ All endpoints may return the following error responses:
 
 ## Notes
 
-1. **Timeout Behavior**: POST endpoints (`/api/dag/run`, `/api/dag/asset/:name/execute`) return within 10 seconds. If execution is not complete, they return status `PENDING` or `IN_PROGRESS` with HTTP 202 Accepted.
+1. **Connection Requirement**: Database connections must be established using `POST /api/dag/connect` before executing any DAG operations (`/api/dag/run`, `/api/dag/asset/:name/mutate`, `/api/dag/asset/:name/select`). Attempting to execute operations without an active connection will return a FAILED status with an error message: "Database connections not established. Please connect to databases first using POST /api/dag/connect".
 
-2. **Task ID Format**: Recommended format is `task_YYYYMMDD_HHMMSS` or any unique string identifier.
+2. **Timeout Behavior**: POST endpoints (`/api/dag/run`, `/api/dag/asset/:name/mutate`, `/api/dag/asset/:name/select`) return within 10 seconds. If execution is not complete, they return status `PENDING` or `IN_PROGRESS` with HTTP 202 Accepted. The execution continues in the background and results can be retrieved using `/api/dag/asset/:name/data` or `/api/dag/status/:taskId`.
 
-3. **Data Persistence**: Asset execution results are stored in memory and cleared on server restart or when `/api/dag/reset` is called.
+3. **Task ID Format**: Recommended format is `task_YYYYMMDD_HHMMSS` or any unique string identifier.
 
-4. **DataFrame Serialization**: DataFrames are converted to JSON arrays of objects where each object represents a row.
+4. **Data Persistence**: Asset execution results are stored in memory and cleared on server restart or when `/api/dag/reset` is called.
 
-5. **Cross-Database Support**: Assets can use different database connections as specified in their configuration.
+5. **DataFrame Serialization**: DataFrames are converted to JSON arrays of objects where each object represents a row.
 
-6. **Log Storage**: When UI mode is enabled with StoringConsoleWriter (default), all structured log entries are captured in memory organized by task ID. Logs are preserved across DAG executions but cleared on server restart. The log writer extracts task IDs from either the log field `taskId` or from the execution context.
+6. **Cross-Database Support**: Assets can use different database connections as specified in their configuration.
+
+7. **Log Storage**: When UI mode is enabled with StoringConsoleWriter (default), all structured log entries are captured in memory organized by task ID. Logs are preserved across DAG executions but cleared on server restart. The log writer extracts task IDs from either the log field `taskId` or from the execution context.
+
+8. **Background Execution**: When POST endpoints return 202 Accepted due to timeout, the execution continues in the background. The mutex lock is only held briefly for state updates, not during long-running operations like SQL queries, ensuring the server remains responsive.
+
+9. **Connection Lifecycle**: Connections are managed separately from DAG execution state. Disconnecting (`POST /api/dag/disconnect`) does not reset DAG state or clear execution history. Use `POST /api/dag/reset` to clear execution data.

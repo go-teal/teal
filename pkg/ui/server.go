@@ -75,6 +75,9 @@ func (s *UIServer) Start() error {
 	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
 	r.POST("/api/dag/asset/:name/select", s.handleAssetSelect)
 	r.POST("/api/dag/reset", s.handleDagReset)
+	r.POST("/api/dag/connect", s.handleConnect)
+	r.POST("/api/dag/disconnect", s.handleDisconnect)
+	r.GET("/api/dag/connection-status", s.handleConnectionStatus)
 
 	// Log endpoints (only available when logWriter is configured)
 	if s.logWriter != nil {
@@ -327,13 +330,18 @@ func (s *UIServer) handleAssetSelect(c *gin.Context) {
 		return
 	}
 
-	// Execute the asset's SQL query using ToDataFrame and save to node's LastResult
-	response := s.debuggingService.ExecuteAssetSelect(assetName, request.TaskId)
+	// Execute the asset's SQL query with timeout
+	responseChan := s.debuggingService.ExecuteAssetSelect(assetName, request.TaskId)
+
+	// Wait for response (will timeout after 10 seconds as configured in ExecuteAssetSelect)
+	response := <-responseChan
 
 	// Return appropriate status code
 	statusCode := http.StatusOK
-	if response.Status == debugging.NodeStateFailed {
-		statusCode = http.StatusOK // Still return 200 with error in response body
+
+	// Return 202 Accepted if the operation is still in progress (timed out)
+	if response.Status == debugging.NodeStateInProgress {
+		statusCode = http.StatusAccepted
 	}
 
 	c.JSON(statusCode, response)
@@ -442,4 +450,43 @@ func (s *UIServer) handleClearAllLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "All logs cleared successfully",
 	})
+}
+
+// Connection management handlers
+
+func (s *UIServer) handleConnect(c *gin.Context) {
+	err := s.debuggingService.Connect()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to connect to databases",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Successfully connected to all databases",
+		"status":  "CONNECTED",
+	})
+}
+
+func (s *UIServer) handleDisconnect(c *gin.Context) {
+	err := s.debuggingService.Disconnect()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to disconnect from databases",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Successfully disconnected from all databases",
+		"status":  "DISCONNECTED",
+	})
+}
+
+func (s *UIServer) handleConnectionStatus(c *gin.Context) {
+	status := s.debuggingService.GetConnectionStatus()
+	c.JSON(http.StatusOK, status)
 }

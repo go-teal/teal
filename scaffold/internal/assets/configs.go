@@ -37,25 +37,25 @@ var DAG = [][]string{
 	
 	{
 		
-		"staging.stg_employees",
-		
-		"staging.stg_flights",
-		
-		"staging.stg_routes",
+		"staging.stg_airports",
 		
 		"staging.stg_crew_assignments",
 		
-		"staging.stg_airports",
+		"staging.stg_flights",
+		
+		"staging.stg_employees",
+		
+		"staging.stg_routes",
 		
 	},
 	
 	{
 		
+		"dds.dim_airports",
+		
 		"dds.dim_employees",
 		
 		"dds.dim_routes",
-		
-		"dds.dim_airports",
 		
 	},
 	
@@ -67,9 +67,9 @@ var DAG = [][]string{
 	
 	{
 		
-		"mart.mart_airport_statistics",
-		
 		"dds.fact_crew_assignments",
+		
+		"mart.mart_airport_statistics",
 		
 		"mart.mart_flight_performance",
 		
