@@ -39,13 +39,13 @@ var DAG = [][]string{
 		
 		"staging.stg_airports",
 		
-		"staging.stg_crew_assignments",
-		
-		"staging.stg_flights",
-		
 		"staging.stg_employees",
 		
 		"staging.stg_routes",
+		
+		"staging.stg_crew_assignments",
+		
+		"staging.stg_flights",
 		
 	},
 	
