@@ -4,17 +4,17 @@ package assets
 import "github.com/go-teal/teal/pkg/processing"
 
 var ProjectAssets = map[string] processing.Asset{
-	{% for asset in Assets %}
+	{%- for asset in Assets %}
 	"{{ asset.ModelName }}":{{ asset.GoName }}Asset,
-	{% endfor %}
+	{%- endfor %}
 }
 
 var DAG = [][]string{
-	{% for group in PriorityGroups %}
+	{%- for group in PriorityGroups %}
 	{
-		{% for modelName in group %}
+		{%- for modelName in group %}
 		"{{ modelName }}",
-		{% endfor %}
+		{%- endfor %}
 	},
-	{% endfor %}
+	{%- endfor %}
 }

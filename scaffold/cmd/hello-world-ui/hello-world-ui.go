@@ -8,6 +8,8 @@ import (
 	"context"
 	"flag"
 	"os"
+	"os/signal"
+	"syscall"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	modeltests "github.com/you_git_user/your_project/internal/model_tests"
@@ -66,9 +68,39 @@ func main() {
 	// Create DebugDag for UI mode
 	dag := dags.InitDebugDag(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "hello-world")
 
-	// Start UI server with DebugDag and log writer
-	server := ui.NewUIServerWithLogWriter("hello-world", "github.com/you_git_user/your_project", *port, dag, storingWriter)
-	if err := server.Start(); err != nil {
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start UI server with DebugDag, log writer, and readme path in a goroutine
+	readmePath := "./docs/README.md"
+	server := ui.NewUIServerWithLogWriterAndReadme("hello-world", "github.com/you_git_user/your_project", *port, dag, storingWriter, readmePath)
+
+	serverErrors := make(chan error, 1)
+	go func() {
+		if err := server.Start(); err != nil {
+			serverErrors <- err
+		}
+	}()
+
+	// Wait for shutdown signal or server error
+	select {
+	case sig := <-sigChan:
+		log.Info().Str("signal", sig.String()).Msg("Shutdown signal received")
+	case err := <-serverErrors:
 		log.Fatal().Err(err).Msg("Failed to start UI server")
+		return
 	}
+
+	// Graceful shutdown: close database connections if they are open
+	if dag.IsConnected() {
+		log.Info().Msg("Closing database connections...")
+		if err := dag.Disconnect(); err != nil {
+			log.Error().Err(err).Msg("Error closing database connections")
+		} else {
+			log.Info().Msg("Database connections closed successfully")
+		}
+	}
+
+	log.Info().Msg("Shutdown complete")
 }

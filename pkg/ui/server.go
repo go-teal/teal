@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gin-contrib/cors"
@@ -19,6 +20,7 @@ type UIServer struct {
 	Port             int
 	debuggingService *debugging.DebuggingService
 	logWriter        interface{} // Store the log writer (interface to avoid import cycle)
+	readmePath       string       // Path to the docs/readme.md file
 }
 
 func NewUIServer(projectName, moduleName string, port int, dag *dags.DebugDag) *UIServer {
@@ -37,6 +39,17 @@ func NewUIServerWithLogWriter(projectName, moduleName string, port int, dag *dag
 		Port:             port,
 		debuggingService: debugging.NewDebuggingService(dag),
 		logWriter:        logWriter,
+	}
+}
+
+func NewUIServerWithLogWriterAndReadme(projectName, moduleName string, port int, dag *dags.DebugDag, logWriter interface{}, readmePath string) *UIServer {
+	return &UIServer{
+		ProjectName:      projectName,
+		ModuleName:       moduleName,
+		Port:             port,
+		debuggingService: debugging.NewDebuggingService(dag),
+		logWriter:        logWriter,
+		readmePath:       readmePath,
 	}
 }
 
@@ -78,6 +91,9 @@ func (s *UIServer) Start() error {
 	r.POST("/api/dag/connect", s.handleConnect)
 	r.POST("/api/dag/disconnect", s.handleDisconnect)
 	r.GET("/api/dag/connection-status", s.handleConnectionStatus)
+
+	// Documentation endpoint
+	r.GET("/api/docs/readme", s.handleReadme)
 
 	// Log endpoints (only available when logWriter is configured)
 	if s.logWriter != nil {
@@ -489,4 +505,30 @@ func (s *UIServer) handleDisconnect(c *gin.Context) {
 func (s *UIServer) handleConnectionStatus(c *gin.Context) {
 	status := s.debuggingService.GetConnectionStatus()
 	c.JSON(http.StatusOK, status)
+}
+
+// Documentation handler
+
+func (s *UIServer) handleReadme(c *gin.Context) {
+	// Check if readme path is configured
+	if s.readmePath == "" {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "README path not configured",
+		})
+		return
+	}
+
+	// Read the README file
+	content, err := os.ReadFile(s.readmePath)
+	if err != nil {
+		log.Error().Err(err).Str("path", s.readmePath).Msg("Failed to read README file")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to read README file",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Return the content as markdown
+	c.Data(http.StatusOK, "text/markdown; charset=utf-8", content)
 }

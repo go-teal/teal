@@ -3,6 +3,7 @@ package generators
 import (
 	_ "embed"
 	"os"
+	"sort"
 
 	pongo2 "github.com/flosch/pongo2/v6"
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
@@ -55,10 +56,26 @@ func (g *GenAssetsConfig) RenderToFile() error {
 		panic(err)
 	}
 
+	// Sort assets alphabetically by ModelName
+	sortedAssets := make([]*internalmodels.ModelConfig, len(g.modelsConfig))
+	copy(sortedAssets, g.modelsConfig)
+	sort.Slice(sortedAssets, func(i, j int) bool {
+		return sortedAssets[i].ModelName < sortedAssets[j].ModelName
+	})
+
+	// Sort model names within each priority group
+	sortedPriorityGroups := make([][]string, len(g.priorityGroups))
+	for i, group := range g.priorityGroups {
+		sortedGroup := make([]string, len(group))
+		copy(sortedGroup, group)
+		sort.Strings(sortedGroup)
+		sortedPriorityGroups[i] = sortedGroup
+	}
+
 	output, err := templ.Execute(pongo2.Context{
 		"Config":         g.config,
-		"Assets":         g.modelsConfig,
-		"PriorityGroups": g.priorityGroups,
+		"Assets":         sortedAssets,
+		"PriorityGroups": sortedPriorityGroups,
 	})
 	if err != nil {
 		panic(err)

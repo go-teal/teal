@@ -24,6 +24,8 @@ http://localhost:8080
   - [POST /api/dag/asset/:name/select](#post-apidagassetnameselect)
 - [Test Operations](#test-operations)
   - [GET /api/tests](#get-apitests)
+- [Documentation](#documentation)
+  - [GET /api/docs/readme](#get-apidocsreadme)
 - [Log Operations](#log-operations)
   - [GET /api/logs/:taskId](#get-apilogstaskid)
   - [GET /api/logs](#get-apilogs)
@@ -881,6 +883,44 @@ Retrieves test execution results for a specific task execution.
   - `sql` (string): SQL query that was executed
   - `connectionName` (string): Database connection used
   - `connectionType` (string): Type of database connection
+
+---
+
+## Documentation
+
+### GET /api/docs/readme
+Retrieves the project README documentation in markdown format.
+
+**Response: 200 OK**
+```markdown
+# Project Name
+
+## Overview
+...project documentation content...
+```
+
+**Response Headers:**
+- `Content-Type`: `text/markdown; charset=utf-8`
+
+**Error Response: 404 Not Found**
+```json
+{
+  "error": "README path not configured"
+}
+```
+
+**Error Response: 500 Internal Server Error**
+```json
+{
+  "error": "Failed to read README file",
+  "details": "open ./docs/README.md: no such file or directory"
+}
+```
+
+**Notes:**
+- The README path is configured during server initialization (default: `./docs/README.md`)
+- Returns raw markdown content that can be rendered by markdown viewers
+- Useful for displaying project documentation directly in UI tools
 
 ---
 
