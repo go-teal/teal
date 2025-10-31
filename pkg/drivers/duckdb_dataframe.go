@@ -105,7 +105,7 @@ func (d *DuckDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error
 		}
 
 		for i, c := range columnTypes {
-			log.Debug().Str("fieldName", c.Name()).Str("type", c.DatabaseTypeName()).Msg("serealizing")
+			// log.Debug().Str("fieldName", c.Name()).Str("type", c.DatabaseTypeName()).Msg("serealizing")
 			switch c.DatabaseTypeName() {
 
 			case "VARCHAR":
