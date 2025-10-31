@@ -15,6 +15,7 @@ import (
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/go-teal/teal/pkg/processing"
+	"github.com/rs/zerolog/log"
 )
 
 type DebuggingService struct {
@@ -1136,6 +1137,12 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 
 			sqlTemplate, err := pongo2.FromString(sqlModelDesc.RawSQL)
 			if err != nil {
+				log.Error().Caller().
+					Str("taskId", taskId).
+					Str("asset", assetName).
+					Str("sql", sqlModelDesc.RawSQL).
+					Err(err).
+					Msg("Failed to parse SQL template")
 				execResponse.Error = fmt.Sprintf("Failed to parse SQL template: %v", err)
 				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
 				executionChan <- execResponse
@@ -1147,11 +1154,23 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			)
 			renderedSQL, err := sqlTemplate.Execute(context)
 			if err != nil {
+				log.Error().Caller().
+					Str("taskId", taskId).
+					Str("asset", assetName).
+					Str("sql", renderedSQL).
+					Err(err).
+					Msg("Failed to render SQL template")
 				execResponse.Error = fmt.Sprintf("Failed to render SQL template: %v", err)
 				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
 				executionChan <- execResponse
 				return
 			}
+
+			log.Debug().
+				Str("taskId", taskId).
+				Str("asset", assetName).
+				Str("sql", renderedSQL).
+				Msg("Executing SQL select query")
 
 			// Execute the SQL query (long operation - no lock)
 			df, err := dbConnection.ToDataFrame(renderedSQL)
@@ -1162,6 +1181,13 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			execResponse.ExecutionTimeMs = endTime.Sub(startTime).Milliseconds()
 
 			if err != nil {
+				log.Error().Caller().
+					Str("taskId", taskId).
+					Str("asset", assetName).
+					Str("sql", renderedSQL).
+					Int64("durationMs", execResponse.ExecutionTimeMs).
+					Err(err).
+					Msg("Failed to execute SQL query")
 				execResponse.Error = fmt.Sprintf("Failed to execute query: %v", err)
 				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
 				executionChan <- execResponse
@@ -1169,11 +1195,24 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			}
 
 			if df == nil {
+				log.Error().Caller().
+					Str("taskId", taskId).
+					Str("asset", assetName).
+					Str("sql", renderedSQL).
+					Int64("durationMs", execResponse.ExecutionTimeMs).
+					Msg("Query returned nil DataFrame")
 				execResponse.Error = "Query returned nil DataFrame"
 				s.storeAssetExecutionMetadata(taskId, assetName, execResponse)
 				executionChan <- execResponse
 				return
 			}
+
+			log.Debug().
+				Str("taskId", taskId).
+				Str("asset", assetName).
+				Str("sql", renderedSQL).
+				Int64("durationMs", execResponse.ExecutionTimeMs).
+				Msg("SQL query executed successfully")
 
 			// Update node with results (with lock)
 			s.mu.Lock()
