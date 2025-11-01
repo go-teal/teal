@@ -17,29 +17,6 @@ type DuckDBEngine struct {
 	Mutex        *sync.Mutex
 }
 
-// MountSource implements DBDriver.
-func (d *DuckDBEngine) MountSource(sourceProfile *configs.SourceProfile) error {
-	params := make([]string, len(sourceProfile.Params))
-	for i, p := range sourceProfile.Params {
-		params[i] = fmt.Sprintf("%s=%s", p.Name, p.Value)
-	}
-	var asParams []string
-	asParams = append(asParams, strings.ToUpper(sourceProfile.Type))
-	if sourceProfile.ReadOnly {
-		asParams = append(asParams, "READ_ONLY")
-	}
-	command := fmt.Sprintf("ATTACH '%s' as %s (%s);", sourceProfile.Name, strings.Join(params, " "), strings.Join(asParams, ", "))
-	_, err := d.db.Exec(command)
-	return err
-}
-
-// UnMountSource implements DBDriver.
-func (d *DuckDBEngine) UnMountSource(sourceProfile *configs.SourceProfile) error {
-	command := fmt.Sprintf("DETATTACH %s", sourceProfile.Name)
-	_, err := d.db.Exec(command)
-	return err
-}
-
 type DuckDBEngineFactory struct {
 }
 
@@ -120,10 +97,10 @@ func (d *DuckDBEngine) Commit(tx interface{}) error {
 
 // Exec implements DBEngine.
 func (d *DuckDBEngine) Exec(tx interface{}, sqlQuery string) error {
-	log.Debug().Msg(sqlQuery)
+	log.Debug().Str("sql", sqlQuery).Msg("Executing SQL query")
 	_, result := tx.(*sql.Tx).Exec(sqlQuery)
 	if result != nil {
-		log.Error().Msg(sqlQuery)
+		log.Error().Caller().Str("sql", sqlQuery).Err(result).Msg("SQL execution failed")
 	}
 	return result
 }
@@ -161,6 +138,7 @@ func initDuckDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, error
 
 	log.Debug().Msgf("Init DuckDB %s at %s\n", dbConnectionConfig.Name, dbConnectionConfig.Config.Path)
 	_, err := os.Stat(dbConnectionConfig.Config.Path)
+	log.Warn().Err(err).Send()
 
 	if os.IsNotExist(err) {
 		db, err := sql.Open("duckdb", dbConnectionConfig.Config.Path)

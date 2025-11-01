@@ -1,104 +1,195 @@
 package services
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
 	"gopkg.in/yaml.v2"
 )
 
 func CombineProfiles(config *configs.Config, projectProfile *configs.ProjectProfile) {
+	// Store project-level connection for defaults
+	projectConnection := projectProfile.Connection
+	if projectConnection == "" {
+		projectConnection = "default"
+	}
 	fmt.Println("reading model profiles...")
-	modelsProjetDir := config.ProjectPath + "/" + MODEL_DIR
+	modelsProjectDir := config.ProjectPath + "/" + MODEL_DIR
 
 	for _, stage := range projectProfile.Models.Stages {
 		fmt.Printf("Stage: %s\n", stage.Name)
-		modelProfilesMap := make(map[string]*configs.ModelProfile)
+
+		// Step 1: Get all profiles from projectProfile
+		profilesFromYAML := make(map[string]*configs.ModelProfile)
 		for _, modelProfile := range stage.Models {
-			fmt.Printf("Model: %s.%s\n", stage.Name, modelProfile.Name)
-			modelProfilesMap[stage.Name+"."+modelProfile.Name] = modelProfile
+			key := stage.Name + "." + modelProfile.Name
+			fmt.Printf("Model from profile.yaml: %s\n", key)
+			modelProfile.Stage = stage.Name
+			profilesFromYAML[key] = modelProfile
 		}
 
-		modelFileNames, err := os.ReadDir(modelsProjetDir + "/" + stage.Name)
+		// Step 2: Find all asset files from MODEL_DIR
+		profilesFromSQL := make(map[string]*configs.ModelProfile)
+		modelFileNames, err := os.ReadDir(modelsProjectDir + "/" + stage.Name)
 		if err != nil {
-			fmt.Printf("Error reading directory: %v", err)
+			fmt.Printf("Error reading directory: %v\n", err)
 			panic(err)
 		}
+
+		// Step 3: For each file, execute sub template profile.yaml
 		for _, modelFileNameEntry := range modelFileNames {
-			if !modelFileNameEntry.IsDir() {
-				modelFileName := modelFileNameEntry.Name()
-				fmt.Printf("File: %s\n", modelFileName)
-				_, refName := utils.CreateModelName(stage.Name, modelFileNameEntry.Name())
-				modelFileByte, err := os.ReadFile(modelsProjetDir + "/" + stage.Name + "/" + modelFileName)
+			if modelFileNameEntry.IsDir() {
+				continue
+			}
+
+			modelFileName := modelFileNameEntry.Name()
+			if !strings.HasSuffix(modelFileName, ".sql") {
+				continue
+			}
+
+			fmt.Printf("Processing file: %s\n", modelFileName)
+			modelName := strings.TrimSuffix(modelFileName, ".sql")
+			refName := stage.Name + "." + modelName
+
+			// Read and parse the SQL file
+			modelFileByte, err := os.ReadFile(modelsProjectDir + "/" + stage.Name + "/" + modelFileName)
+			if err != nil {
+				panic(err)
+			}
+
+			modelFileFinalTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjectDir, projectProfile)
+			if err != nil {
+				fmt.Printf("Cannot parse model profile for %s: %v\n", modelFileName, err)
+				continue
+			}
+
+			// Extract profile.yaml from define block if it exists
+			profileYAML := modelFileFinalTemplate.GetProfileYAML()
+			if profileYAML != "" {
+				var sqlProfile configs.ModelProfile
+				err = yaml.Unmarshal([]byte(profileYAML), &sqlProfile)
 				if err != nil {
-					panic(err)
+					fmt.Printf("Cannot unmarshal profile from %s: %v\n", modelFileName, err)
+					continue
 				}
-				modelFileFinalTemplate, _, err := prepareModelTemplate(modelFileByte, refName, modelsProjetDir, projectProfile)
-				if err != nil {
-					fmt.Printf("can not parse model profile %s\n", string(modelFileByte))
-				}
-				var inlineProfileByteBuffer bytes.Buffer
-				var newModelProfile configs.ModelProfile
 
-				err = modelFileFinalTemplate.ExecuteTemplate(&inlineProfileByteBuffer, "profile.yaml", nil)
-				if err == nil {
-					fmt.Printf("Overriding profile: %s\n", refName)
-					err = yaml.Unmarshal(inlineProfileByteBuffer.Bytes(), &newModelProfile)
-					if err != nil {
-						fmt.Printf("can not unmarshal parse model profile")
-						continue
-					}
-					newModelProfile.Name = strings.Replace(modelFileName, ".sql", "", -1)
-					profile, ok := modelProfilesMap[refName]
-					// TODO: simplify
-					if !ok {
-						// If profile is not defined in the profile.yaml file, we read it from the model file
-						modelProfilesMap[refName] = &newModelProfile
-					} else {
-						// If profile defined in the profile.yaml file, we try to merge profiles
-						if newModelProfile.Connection != "" {
-							profile.Connection = newModelProfile.Connection
-						}
-						if newModelProfile.Materialization != "" {
-							profile.Materialization = newModelProfile.Materialization
-						}
-
-						if len(newModelProfile.PrimaryKeyFields) > 0 {
-							profile.PrimaryKeyFields = newModelProfile.PrimaryKeyFields
-						}
-						if len(newModelProfile.Indexes) > 0 {
-							profile.Indexes = newModelProfile.Indexes
-						}
-
-						if len(newModelProfile.Tests) > 0 {
-							profile.Tests = newModelProfile.Tests
-							for _, testProfile := range profile.Tests {
-								if testProfile.Connection == "" {
-									testProfile.Connection = profile.Connection
-								}
-								testProfile.Stage = profile.Stage
-							}
-						}
-						if profile.Connection == "" {
-							profile.Connection = "default"
-						}
-						profile.IsDataFramed = newModelProfile.IsDataFramed || profile.IsDataFramed
-						profile.PersistInputs = newModelProfile.PersistInputs || profile.PersistInputs
-						modelProfilesMap[refName] = profile
-					}
-				}
+				sqlProfile.Name = modelName
+				sqlProfile.Stage = stage.Name
+				profilesFromSQL[refName] = &sqlProfile
+				fmt.Printf("Found inline profile in: %s\n", refName)
 			}
 		}
 
-		stage.Models = make([]*configs.ModelProfile, len(modelProfilesMap))
-		var idx int
-		for _, v := range modelProfilesMap {
-			stage.Models[idx] = v
-			idx++
+		// Step 4: Merge the two sets of profiles with priority from projectProfile
+		mergedProfiles := make(map[string]*configs.ModelProfile)
+
+		// First, add all profiles from YAML (they have priority)
+		for key, yamlProfile := range profilesFromYAML {
+			mergedProfiles[key] = yamlProfile
 		}
+
+		// Then, merge or add profiles from SQL files
+		for key, sqlProfile := range profilesFromSQL {
+			if yamlProfile, exists := mergedProfiles[key]; exists {
+				// Merge profiles - YAML has priority
+				mergedProfiles[key] = mergeModelProfiles(yamlProfile, sqlProfile)
+			} else {
+				// No YAML profile exists, use SQL profile and apply defaults
+				applyDefaultsToProfile(sqlProfile, projectConnection)
+				mergedProfiles[key] = sqlProfile
+			}
+		}
+
+		// Apply defaults to all profiles and prepare final list
+		stage.Models = make([]*configs.ModelProfile, 0, len(mergedProfiles))
+		for _, profile := range mergedProfiles {
+			applyDefaultsToProfile(profile, projectConnection)
+			// Set test connections and stages
+			for _, testProfile := range profile.Tests {
+				if testProfile.Connection == "" {
+					testProfile.Connection = profile.Connection
+				}
+				testProfile.Stage = profile.Stage
+			}
+			stage.Models = append(stage.Models, profile)
+		}
+
+		fmt.Printf("Stage %s: merged %d profiles\n", stage.Name, len(stage.Models))
+	}
+}
+
+// mergeModelProfiles merges two profiles with priority given to the primary profile (from YAML)
+// Returns a new profile with merged values
+func mergeModelProfiles(primary, secondary *configs.ModelProfile) *configs.ModelProfile {
+	merged := &configs.ModelProfile{
+		Name:  primary.Name,
+		Stage: primary.Stage,
+	}
+
+	// Merge Description - primary has priority if not empty
+	if primary.Description != "" {
+		merged.Description = primary.Description
+	} else {
+		merged.Description = secondary.Description
+	}
+
+	// Merge Connection - primary has priority if not empty
+	if primary.Connection != "" {
+		merged.Connection = primary.Connection
+	} else {
+		merged.Connection = secondary.Connection
+	}
+
+	// Merge Materialization - primary has priority if not empty
+	if primary.Materialization != "" {
+		merged.Materialization = primary.Materialization
+	} else {
+		merged.Materialization = secondary.Materialization
+	}
+
+	// Merge PrimaryKeyFields - primary has priority if not empty
+	if len(primary.PrimaryKeyFields) > 0 {
+		merged.PrimaryKeyFields = primary.PrimaryKeyFields
+	} else {
+		merged.PrimaryKeyFields = secondary.PrimaryKeyFields
+	}
+
+	// Merge Indexes - primary has priority if not empty
+	if len(primary.Indexes) > 0 {
+		merged.Indexes = primary.Indexes
+	} else {
+		merged.Indexes = secondary.Indexes
+	}
+
+	// Merge Tests - primary has priority if not empty
+	if len(primary.Tests) > 0 {
+		merged.Tests = primary.Tests
+	} else {
+		merged.Tests = secondary.Tests
+	}
+
+	// Merge RawUpstreams - primary has priority if not empty
+	if len(primary.RawUpstreams) > 0 {
+		merged.RawUpstreams = primary.RawUpstreams
+	} else {
+		merged.RawUpstreams = secondary.RawUpstreams
+	}
+
+	// Merge boolean fields - true takes priority
+	merged.IsDataFramed = primary.IsDataFramed || secondary.IsDataFramed
+	merged.PersistInputs = primary.PersistInputs || secondary.PersistInputs
+
+	return merged
+}
+
+// applyDefaultsToProfile applies default values to empty fields
+func applyDefaultsToProfile(profile *configs.ModelProfile, defaultConnection string) {
+	if profile.Connection == "" {
+		profile.Connection = defaultConnection
+	}
+	if profile.Materialization == "" {
+		profile.Materialization = configs.MAT_TABLE
 	}
 }

@@ -26,8 +26,10 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	}
 
 	var generatorsList []generators.Generator = []generators.Generator{
-		generators.InitGenMain(config, projectProfile),
+		generators.InitGenMain(config, projectProfile),    // Production main.go
+		generators.InitGenMainUI(config, projectProfile),  // UI debugging main.go
 		generators.InitGenGoMod(config, projectProfile),
+		generators.InitGenMakefile(config, projectProfile), // Makefile
 	}
 
 	services.CombineProfiles(config, projectProfile)
@@ -73,6 +75,7 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 
 	generatorsList = append(generatorsList, generators.InitGenAssetsConfig(config, projectProfile, modelConfigs, priorityGroups))
 	generatorsList = append(generatorsList, generators.InitGenGraph(config, projectProfile, modelConfigs))
+	generatorsList = append(generatorsList, generators.InitGenReadme(config, projectProfile, modelConfigs))
 	generatorsList = append(generatorsList, generators.InitGenTestConfig(config, projectProfile, testConfigs))
 
 	fmt.Printf("Files %d\n", len(generatorsList))

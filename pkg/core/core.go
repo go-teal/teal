@@ -43,7 +43,9 @@ func (c *Core) Init(configFileName string, projectPath string) {
 
 	c.Config = config
 	c.Profile = profile
+}
 
+func (c *Core) ConnectAll() {
 	for _, connectionConfig := range c.Config.Connections {
 		preLoadEnvs(connectionConfig)
 		dbConnection, err := drivers.EstablishDBConnection(connectionConfig)
@@ -60,7 +62,25 @@ func (c *Core) Init(configFileName string, projectPath string) {
 }
 
 func (c *Core) GetDBConnection(connection string) drivers.DBDriver {
-	return c.dbConnections[connection]
+	dbConnection, exists := c.dbConnections[connection]
+	if !exists {
+		log.Error().
+			Caller().
+			Str("connection", connection).
+			Strs("available_connections", c.getAvailableConnectionNames()).
+			Msg("Database connection not found")
+		panic("database connection '" + connection + "' not found in configuration")
+	}
+	return dbConnection
+}
+
+// getAvailableConnectionNames returns list of configured connection names for error messages
+func (c *Core) getAvailableConnectionNames() []string {
+	names := make([]string, 0, len(c.dbConnections))
+	for name := range c.dbConnections {
+		names = append(names, name)
+	}
+	return names
 }
 
 func (c *Core) Shutdown() {
@@ -81,7 +101,7 @@ func preLoadEnvs(connectionConfig *configs.DBConnectionConfig) {
 			var err error
 			connectionConfig.Config.Port, err = strconv.Atoi(value)
 			if err != nil {
-				log.Error().Msgf("Error parsing port env: %s", connectionConfig.Config.PortEnv)
+				log.Error().Caller().Msgf("Error parsing port env: %s", connectionConfig.Config.PortEnv)
 				panic(err)
 			}
 		}

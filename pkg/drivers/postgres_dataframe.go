@@ -9,8 +9,19 @@ import (
 	"github.com/go-teal/gota/dataframe"
 	"github.com/go-teal/gota/series"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/zerolog/log"
 )
+
+// fieldDescriptionsToString converts array of FieldDescription to array of strings in format "FieldName->PGType"
+func fieldDescriptionsToString(fields []pgconn.FieldDescription) []string {
+	result := make([]string, len(fields))
+	for i, f := range fields {
+		pgType := pgOIDToType[int(f.DataTypeOID)]
+		result[i] = fmt.Sprintf("%s->%s", f.Name, pgType)
+	}
+	return result
+}
 
 var pgOIDToType = map[int]string{
 	16:    "bool",
@@ -122,10 +133,11 @@ var pgOIDToType = map[int]string{
 func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, error) {
 	rows, err := d.db.Query(context.Background(), sqlQuery)
 	if err != nil {
-		log.Error().Stack().Err(err).Msg(sqlQuery)
+		log.Error().Caller().Stack().Err(err).Str("sql", sqlQuery).Msg("Failed to execute SQL query")
 		return nil, err
 	}
 	columnTypes := rows.FieldDescriptions()
+	log.Debug().Any("column types", fieldDescriptionsToString(columnTypes)).Send()
 	seriesData := make([]interface{}, len(columnTypes))
 	for i, c := range columnTypes {
 		pgType := pgOIDToType[int(c.DataTypeOID)]
@@ -137,9 +149,11 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 		case "int2":
 			seriesData[i] = make([]int, 0)
 		case "int4":
-			seriesData[i] = make([]int, 0)
+			seriesData[i] = make([]int32, 0)
+		case "int8":
+			seriesData[i] = make([]int64, 0)
 		case "bool":
-			seriesData[i] = make([]string, 0)
+			seriesData[i] = make([]bool, 0)
 		default:
 			seriesData[i] = make([]string, 0)
 			log.Warn().Str("type", pgType).Str("field", c.Name).Msg("type not implemented in Dataframe")
@@ -161,6 +175,8 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 				safeData[i] = &sql.NullInt16{}
 			case "int4":
 				safeData[i] = &sql.NullInt32{}
+			case "int8":
+				safeData[i] = &sql.NullInt64{}
 			case "bool":
 				safeData[i] = &sql.NullBool{}
 			default:
@@ -169,12 +185,13 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 		}
 		err := rows.Scan(safeData...)
 		if err != nil {
-			log.Error().Stack().Err(err).Msg("PostgreSQL Scan error")
+			log.Error().Caller().Stack().Err(err).Msg("PostgreSQL Scan error")
 			return nil, err
 		}
 
 		for i, c := range columnTypes {
 			pgType := pgOIDToType[int(c.DataTypeOID)]
+			log.Debug().Str("fieldName", c.Name).Str("type", pgType).Msg("serializing")
 			switch pgType {
 
 			case "varchar", "text":
@@ -195,9 +212,14 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 				sd = append(sd, int(val.Int16))
 				seriesData[i] = sd
 			case "int4":
-				sd := seriesData[i].([]int)
+				sd := seriesData[i].([]int32)
 				val := safeData[i].(*sql.NullInt32)
-				sd = append(sd, int(val.Int32))
+				sd = append(sd, int32(val.Int32))
+				seriesData[i] = sd
+			case "int8":
+				sd := seriesData[i].([]int64)
+				val := safeData[i].(*sql.NullInt64)
+				sd = append(sd, int64(val.Int64))
 				seriesData[i] = sd
 			case "bool":
 				sd := seriesData[i].([]bool)
@@ -223,8 +245,10 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 			dFseries[i] = series.New(seriesData[i], series.Float, c.Name)
 		case "int2", "int4":
 			dFseries[i] = series.New(seriesData[i], series.Int, c.Name)
+		case "int8":
+			dFseries[i] = series.New(seriesData[i], series.Int, c.Name)
 		case "bool":
-			dFseries[i] = series.New(seriesData[i], series.String, c.Name)
+			dFseries[i] = series.New(seriesData[i], series.Bool, c.Name)
 		default:
 			log.Warn().Str("type", pgType).Str("field", c.Name).Msg("type not implemented")
 			dFseries[i] = series.New(seriesData[i], series.String, c.Name)
@@ -269,24 +293,24 @@ func (d *PostgresDBEngine) PersistDataFrame(tx interface{}, name string, df *dat
 			case series.Int:
 				val, err := df.Elem(rowIdx, colIdx).Int()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Int()")
 					return err
 				}
 				vals[colIdx] = fmt.Sprintf("%d", val)
 			case series.Bool:
 				val, err := df.Elem(rowIdx, colIdx).Bool()
 				if err != nil {
-					log.Error().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
+					log.Error().Caller().Stack().Err(err).Msg("val, err := df.Elem(rowIdx, colIdx).Bool()")
 					return err
 				}
-				vals[colIdx] = fmt.Sprintf("%t, ", val)
+				vals[colIdx] = fmt.Sprintf("%t", val)
 			default:
 				return fmt.Errorf("type %s not implemented", colType)
 			}
 		}
 		query += fmt.Sprintf("insert into %s(%s) values(%s);\n", name, strings.Join(colNames, ", "), strings.Join(vals, ", "))
 	}
-	log.Debug().Msg(query)
+	log.Debug().Str("sql", query).Str("name", name).Msg("query for the dataframe persistence")
 	_, err := tx.(pgx.Tx).Exec(context.Background(), query)
 	return err
 }

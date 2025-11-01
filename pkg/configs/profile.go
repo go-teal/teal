@@ -20,23 +20,11 @@ type ProjectProfile struct {
 			Models []*ModelProfile `yaml:"models"`
 		} `yaml:"stages"`
 	} `yaml:"models"`
-	Sources []SourceProfile `yaml:"sources"`
-}
-
-type SourceProfile struct {
-	Name       string   `yaml:"name"`
-	Connection string   `yaml:"connection"`
-	Type       string   `yaml:"type"`
-	ReadOnly   bool     `yaml:"read_only"`
-	Tables     []string `yaml:"tables"`
-	Params     []struct {
-		Name  string `yaml:"name"`
-		Value string `yaml:"value"`
-	} `yaml:"params"`
 }
 
 type ModelProfile struct {
 	Name             string         `yaml:"name"`
+	Description      string         `yaml:"description"`
 	Connection       string         `yaml:"connection"`
 	Materialization  MatType        `yaml:"materialization"`
 	PrimaryKeyFields []string       `yaml:"primary_key_fields"`
@@ -55,9 +43,10 @@ type DBIndex struct {
 }
 
 type TestProfile struct {
-	Name       string `yaml:"name"`
-	Connection string `yaml:"connection"`
-	Stage      string `yaml:"-"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Connection  string `yaml:"connection"`
+	Stage       string `yaml:"-"`
 }
 
 func (mp *ModelProfile) GetTempName() string {

@@ -1,11 +1,11 @@
 package generators
 
 import (
-	"bytes"
 	_ "embed"
+	"encoding/base64"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
@@ -48,13 +48,38 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
 
-	goTempl, err := template.New(g.GetFileName()).Parse(dwhModelTemplate)
+	// Base64 encode the description to avoid issues with special characters in templates
+	if g.modelConfig.ModelProfile != nil && g.modelConfig.ModelProfile.Description != "" {
+		encoded := base64.StdEncoding.EncodeToString([]byte(g.modelConfig.ModelProfile.Description))
+		g.modelConfig.ModelProfile.Description = encoded
+	}
+
+	goTempl, err := pongo2.FromString(dwhModelTemplate)
 	if err != nil {
 		return err
 	}
-	var goByteBuffer bytes.Buffer
+
 	g.modelConfig.ModelFieldsFunc = "{{ ModelFields }}"
-	err = goTempl.Execute(&goByteBuffer, g.modelConfig)
+
+	// Extract materialization for easier template access
+	var materialization string
+	if g.modelConfig.ModelProfile != nil {
+		materialization = string(g.modelConfig.ModelProfile.Materialization)
+	}
+
+	output, err := goTempl.Execute(pongo2.Context{
+		"ModelName":            g.modelConfig.ModelName,
+		"GoName":               g.modelConfig.GoName,
+		"NameUpperCase":        g.modelConfig.NameUpperCase,
+		"SqlByteBuffer":        g.modelConfig.SqlByteBuffer.String(),
+		"ModelFieldsFunc":      g.modelConfig.ModelFieldsFunc,
+		"ModelProfile":         g.modelConfig.ModelProfile,
+		"Materialization":      materialization,
+		"PrimaryKeyExpression": g.modelConfig.PrimaryKeyExpression,
+		"Indexes":              g.modelConfig.Indexes,
+		"Upstreams":            g.modelConfig.Upstreams,
+		"Downstreams":          g.modelConfig.Downstreams,
+	})
 	if err != nil {
 		return err
 	}
@@ -67,6 +92,6 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 
 	defer file.Close()
 
-	_, err = file.Write(goByteBuffer.Bytes())
+	_, err = file.WriteString(output)
 	return err
 }

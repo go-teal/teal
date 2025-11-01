@@ -1,11 +1,11 @@
 package generators
 
 import (
-	"bytes"
 	_ "embed"
+	"encoding/base64"
 	"os"
-	"text/template"
 
+	pongo2 "github.com/flosch/pongo2/v6"
 	internalmodels "github.com/go-teal/teal/internal/domain/internal_models"
 	"github.com/go-teal/teal/internal/domain/utils"
 	"github.com/go-teal/teal/pkg/configs"
@@ -35,12 +35,24 @@ func (g *GenSQLModelTest) RenderToFile() error {
 	dirName := g.config.ProjectPath + "/internal/model_tests/"
 	utils.CreateDir(dirName)
 
-	goTempl, err := template.New(g.GetFileName()).Parse(dwhModelTestTemplate)
+	// Base64 encode the description to avoid issues with special characters in templates
+	if g.testConfig.TestProfile != nil && g.testConfig.TestProfile.Description != "" {
+		encoded := base64.StdEncoding.EncodeToString([]byte(g.testConfig.TestProfile.Description))
+		g.testConfig.TestProfile.Description = encoded
+	}
+
+	goTempl, err := pongo2.FromString(dwhModelTestTemplate)
 	if err != nil {
 		return err
 	}
-	var goByteBuffer bytes.Buffer
-	err = goTempl.Execute(&goByteBuffer, g.testConfig)
+
+	output, err := goTempl.Execute(pongo2.Context{
+		"TestName":      g.testConfig.TestName,
+		"GoName":        g.testConfig.GoName,
+		"NameUpperCase": g.testConfig.NameUpperCase,
+		"SqlByteBuffer": g.testConfig.SqlByteBuffer.String(),
+		"TestProfile":   g.testConfig.TestProfile,
+	})
 	if err != nil {
 		return err
 	}
@@ -53,7 +65,7 @@ func (g *GenSQLModelTest) RenderToFile() error {
 
 	defer file.Close()
 
-	_, err = file.Write(goByteBuffer.Bytes())
+	_, err = file.WriteString(output)
 	return err
 }
 

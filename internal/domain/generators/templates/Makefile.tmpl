@@ -1,0 +1,102 @@
+# Makefile for {{ ProjectProfile.Name }}
+
+# Variables
+PROJECT_NAME = {{ ProjectProfile.Name }}
+BIN_DIR = bin
+MAIN_DIR = cmd/$(PROJECT_NAME)
+MAIN_UI_DIR = cmd/$(PROJECT_NAME)-ui
+
+# Go build flags
+GO_BUILD_FLAGS = -v
+
+# Default target
+.PHONY: all
+all: build
+
+# Build production binary
+.PHONY: build
+build:
+	@echo "Building production binary..."
+	go build $(GO_BUILD_FLAGS) -o $(BIN_DIR)/$(PROJECT_NAME) ./$(MAIN_DIR)/$(PROJECT_NAME).go
+
+# Build UI debug binary
+.PHONY: build-ui
+build-ui:
+	@echo "Building UI debug binary..."
+	go build $(GO_BUILD_FLAGS) -o $(BIN_DIR)/$(PROJECT_NAME)-ui ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go
+
+# Run UI debug server (regenerate assets first)
+.PHONY: run
+run:
+	@echo "Generating assets..."
+	teal gen
+	@echo "Running UI debug server on port $(or $(PORT),8080)..."
+	go run ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go --port $(or $(PORT),8080)
+
+
+# Run with tests
+.PHONY: run-with-tests
+run-with-tests: build
+	@echo "Running with tests..."
+	./$(BIN_DIR)/$(PROJECT_NAME) --with-tests
+
+# Install dependencies
+.PHONY: deps
+deps:
+	@echo "Installing dependencies..."
+	go mod download
+	go mod tidy
+
+# Run tests
+.PHONY: test
+test:
+	@echo "Running tests..."
+	go test ./...
+
+# Clean build artifacts
+.PHONY: clean
+clean:
+	@echo "Cleaning build artifacts..."
+	rm -rf $(BIN_DIR)
+
+# Generate assets using teal
+.PHONY: gen
+gen:
+	@echo "Generating assets..."
+	teal gen
+
+# Clean generated files using teal
+.PHONY: clean-gen
+clean-gen:
+	@echo "Cleaning generated files..."
+	teal clean
+
+# Format code
+.PHONY: fmt
+fmt:
+	@echo "Formatting code..."
+	go fmt ./...
+
+# Lint code
+.PHONY: lint
+lint:
+	@echo "Linting code..."
+	golangci-lint run
+
+# Help target
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  make build        - Build production binary"
+	@echo "  make build-ui     - Build UI debug binary"
+	@echo "  make run          - Generate assets and run UI debug server (default port 8080)"
+	@echo "  make run PORT=9090 - Generate assets and run UI debug server on custom port"
+	@echo "  make run-with-tests - Run with test execution"
+	@echo "  make deps         - Install dependencies"
+	@echo "  make test         - Run tests"
+	@echo "  make clean        - Clean build artifacts"
+	@echo "  make gen          - Generate assets using teal"
+	@echo "  make clean-gen    - Clean generated files"
+	@echo "  make fmt          - Format code"
+	@echo "  make lint         - Lint code"
+	@echo "  make help         - Show this help message"

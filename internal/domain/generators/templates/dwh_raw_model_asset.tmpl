@@ -1,38 +1,39 @@
 package assets
 
-import (	
+import (
 	"github.com/go-teal/teal/pkg/models"
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/go-teal/teal/pkg/processing"
 )
 
-var {{ .GoName }}ModelDescriptor = &models.RawModelDescriptor{
-	Name: 				"{{ .ModelName }}",
+var {{ GoName }}ModelDescriptor = &models.RawModelDescriptor{
+	Name: 				"{{ ModelName }}",
 	Upstreams: []string {
-{{- range .Upstreams}}
-		"{{ . }}",
-{{- end }}
+{% for upstream in Upstreams %}
+		"{{ upstream }}",
+{% endfor %}
 	},
 	Downstreams: []string {
-{{- range .Downstreams}}
-		"{{ . }}",
-{{- end }}
+{% for downstream in Downstreams %}
+		"{{ downstream }}",
+{% endfor %}
 	},
 	ModelProfile:  &configs.ModelProfile{
-		Name: 				"{{ .ModelProfile.Name }}",
-		Stage: 				"{{ .ModelProfile.Stage }}",
-		Connection: 		"{{ .ModelProfile.Connection }}",
-		Materialization: 	"{{ .ModelProfile.Materialization }}",
-		IsDataFramed: 		{{ .ModelProfile.IsDataFramed }},
-		PersistInputs: 		{{ .ModelProfile.PersistInputs }},
+		Name: 				"{{ ModelProfile.Name }}",
+		Description: 		`{{ ModelProfile.Description }}`,
+		Stage: 				"{{ ModelProfile.Stage }}",
+		Connection: 		"{{ ModelProfile.Connection }}",
+		Materialization: 	"{{ ModelProfile.Materialization }}",
+		IsDataFramed: 		{{ ModelProfile.IsDataFramed|lower }},
+		PersistInputs: 		{{ ModelProfile.PersistInputs|lower }},
 		Tests: []*configs.TestProfile {
-{{- range .ModelProfile.Tests}}
+{% for test in ModelProfile.Tests %}
 			{
-				Name: 			"{{ .Name }}",		
+				Name: 			"{{ test.Name }}",
 			},
-{{- end }}
+{% endfor %}
 		},
 	},
 }
 
-var {{ .GoName }}Asset processing.Asset = processing.InitRawModelAsset({{ .GoName }}ModelDescriptor)
+var {{ GoName }}Asset processing.Asset = processing.InitRawModelAsset({{ GoName }}ModelDescriptor)

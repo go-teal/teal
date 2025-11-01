@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type ExecutorFunc func(input map[string]interface{}, modelProfile *configs.ModelProfile) (interface{}, error)
+type ExecutorFunc func(ctx *TaskContext, modelProfile *configs.ModelProfile) (interface{}, error)
 
 // GO singletone
 type GlobalExecutors struct {
@@ -34,9 +34,9 @@ type RawModelAsset struct {
 }
 
 // Execute implements Asset.
-func (r *RawModelAsset) Execute(input map[string]interface{}) (interface{}, error) {
+func (r *RawModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 	if f, ok := GetExecutors().Execurots[r.descriptor.Name]; ok {
-		return f(input, r.descriptor.ModelProfile)
+		return f(ctx, r.descriptor.ModelProfile)
 	} else {
 		return nil, fmt.Errorf("executor %v is not registered", r.descriptor.Name)
 	}
@@ -53,14 +53,20 @@ func (r *RawModelAsset) GetName() string {
 	return r.descriptor.Name
 }
 
+// GetDescriptor implements Asset.
+func (r *RawModelAsset) GetDescriptor() any {
+	return r.descriptor
+}
+
 // GetUpstreams implements Asset.
 func (r *RawModelAsset) GetUpstreams() []string {
 	return r.descriptor.Upstreams
 }
 
 // RunTests implements Asset.
-func (r *RawModelAsset) RunTests(testsMap map[string]ModelTesting) {
-	log.Warn().Msg("Raw Model Asset does not support tests")
+func (r *RawModelAsset) RunTests(ctx *TaskContext, testsMap map[string]ModelTesting) []TestResult {
+	log.Warn().Str("taskId", ctx.TaskID).Str("taskUUID", ctx.TaskUUID).Msg("Raw Model Asset does not support tests")
+	return []TestResult{}
 }
 
 func InitRawModelAsset(descriptor *models.RawModelDescriptor) Asset {

@@ -69,11 +69,11 @@ func InitSQLModelConfigs(config *configs.Config, profiles *configs.ProjectProfil
 					panic(err)
 				}
 
-				var sqlByteBuffer bytes.Buffer
-				err = modelFileFinalTemplate.Execute(&sqlByteBuffer, nil)
+				sqlString, err := modelFileFinalTemplate.Execute(nil)
 				if err != nil {
 					return nil, err
 				}
+				sqlByteBuffer := *bytes.NewBufferString(sqlString)
 
 				data := &internalmodels.ModelConfig{
 					ModelName:     refName,
