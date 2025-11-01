@@ -29,9 +29,11 @@
 {{ end }}
 
 -- Test for duplicate route keys
-select 
-    route_key, 
-    count(*) as duplicate_count 
-from {{ Ref("dds.dim_routes") }} 
-group by route_key 
-having count(*) > 1
+-- HAVING is part of the duplicate-finding logic
+-- Framework automatically wraps this with COUNT(*) check
+SELECT
+    route_key,
+    COUNT(*) as duplicate_count
+FROM {{ Ref("dds.dim_routes") }}
+GROUP BY route_key
+HAVING COUNT(*) > 1

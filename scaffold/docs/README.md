@@ -54,7 +54,7 @@ The project contains data models organized by stages:
   - Connection: `default`
   - Depends on: , `staging.stg_airports`
   - Used by: , `mart.mart_airport_statistics`, `mart.mart_flight_performance`
-  - Tests: 1 test(s)
+  - Tests: 2 test(s)
 
 - **dds.dim_employees** (table)
   - Connection: `default`

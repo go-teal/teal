@@ -25,8 +25,8 @@ select
     latitude,
     longitude,
     timezone,
-    '{ TaskID }' as task_id,
-    '{ TaskUUID }' as task_uuid
+    '{{ TaskID }}' as task_id,
+    '{{ TaskUUID }}' as task_uuid
 from read_csv('store/airports.csv',
     delim = ',',
     header = true,

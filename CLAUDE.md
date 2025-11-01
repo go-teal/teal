@@ -69,7 +69,7 @@ Teal is a Go-based ETL tool that generates Go code from SQL models, creating dat
 5. **Processing Layer (`pkg/processing/`)**:
    - **SQL Assets**: Table, incremental, view, and custom materializations
    - **Raw Assets**: Custom Go functions implementing `ExecutorFunc` interface
-   - **Testing**: Simple SQL-based tests that pass when returning zero rows
+   - **Testing**: SQL-based tests that pass when returning zero rows. Test queries are automatically wrapped with `SELECT COUNT(*) ... HAVING count > 0 LIMIT 1` during code generation - users write only the constraint-checking SQL
 
 ### Project Structure After Generation
 
@@ -119,12 +119,13 @@ This dual-generation approach ensures:
 
 ### Key Concepts
 
-- **Template Engine**: Uses pongo2/v6 (Django-compatible template syntax)
-- **Ref Function**: Template function `{{ Ref "stage.model" }}` creates DAG dependencies
+- **Template Engine**: Uses pongo2/v6 (Django-compatible template syntax with `{{ }}` and `{% %}`)
+- **Ref Function**: `{{ Ref("stage.model") }}` creates DAG dependencies and is resolved at generation-time
+- **this Function**: `{{ this() }}` returns current model name and is resolved at generation-time
+- **Runtime Variables**: `{{ TaskID }}`, `{{ TaskUUID }}`, `{{ ENV(...) }}` are evaluated during DAG execution
 - **Materializations**: table, incremental, view, custom, raw
 - **Cross-DB References**: Models can consume data from different database connections using dataframes
 - **Model Profiles**: Configuration embedded in SQL files or profile.yaml
-- **Static vs Dynamic Templates**: `{{ }}` for generation-time, `{ }` for runtime execution
 - **Graph Visualization**: Generates Mermaid (.mmd) diagrams for DAG visualization
 
 ### Template System
@@ -226,9 +227,40 @@ go run cmd/<project-name>-ui/<project-name>-ui.go --port 9090
 - `GET  /api/dag/tasks` - List all task executions
 - `POST /api/dag/reset` - Clear execution history
 
-#### Test Operations  
+#### Test Operations
 - `GET  /api/tests` - Get all test profiles (returns name, SQL, connectionName, connectionType)
-- `GET  /api/tests/:taskId` - Get test execution results for specific task
+- `GET  /api/tests/results/:taskId` - Get test execution results for specific task
+- `POST /api/tests/execute/:testName` - Execute individual test query independently
+  - Request body: `{"taskId": "task_123"}`
+  - Response:
+    ```json
+    {
+      "testName": "dds.test_dim_airports_unique",
+      "taskId": "task_123",
+      "status": "SUCCESS|FAILED",
+      "rowCount": 0,
+      "errorMsg": "",
+      "durationMs": 45,
+      "executedAt": "2024-01-01T12:00:00Z"
+    }
+    ```
+  - Test success logic: 0 rows = SUCCESS (no constraint violations), >0 rows = FAILED (violations found)
+- `GET  /api/tests/data/:testName?taskId=task_123` - Get test execution data for specific task
+  - Response includes actual query results (rows that failed the test):
+    ```json
+    {
+      "testName": "dds.test_dim_airports_unique",
+      "taskId": "task_123",
+      "status": "SUCCESS|FAILED",
+      "rowCount": 2,
+      "data": [
+        {"airport_id": 1, "count": 2},
+        {"airport_id": 5, "count": 3}
+      ],
+      "executedAt": "2024-01-01T12:00:00Z"
+    }
+    ```
+  - Returns 404 if test hasn't been executed for this taskId
 
 #### Asset Operations
 - `POST /api/dag/asset/:name/execute` - Execute specific asset
@@ -348,6 +380,12 @@ Assets can then reference these connections and data flows seamlessly between th
 - When implementing new database drivers, ensure proper DataFrame serialization for cross-database compatibility
 - Database drivers are initialized once and reused throughout the DAG execution
 
+### Testing
+- Write test SQL to return rows that violate constraints (test passes if 0 rows, fails if >0 rows)
+- Do NOT add `LIMIT 1` or `HAVING test_count > 0` - the code generator automatically wraps test queries with `SELECT COUNT(*) ... HAVING count > 0 LIMIT 1`
+- Test template: `internal/domain/generators/templates/dwh_sql_model_test.tmpl`
+- Generated tests create two SQL constants: `RAW_SQL_*` (user's query) and `COUNT_TEST_SQL_*` (wrapped version)
+
 ### Template Engine (pongo2)
 - All templates use pongo2/v6 (Django-compatible syntax)
 - Cannot access fields on pointer structs directly in templates - extract to variables first
@@ -356,7 +394,8 @@ Assets can then reference these connections and data flows seamlessly between th
   - `MergePongo2Context()` - Merges multiple pongo2 contexts
   - `FromTaskContextPongo2()` - Converts task context to pongo2 context
   - `FromConnectionContext()` - Database connection context (returns pongo2.Context)
-- Generation-time vs runtime: `{{ Ref() }}` is evaluated during `teal gen`, `{ TaskID }` at runtime
+- Generation-time evaluation: `{{ Ref("stage.model") }}` and `{{ this() }}` are evaluated during `teal gen`
+- Runtime evaluation: `{{ TaskID }}`, `{{ TaskUUID }}`, `{{ ENV(...) }}`, and control structures are evaluated during execution
 - Use `|safe` filter for SQL to prevent HTML escaping
 - Whitespace control: `{%- endif -%}` removes surrounding blank lines
 

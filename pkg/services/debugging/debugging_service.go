@@ -19,19 +19,21 @@ import (
 )
 
 type DebuggingService struct {
-	dag          *dags.DebugDag
-	taskHistory  map[string]DagExecutionResponseDTO            // Store execution results by taskId
-	testHistory  map[string][]TestProfileDTO                   // Store test results by taskId
-	assetHistory map[string]map[string]AssetExecuteResponseDTO // Store asset execution results by taskId -> assetName
-	mu           sync.RWMutex                                  // Mutex for thread-safe access to taskHistory
+	dag                   *dags.DebugDag
+	taskHistory           map[string]DagExecutionResponseDTO              // Store execution results by taskId
+	testHistory           map[string][]TestProfileDTO                     // Store test results by taskId
+	assetHistory          map[string]map[string]AssetExecuteResponseDTO   // Store asset execution results by taskId -> assetName
+	testExecutionHistory  map[string]map[string]*TestExecuteResponseDTO   // Store test execution results by taskId -> testName
+	mu                    sync.RWMutex                                    // Mutex for thread-safe access to taskHistory
 }
 
 func NewDebuggingService(dag *dags.DebugDag) *DebuggingService {
 	return &DebuggingService{
-		dag:          dag,
-		taskHistory:  make(map[string]DagExecutionResponseDTO),
-		testHistory:  make(map[string][]TestProfileDTO),
-		assetHistory: make(map[string]map[string]AssetExecuteResponseDTO),
+		dag:                  dag,
+		taskHistory:          make(map[string]DagExecutionResponseDTO),
+		testHistory:          make(map[string][]TestProfileDTO),
+		assetHistory:         make(map[string]map[string]AssetExecuteResponseDTO),
+		testExecutionHistory: make(map[string]map[string]*TestExecuteResponseDTO),
 	}
 }
 
@@ -615,6 +617,7 @@ func (s *DebuggingService) ResetDagState() error {
 	s.taskHistory = make(map[string]DagExecutionResponseDTO)
 	s.assetHistory = make(map[string]map[string]AssetExecuteResponseDTO)
 	s.testHistory = make(map[string][]TestProfileDTO)
+	s.testExecutionHistory = make(map[string]map[string]*TestExecuteResponseDTO)
 	s.mu.Unlock()
 
 	if s.dag == nil {
@@ -1139,7 +1142,7 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			if err != nil {
 				log.Error().Caller().
 					Str("taskId", taskId).
-					Str("asset", assetName).
+					Str("assetName", assetName).
 					Str("sql", sqlModelDesc.RawSQL).
 					Err(err).
 					Msg("Failed to parse SQL template")
@@ -1149,14 +1152,27 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 				return
 			}
 
+			// Get or create TaskUUID from DAG
+			taskUUID := s.dag.GetOrCreateTaskUUID(taskId)
+
+			// Create full task context for template rendering
+			taskContext := &processing.TaskContext{
+				TaskID:       taskId,
+				TaskUUID:     taskUUID,
+				InstanceName: s.dag.DagInstanceName,
+				InstanceUUID: s.dag.DagInstanceUUID,
+				Input:        make(map[string]interface{}),
+			}
+
 			context := processing.MergePongo2Context(
+				processing.FromTaskContextPongo2(taskContext),
 				processing.FromConnectionContext(dbConnection, nil, sqlModelDesc.Name, templateFuncs),
 			)
 			renderedSQL, err := sqlTemplate.Execute(context)
 			if err != nil {
 				log.Error().Caller().
 					Str("taskId", taskId).
-					Str("asset", assetName).
+					Str("assetName", assetName).
 					Str("sql", renderedSQL).
 					Err(err).
 					Msg("Failed to render SQL template")
@@ -1168,7 +1184,8 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 
 			log.Debug().
 				Str("taskId", taskId).
-				Str("asset", assetName).
+				Str("taskUUID", taskUUID).
+				Str("assetName", assetName).
 				Str("sql", renderedSQL).
 				Msg("Executing SQL select query")
 
@@ -1183,7 +1200,8 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			if err != nil {
 				log.Error().Caller().
 					Str("taskId", taskId).
-					Str("asset", assetName).
+					Str("taskUUID", taskUUID).
+					Str("assetName", assetName).
 					Str("sql", renderedSQL).
 					Int64("durationMs", execResponse.ExecutionTimeMs).
 					Err(err).
@@ -1197,7 +1215,8 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			if df == nil {
 				log.Error().Caller().
 					Str("taskId", taskId).
-					Str("asset", assetName).
+					Str("taskUUID", taskUUID).
+					Str("assetName", assetName).
 					Str("sql", renderedSQL).
 					Int64("durationMs", execResponse.ExecutionTimeMs).
 					Msg("Query returned nil DataFrame")
@@ -1209,7 +1228,8 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 
 			log.Debug().
 				Str("taskId", taskId).
-				Str("asset", assetName).
+				Str("taskUUID", taskUUID).
+				Str("assetName", assetName).
 				Str("sql", renderedSQL).
 				Int64("durationMs", execResponse.ExecutionTimeMs).
 				Msg("SQL query executed successfully")
@@ -1312,6 +1332,271 @@ func (s *DebuggingService) GetConnectionStatus() ConnectionStatusResponseDTO {
 			}
 
 			response.Connections = append(response.Connections, connDTO)
+		}
+	}
+
+	return response
+}
+
+// ExecuteTest executes a single test query and stores the result
+// Test succeeds (status: SUCCESS) if query returns ZERO rows
+// Test fails (status: FAILED) if query returns ONE OR MORE rows
+func (s *DebuggingService) ExecuteTest(testName, taskId string) <-chan TestExecuteResponseDTO {
+	responseChan := make(chan TestExecuteResponseDTO, 1)
+
+	go func() {
+		defer close(responseChan)
+
+		startTime := time.Now()
+		response := TestExecuteResponseDTO{
+			TestName:   testName,
+			TaskId:     taskId,
+			Status:     "FAILED",
+			ExecutedAt: startTime.Format(time.RFC3339),
+		}
+
+		// Validate DAG
+		if s.dag == nil {
+			response.ErrorMsg = "DAG not initialized"
+			responseChan <- response
+			return
+		}
+
+		// Check if DAG is connected to databases
+		if !s.dag.IsConnected() {
+			response.ErrorMsg = "Database connections not established. Please connect to databases first using POST /api/dag/connect"
+			responseChan <- response
+			return
+		}
+
+		// Get test from DAG
+		testAsset, exists := s.dag.TestsMap[testName]
+		if !exists {
+			response.ErrorMsg = fmt.Sprintf("Test '%s' not found", testName)
+			responseChan <- response
+			return
+		}
+
+		// Get test descriptor
+		descriptor := testAsset.GetDescriptor()
+		sqlTestDesc, ok := descriptor.(*models.SQLModelTestDescriptor)
+		if !ok {
+			response.ErrorMsg = "Test is not a SQL test"
+			responseChan <- response
+			return
+		}
+
+		// Decode and set description
+		if sqlTestDesc.TestProfile != nil && sqlTestDesc.TestProfile.Description != "" {
+			decoded, err := base64.StdEncoding.DecodeString(sqlTestDesc.TestProfile.Description)
+			if err == nil {
+				response.Description = string(decoded)
+			} else {
+				// Fall back to raw description if decode fails
+				response.Description = sqlTestDesc.TestProfile.Description
+			}
+		}
+
+		// Get connection
+		connectionName := "default"
+		if sqlTestDesc.TestProfile != nil && sqlTestDesc.TestProfile.Connection != "" {
+			connectionName = sqlTestDesc.TestProfile.Connection
+		}
+
+		dbConnection := core.GetInstance().GetDBConnection(connectionName)
+		if dbConnection == nil {
+			response.ErrorMsg = fmt.Sprintf("Connection '%s' not found", connectionName)
+			responseChan <- response
+			return
+		}
+
+		// Render SQL template
+		sqlTemplate, err := pongo2.FromString(sqlTestDesc.RawSQL)
+		if err != nil {
+			response.ErrorMsg = fmt.Sprintf("Failed to parse SQL template: %v", err)
+			responseChan <- response
+			return
+		}
+
+		// Get or create TaskUUID from DAG
+		taskUUID := s.dag.GetOrCreateTaskUUID(taskId)
+
+		// Create full task context for template rendering
+		taskContext := &processing.TaskContext{
+			TaskID:       taskId,
+			TaskUUID:     taskUUID,
+			InstanceName: s.dag.DagInstanceName,
+			InstanceUUID: s.dag.DagInstanceUUID,
+			Input:        make(map[string]interface{}),
+		}
+
+		// Build template context with all functions accessible
+		context := processing.MergePongo2Context(
+			processing.FromTaskContextPongo2(taskContext),
+			processing.FromConnectionContext(dbConnection, nil, testName, pongo2.Context{}),
+		)
+
+		renderedSQL, err := sqlTemplate.Execute(context)
+		if err != nil {
+			response.ErrorMsg = fmt.Sprintf("Failed to render SQL template: %v", err)
+			responseChan <- response
+			return
+		}
+
+		log.Debug().
+			Str("taskId", taskId).
+			Str("taskUUID", taskUUID).
+			Str("testName", testName).
+			Str("sql", renderedSQL).
+			Msg("Executing test query")
+
+		// Execute test query as DataFrame to get rows
+		df, err := dbConnection.ToDataFrame(renderedSQL)
+
+		endTime := time.Now()
+		response.DurationMs = endTime.Sub(startTime).Milliseconds()
+
+		if err != nil {
+			log.Error().Caller().
+				Str("taskId", taskId).
+				Str("taskUUID", taskUUID).
+				Str("testName", testName).
+				Str("sql", renderedSQL).
+				Int64("durationMs", response.DurationMs).
+				Err(err).
+				Msg("Failed to execute test query")
+			response.ErrorMsg = fmt.Sprintf("Failed to execute query: %v", err)
+			responseChan <- response
+			return
+		}
+
+		if df == nil {
+			response.ErrorMsg = "Query returned nil DataFrame"
+			responseChan <- response
+			return
+		}
+
+		// Get row count
+		rowCount := df.Nrow()
+		response.RowCount = rowCount
+
+		// Determine test status: 0 rows = SUCCESS, >0 rows = FAILED
+		if rowCount == 0 {
+			response.Status = "SUCCESS"
+			log.Debug().
+				Str("taskId", taskId).
+				Str("taskUUID", taskUUID).
+				Str("testName", testName).
+				Int64("durationMs", response.DurationMs).
+				Msg("Test passed (0 rows returned)")
+		} else {
+			response.Status = "FAILED"
+			log.Warn().
+				Str("taskId", taskId).
+				Str("taskUUID", taskUUID).
+				Str("testName", testName).
+				Int("rowCount", rowCount).
+				Int64("durationMs", response.DurationMs).
+				Msg("Test failed (constraint violations found)")
+		}
+
+		// Store test result with data for retrieval
+		s.mu.Lock()
+		if s.testExecutionHistory[taskId] == nil {
+			s.testExecutionHistory[taskId] = make(map[string]*TestExecuteResponseDTO)
+		}
+
+		// Store response for later retrieval
+		storedResponse := &TestExecuteResponseDTO{
+			TestName:    testName,
+			Description: response.Description,
+			TaskId:      taskId,
+			Status:      response.Status,
+			RowCount:    rowCount,
+			ErrorMsg:    response.ErrorMsg,
+			DurationMs:  response.DurationMs,
+			ExecutedAt:  response.ExecutedAt,
+		}
+		s.testExecutionHistory[taskId][testName] = storedResponse
+		s.mu.Unlock()
+
+		// Store the DataFrame in DebugDag test execution map for GetTestData to access
+		if s.dag != nil {
+			s.dag.StoreTestResult(taskId, testName, &dags.TestExecutionResult{
+				DataFrame:  df,
+				Status:     response.Status,
+				RowCount:   rowCount,
+				ExecutedAt: startTime,
+			})
+		}
+
+		responseChan <- response
+	}()
+
+	return responseChan
+}
+
+// GetTestData retrieves test execution data for a specific task
+func (s *DebuggingService) GetTestData(testName, taskId string) TestDataResponseDTO {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	response := TestDataResponseDTO{
+		TestName: testName,
+		TaskId:   taskId,
+		Status:   "NOT_FOUND",
+	}
+
+	// Get description from test descriptor
+	if s.dag != nil && s.dag.TestsMap != nil {
+		if testAsset, exists := s.dag.TestsMap[testName]; exists {
+			descriptor := testAsset.GetDescriptor()
+			if sqlTestDesc, ok := descriptor.(*models.SQLModelTestDescriptor); ok {
+				if sqlTestDesc.TestProfile != nil && sqlTestDesc.TestProfile.Description != "" {
+					decoded, err := base64.StdEncoding.DecodeString(sqlTestDesc.TestProfile.Description)
+					if err == nil {
+						response.Description = string(decoded)
+					} else {
+						response.Description = sqlTestDesc.TestProfile.Description
+					}
+				}
+			}
+		}
+	}
+
+	// Check if we have execution result for this test
+	if taskTests, exists := s.testExecutionHistory[taskId]; exists {
+		if testResult, found := taskTests[testName]; found {
+			response.Status = testResult.Status
+			response.RowCount = testResult.RowCount
+			response.ExecutedAt = testResult.ExecutedAt
+
+			// Initialize data array (will be empty if test passed)
+			response.Data = []map[string]interface{}{}
+
+			// Try to get DataFrame from DebugDag test execution map (contains violation rows)
+			if s.dag != nil {
+				if testExecResult := s.dag.GetTestResult(taskId, testName); testExecResult != nil && testExecResult.DataFrame != nil {
+					if df, ok := testExecResult.DataFrame.(*dataframe.DataFrame); ok {
+						// Convert DataFrame to JSON-serializable format
+						records := make([]map[string]interface{}, 0, df.Nrow())
+						for i := 0; i < df.Nrow(); i++ {
+							record := make(map[string]interface{})
+							for _, colName := range df.Names() {
+								col := df.Col(colName)
+								if col.Err != nil {
+									continue
+								}
+								record[colName] = col.Elem(i).Val()
+							}
+							records = append(records, record)
+						}
+						response.Data = records
+					}
+				}
+			}
+
+			return response
 		}
 	}
 

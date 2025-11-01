@@ -43,6 +43,14 @@ type DagAssetDebugService struct {
 	EndTime               *time.Time // End time of execution
 }
 
+// TestExecutionResult stores the result of an individual test execution
+type TestExecutionResult struct {
+	DataFrame  interface{} // DataFrame containing violation rows
+	Status     string
+	RowCount   int
+	ExecutedAt time.Time
+}
+
 // DebugDag is a debug-enabled DAG implementation using pointers instead of channels
 type DebugDag struct {
 	InnerDag        DAG // Keep for compatibility but will be nil
@@ -52,13 +60,14 @@ type DebugDag struct {
 	AssetsMap       map[string]processing.Asset
 	TestsMap        map[string]processing.ModelTesting
 	Config          *configs.Config
-	NodeMap         map[string]*DagAssetDebugService // Map of asset name to debug service node
-	RootNodes       []*DagAssetDebugService          // Nodes with no upstreams
-	LeafNodes       []*DagAssetDebugService          // Nodes with no downstreams
-	RootTestResults []processing.TestResult          // Results from root tests
-	TaskUUIDMap     map[string]string                // Map of taskId to taskUUID
-	isConnected     bool                             // Track database connection status
-	mu              sync.RWMutex                     // Mutex for thread-safe access
+	NodeMap         map[string]*DagAssetDebugService            // Map of asset name to debug service node
+	RootNodes       []*DagAssetDebugService                     // Nodes with no upstreams
+	LeafNodes       []*DagAssetDebugService                     // Nodes with no downstreams
+	RootTestResults []processing.TestResult                     // Results from root tests
+	TaskUUIDMap     map[string]string                           // Map of taskId to taskUUID
+	TestExecutionMap map[string]map[string]*TestExecutionResult // Map of taskId -> testName -> result
+	isConnected     bool                                        // Track database connection status
+	mu              sync.RWMutex                                // Mutex for thread-safe access
 }
 
 // InitDebugDag creates a new DebugDag with pointer-based structure
@@ -69,17 +78,18 @@ func InitDebugDag(dagGraph [][]string,
 	name string) *DebugDag {
 
 	dag := &DebugDag{
-		InnerDag:        nil, // No inner DAG for debug mode
-		DagInstanceName: name,
-		DagInstanceUUID: uuid.New().String(),
-		DagGraph:        dagGraph,
-		AssetsMap:       assetsMap,
-		TestsMap:        testsMap,
-		Config:          config,
-		NodeMap:         make(map[string]*DagAssetDebugService),
-		RootNodes:       make([]*DagAssetDebugService, 0),
-		LeafNodes:       make([]*DagAssetDebugService, 0),
-		TaskUUIDMap:     make(map[string]string),
+		InnerDag:         nil, // No inner DAG for debug mode
+		DagInstanceName:  name,
+		DagInstanceUUID:  uuid.New().String(),
+		DagGraph:         dagGraph,
+		AssetsMap:        assetsMap,
+		TestsMap:         testsMap,
+		Config:           config,
+		NodeMap:          make(map[string]*DagAssetDebugService),
+		RootNodes:        make([]*DagAssetDebugService, 0),
+		LeafNodes:        make([]*DagAssetDebugService, 0),
+		TaskUUIDMap:      make(map[string]string),
+		TestExecutionMap: make(map[string]map[string]*TestExecutionResult),
 	}
 
 	dag.build()
@@ -222,7 +232,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 			for _, assetName := range taskGroup {
 				node, exists := d.NodeMap[assetName]
 				if !exists {
-					log.Error().Caller().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("asset", assetName).Msg("Asset not found in NodeMap")
+					log.Error().Caller().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("assetName", assetName).Msg("Asset not found in NodeMap")
 					continue
 				}
 
@@ -240,7 +250,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 				}
 
 				// Execute the asset
-				log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("asset", assetName).Msg("Executing asset")
+				log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("assetName", assetName).Msg("Executing asset")
 				node.State = NodeStateInProgress
 
 				startTime := time.Now()
@@ -263,7 +273,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					node.LastError = err
 					log.Error().Caller().
 						Str("taskId", taskId).
-						Str("asset", assetName).
+						Str("assetName", assetName).
 						Int64("durationMs", node.LastExecutionDuration).
 						Err(err).
 						Msg("Asset execution failed")
@@ -275,7 +285,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 				node.State = NodeStateSuccess
 				log.Info().
 					Str("taskId", taskId).
-					Str("asset", assetName).
+					Str("assetName", assetName).
 					Int64("durationMs", node.LastExecutionDuration).
 					Msg("Asset executed successfully")
 
@@ -285,7 +295,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					node.TestsPassed = 0
 					node.TestsFailed = 0
 
-					log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("asset", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
+					log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("assetName", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
 
 					// Track test execution time
 					testStartTime := time.Now()
@@ -303,7 +313,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 							log.Info().
 								Str("taskId", taskId).
 								Str("taskUUID", taskUUID).
-								Str("asset", assetName).
+								Str("assetName", assetName).
 								Str("testName", testResult.TestName).
 								Int64("durationMs", testResult.DurationMs).
 								Msg("Test passed")
@@ -312,7 +322,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 							log.Warn().
 								Str("taskId", taskId).
 								Str("taskUUID", taskUUID).
-								Str("asset", assetName).
+								Str("assetName", assetName).
 								Str("testName", testResult.TestName).
 								Err(testResult.Error).
 								Int64("durationMs", testResult.DurationMs).
@@ -321,7 +331,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 							log.Warn().
 								Str("taskId", taskId).
 								Str("taskUUID", taskUUID).
-								Str("asset", assetName).
+								Str("assetName", assetName).
 								Str("testName", testResult.TestName).
 								Str("message", testResult.Message).
 								Msg("Test not found")
@@ -346,7 +356,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 						
 						log.Warn().
 							Str("taskId", taskId).
-							Str("asset", assetName).
+							Str("assetName", assetName).
 							Int("failed", node.TestsFailed).
 							Int("passed", node.TestsPassed).
 							Strs("failedTests", failedTestNames).
@@ -356,7 +366,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 						node.State = NodeStateSuccess
 						log.Info().
 							Str("taskId", taskId).
-							Str("asset", assetName).
+							Str("assetName", assetName).
 							Int("passed", node.TestsPassed).
 							Int64("testDurationMs", node.LastTestsDuration).
 							Msg("All tests passed")
@@ -435,6 +445,28 @@ func (d *DebugDag) GetTaskUUID(taskId string) string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.TaskUUIDMap[taskId]
+}
+
+// GetOrCreateTaskUUID returns the existing UUID for a taskId, or creates a new one if it doesn't exist
+func (d *DebugDag) GetOrCreateTaskUUID(taskId string) string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Check if UUID already exists
+	if taskUUID, exists := d.TaskUUIDMap[taskId]; exists {
+		return taskUUID
+	}
+
+	// Generate new UUID and store it
+	taskUUID := uuid.New().String()
+	d.TaskUUIDMap[taskId] = taskUUID
+
+	log.Debug().
+		Str("taskId", taskId).
+		Str("taskUUID", taskUUID).
+		Msg("Generated new TaskUUID")
+
+	return taskUUID
 }
 
 // GetNode returns a debug service node by name
@@ -529,4 +561,33 @@ func (d *DebugDag) IsConnected() bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.isConnected
+}
+
+// StoreTestResult stores a test execution result
+func (d *DebugDag) StoreTestResult(taskId, testName string, result *TestExecutionResult) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.TestExecutionMap[taskId] == nil {
+		d.TestExecutionMap[taskId] = make(map[string]*TestExecutionResult)
+	}
+	d.TestExecutionMap[taskId][testName] = result
+
+	log.Debug().
+		Str("taskId", taskId).
+		Str("testName", testName).
+		Str("status", result.Status).
+		Int("rowCount", result.RowCount).
+		Msg("Test result stored")
+}
+
+// GetTestResult retrieves a test execution result
+func (d *DebugDag) GetTestResult(taskId, testName string) *TestExecutionResult {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if taskTests, exists := d.TestExecutionMap[taskId]; exists {
+		return taskTests[testName]
+	}
+	return nil
 }

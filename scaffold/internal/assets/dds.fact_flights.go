@@ -84,7 +84,7 @@ select
     current_timestamp as dw_created_at
 from flight_staging
 {% if IsIncremental() %}
-where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from {{ this() }})
+where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from dds.fact_flights)
 {% endif %}
 `
 
@@ -166,7 +166,7 @@ select
     current_timestamp as dw_created_at
 from flight_staging
 {% if IsIncremental() %}
-where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from {{ this() }})
+where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from dds.fact_flights)
 {% endif %});
 create unique index fact_flights_pkey on dds.fact_flights (flight_key);
 create unique index fact_flights_flight_id_idx_idx on dds.fact_flights (flight_id);
@@ -250,7 +250,7 @@ select
     current_timestamp as dw_created_at
 from flight_staging
 {% if IsIncremental() %}
-where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from {{ this() }})
+where actual_arrival > (select coalesce(max(actual_arrival), '1900-01-01'::timestamp) from dds.fact_flights)
 {% endif %})
 `
 const SQL_DDS_FACT_FLIGHTS_DROP_TABLE = `

@@ -25,9 +25,11 @@
 {{ end }}
 
 -- Test for duplicate airport keys
-select 
-    airport_key, 
-    count(*) as duplicate_count 
-from {{ Ref("dds.dim_airports") }} 
-group by airport_key 
-having count(*) > 1
+-- HAVING is part of the duplicate-finding logic
+-- Framework automatically wraps this with COUNT(*) check
+SELECT
+    airport_key,
+    COUNT(*) as duplicate_count
+FROM {{ Ref("dds.dim_airports") }}
+GROUP BY airport_key
+HAVING COUNT(*) > 1

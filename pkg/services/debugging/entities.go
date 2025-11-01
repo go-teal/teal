@@ -179,3 +179,31 @@ type ConnectionStatusResponseDTO struct {
 	IsConnected bool                  `json:"isConnected"`
 	Connections []ConnectionConfigDTO `json:"connections"`
 }
+
+// TestExecuteRequestDTO represents a request to execute a test
+type TestExecuteRequestDTO struct {
+	TaskId string `json:"taskId"`
+}
+
+// TestExecuteResponseDTO represents the result of a test execution
+type TestExecuteResponseDTO struct {
+	TestName    string `json:"testName"`
+	Description string `json:"description,omitempty"`
+	TaskId      string `json:"taskId"`
+	Status      string `json:"status"` // "SUCCESS" or "FAILED"
+	RowCount    int    `json:"rowCount"`
+	ErrorMsg    string `json:"errorMsg,omitempty"`
+	DurationMs  int64  `json:"durationMs"`
+	ExecutedAt  string `json:"executedAt"` // ISO 8601 timestamp
+}
+
+// TestDataResponseDTO represents the data from a test execution
+type TestDataResponseDTO struct {
+	TestName    string                   `json:"testName"`
+	Description string                   `json:"description,omitempty"`
+	TaskId      string                   `json:"taskId"`
+	Status      string                   `json:"status"`
+	RowCount    int                      `json:"rowCount"`
+	Data        []map[string]interface{} `json:"data"` // Always present (empty array or populated)
+	ExecutedAt  string                   `json:"executedAt"` // ISO 8601 timestamp
+}

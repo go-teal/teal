@@ -16,7 +16,7 @@
       - [Model Profile](#model-profile)
   - [Materializations](#materializations)
   - [Template functions](#template-functions)
-    - [Static and dynamic functions](#static-and-dynamic-functions)
+    - [Template Functions](#template-functions)
     - [List of functions](#list-of-functions)
   - [Databases](#databases)
     - [DuckDB](#duckdb)
@@ -643,49 +643,49 @@ Teal uses the **[pongo2](https://github.com/flosch/pongo2) template engine** (v6
 - **Template inheritance**: `{% extends %}` and `{% block %}` (for advanced use cases)
 - **Comments**: `{# This is a comment #}`
 
-### Static and dynamic functions
+### Template Functions
 
-Teal uses different brace syntaxes to distinguish between generation-time and runtime template evaluation:
+Teal uses **pongo2** (Django/Jinja2-style) template syntax with double braces `{{ }}` and control structures `{% %}`. Template functions are evaluated at different stages:
 
-**Static functions** (evaluated during `teal gen` - **double braces** `{{ }}`):
+**Generation-time evaluation** (during `teal gen`):
+- `{{ Ref("staging.model") }}` - Replaced with actual table name and establishes DAG dependencies
+- `{{ this() }}` - Replaced with current model's table name
+
+**Runtime evaluation** (during DAG execution):
+- `{{ TaskID }}` - Current task identifier
+- `{{ TaskUUID }}` - Unique task UUID
+- `{{ InstanceName }}` - DAG instance name
+- `{{ InstanceUUID }}` - DAG instance UUID
+- `{{ ENV("VAR_NAME", "default") }}` - Environment variable value
+- `{% if IsIncremental() %}...{% endif %}` - Control structures
+
+**Example showing both:**
 ```sql
-{{ Ref("staging.model") }}  -- Replaced with actual table name during code generation
-```
-
-**Dynamic variables and functions** (evaluated at runtime - **single braces** `{ }`):
-```sql
-'{ TaskID }' as task_id                    -- Current task identifier
-'{ TaskUUID }' as task_uuid                -- Unique task UUID
-'{ InstanceName }' as instance             -- DAG instance name
-'{ InstanceUUID }' as instance_uuid        -- DAG instance UUID
-'{ ENV("SOURCE_SCHEMA", "public") }' as schema  -- Environment variable at runtime
-```
-
-**Dynamic control structures** (evaluated at runtime - Django/Jinja2 syntax):
-```sql
-{% if IsIncremental() %}
-    WHERE updated_at > (SELECT MAX(updated_at) FROM {{ this() }})
-{% endif %}
+-- Generation time: Ref() resolves to "staging.raw_orders"
+-- Runtime: TaskID gets actual value during execution
+SELECT *
+FROM {{ Ref("staging.raw_orders") }}
+WHERE task_id = '{{ TaskID }}'
 ```
 
 **Processing Flow:**
-1. **During `teal gen`**: Double-brace static functions like `{{ Ref(...) }}` are executed and replaced with actual values. Single braces `{ }` and control structures `{% %}` are preserved in the generated Go code.
-2. **At runtime**: Single-brace expressions and control structures are evaluated by pongo2 when the SQL executes during DAG execution.
+1. **During `teal gen`**: `{{ Ref(...) }}` and `{{ this() }}` are evaluated and replaced with actual table names. All other template syntax is preserved in the generated Go code.
+2. **At runtime**: `{{ TaskID }}`, `{{ ENV(...) }}`, and control structures `{% %}` are evaluated when SQL executes during DAG execution.
 
 ### List of functions
 
-Native available functions and variables:
+Available template functions and variables:
 
 |Name|Input Parameters|Output|When Evaluated|Description|Example Usage|
 |--|--|--|--|--|--|
-|Ref|`"<stage>.<model>"`|string|Static|Main function for DAG dependencies. Replaced with actual table name during `teal gen`.|`{{ Ref("staging.customers") }}`|
-|this|None|string|Both|Returns the name of the current table.|`{{ this() }}` (static) or `{ this() }` (dynamic)|
-|ENV|`envName`, `defaultValue`|string|Dynamic|Gets environment variable value at runtime.|`{ ENV("DB_SCHEMA", "public") }`|
-|IsIncremental|None|boolean|Dynamic|Returns true if model is in incremental mode. Use in control structures.|`{% if IsIncremental() %}...{% endif %}`|
-|TaskID|(variable)|string|Dynamic|The task identifier from the Push method.|`{ TaskID }`|
-|TaskUUID|(variable)|string|Dynamic|The unique UUID assigned for task tracking.|`{ TaskUUID }`|
-|InstanceName|(variable)|string|Dynamic|The DAG instance name.|`{ InstanceName }`|
-|InstanceUUID|(variable)|string|Dynamic|The unique UUID assigned to the DAG instance.|`{ InstanceUUID }`|
+|Ref|`"<stage>.<model>"`|string|Generation-time|Main function for DAG dependencies. Replaced with actual table name during `teal gen`.|`{{ Ref("staging.customers") }}`|
+|this|None|string|Generation-time|Returns the name of the current table.|`{{ this() }}`|
+|ENV|`envName`, `defaultValue`|string|Runtime|Gets environment variable value at runtime.|`{{ ENV("DB_SCHEMA", "public") }}`|
+|IsIncremental|None|boolean|Runtime|Returns true if model is in incremental mode. Use in control structures.|`{% if IsIncremental() %}...{% endif %}`|
+|TaskID|(variable)|string|Runtime|The task identifier from the Push method.|`{{ TaskID }}`|
+|TaskUUID|(variable)|string|Runtime|The unique UUID assigned for task tracking.|`{{ TaskUUID }}`|
+|InstanceName|(variable)|string|Runtime|The DAG instance name.|`{{ InstanceName }}`|
+|InstanceUUID|(variable)|string|Runtime|The unique UUID assigned to the DAG instance.|`{{ InstanceUUID }}`|
 
 **Complete Example:**
 
@@ -700,10 +700,10 @@ SELECT
     customer_id,
     order_date,
     total_amount,
-    '{ TaskID }' as etl_task_id,
-    '{ TaskUUID }' as etl_run_id,
+    '{{ TaskID }}' as etl_task_id,
+    '{{ TaskUUID }}' as etl_run_id,
     current_timestamp as processed_at
-FROM {{ Ref("staging.raw_orders") }}
+FROM {{ Ref("staging.raw_orders") }}  -- Resolved at generation-time
 {% if IsIncremental() %}
     WHERE order_date > (SELECT COALESCE(MAX(order_date), '1900-01-01') FROM {{ this() }})
 {% endif %}
@@ -789,7 +789,7 @@ Upstream dependencies in a DAG are set through the `raw_upstreams` parameters in
 
 ### Simple model testing
 
-Simple tests verify data integrity after processing an SQL query, which should return the number of rows. If the returned count is zero, the test is considered successfully passed.
+Simple tests verify data integrity by writing SQL queries that return rows when there are data quality issues. **Tests pass when they return zero rows**, and fail when they return one or more rows.
 
 Tests for models should be added to the folder: `assets/tests` or `assets/tests/<stage name>`. Tests located directly in `assets/tests/` folder have the virtual stage name `root`.
 
@@ -797,13 +797,42 @@ Test names follow the pattern `<stage>.<test_name>`, where:
 - Tests in `assets/tests/` use `root` as the stage (e.g., `root.test_dim_addresses_unique`)
 - Tests in `assets/tests/<stage>/` use their stage name (e.g., `dds.test_fact_transactions_unique`)
 
-Example:
+**Important**: Write your test SQL to return rows that violate constraints. The test framework automatically wraps your query with `SELECT COUNT(*) as test_count FROM (...) HAVING test_count > 0 LIMIT 1` during code generation for performance optimization.
+
+**Test Execution Logic:**
+- Your SQL query is executed and wrapped: `SELECT COUNT(*) FROM (your_sql) HAVING count > 0`
+- Test **PASSES** if the wrapped query returns 0 rows (no violations found)
+- Test **FAILS** if the wrapped query returns 1+ rows (violations exist)
+
+Example - Test for orphaned records:
 
 ```sql
-{{- define "profile.yaml" }}
-    connection: 'default'          
-{{-  end }}
-select pk_id, count(pk_id) as c from {{ Ref "dds.fact_transactions" }} group by pk_id having c > 1
+{{ define "profile.yaml" }}
+    connection: 'default'
+    description: 'Ensures all orders have valid customers'
+{{ end }}
+
+-- Returns orders without matching customers
+SELECT
+    o.order_id,
+    o.customer_id
+FROM {{ Ref("dds.fact_orders") }} o
+LEFT JOIN {{ Ref("dds.dim_customers") }} c ON o.customer_id = c.customer_id
+WHERE c.customer_id IS NULL
+```
+
+Example - Test for duplicate keys:
+
+```sql
+-- Returns duplicate transaction IDs
+-- HAVING is part of your test logic (finding duplicates)
+-- Framework wrapping is separate
+SELECT
+    transaction_id,
+    COUNT(*) as duplicate_count
+FROM {{ Ref("dds.fact_transactions") }}
+GROUP BY transaction_id
+HAVING COUNT(*) > 1
 ```
 
 The generated source code for testing is located in the `modeltests` package.  

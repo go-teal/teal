@@ -24,6 +24,7 @@ var {{ GoName }}TestDescriptor = &models.SQLModelTestDescriptor{
 	CountTestSQL: 		COUNT_TEST_SQL_{{ NameUpperCase }},
 	TestProfile: 		&configs.TestProfile {
 		Name: 				"{{ TestName }}",
+		Description: 		`{{ TestProfile.Description }}`,
 		Stage: 				"{{ TestProfile.Stage }}",
 		Connection: 		"{{ TestProfile.Connection }}",
 	},

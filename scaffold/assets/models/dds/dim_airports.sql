@@ -4,7 +4,7 @@
     description: |
         ## Airport Dimension (SCD Type 1)
         **Purpose**: Master dimension for airport reference data with surrogate keys
-        test
+        
         **Key Design**:
         - Surrogate key: SHA256 hash of airport_code
         - Unique constraint on airport_code
@@ -21,7 +21,7 @@
         - 🌍 Geographic distribution studies
         - ⏰ Schedule timezone management
 
-        **Quality Tests**: `test_dim_airports_unique`
+        **Quality Tests**: `test_dim_airports_unique`, `test_dim_airports_invalid_codes`
     primary_key_fields: ['airport_key']
     indexes:
       - name: 'airport_code_idx'
@@ -29,6 +29,7 @@
         fields: ['airport_code']
     tests:
       - name: 'dds.test_dim_airports_unique'
+      - name: 'dds.test_dim_airports_invalid_codes'
 {{ end }}
 
 select

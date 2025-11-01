@@ -27,9 +27,11 @@
 {{ end }}
 
 -- Test for duplicate employee keys
-select 
-    employee_key, 
-    count(*) as duplicate_count 
-from {{ Ref("dds.dim_employees") }} 
-group by employee_key 
-having count(*) > 1
+-- HAVING is part of the duplicate-finding logic
+-- Framework automatically wraps this with COUNT(*) check
+SELECT
+    employee_key,
+    COUNT(*) as duplicate_count
+FROM {{ Ref("dds.dim_employees") }}
+GROUP BY employee_key
+HAVING COUNT(*) > 1

@@ -24,6 +24,9 @@ http://localhost:8080
   - [POST /api/dag/asset/:name/select](#post-apidagassetnameselect)
 - [Test Operations](#test-operations)
   - [GET /api/tests](#get-apitests)
+  - [GET /api/tests/results/:taskId](#get-apitestsresultstaskid)
+  - [POST /api/tests/execute/:testName](#post-apitestsexecutetestname)
+  - [GET /api/tests/data/:testName](#get-apitestsdatatestname)
 - [Documentation](#documentation)
   - [GET /api/docs/readme](#get-apidocsreadme)
 - [Log Operations](#log-operations)
@@ -849,11 +852,11 @@ Retrieves all test profiles defined in the DAG.
 
 ---
 
-### GET /api/tests/:taskId
+### GET /api/tests/results/:taskId
 Retrieves test execution results for a specific task execution.
 
 **Parameters:**
-- `taskId` (string, required): The task ID from DAG execution
+- `taskId` (path parameter): The task ID from DAG execution
 
 **Response: 200 OK**
 ```json
@@ -883,6 +886,170 @@ Retrieves test execution results for a specific task execution.
   - `sql` (string): SQL query that was executed
   - `connectionName` (string): Database connection used
   - `connectionType` (string): Type of database connection
+
+---
+
+### POST /api/tests/execute/:testName
+Executes a specific test independently, outside of DAG execution. Returns execution status and metrics.
+
+**Parameters:**
+- `testName` (path parameter): Name of the test to execute (e.g., "dds.test_dim_airports_unique")
+
+**Request Body:**
+```json
+{
+  "taskId": "manual_test_20250125_143022"
+}
+```
+
+**Response: 200 OK (Test Passed)**
+```json
+{
+  "testName": "dds.test_dim_airports_unique",
+  "description": "## 🔍 Airport Dimension Uniqueness Test\n\n**Test Type**: Data Quality - Primary Key Constraint...",
+  "taskId": "manual_test_20250125_143022",
+  "status": "SUCCESS",
+  "rowCount": 0,
+  "errorMsg": "",
+  "durationMs": 45,
+  "executedAt": "2025-01-25T14:30:22Z"
+}
+```
+
+**Response: 200 OK (Test Failed)**
+```json
+{
+  "testName": "dds.test_dim_airports_unique",
+  "description": "## 🔍 Airport Dimension Uniqueness Test\n\n**Test Type**: Data Quality - Primary Key Constraint...",
+  "taskId": "manual_test_20250125_143022",
+  "status": "FAILED",
+  "rowCount": 3,
+  "errorMsg": "",
+  "durationMs": 67,
+  "executedAt": "2025-01-25T14:30:22Z"
+}
+```
+
+**Response: 500 Internal Server Error**
+```json
+{
+  "testName": "dds.test_dim_airports_unique",
+  "description": "",
+  "taskId": "manual_test_20250125_143022",
+  "status": "FAILED",
+  "rowCount": 0,
+  "errorMsg": "Failed to execute query: syntax error at line 5",
+  "durationMs": 12,
+  "executedAt": "2025-01-25T14:30:22Z"
+}
+```
+
+**Field Descriptions:**
+- `testName` (string): Name of the test executed
+- `description` (string, optional): Markdown description from test profile (base64 decoded)
+- `taskId` (string): Task ID associated with this execution
+- `status` (string): Test result - "SUCCESS" (0 rows) or "FAILED" (>0 rows or error)
+- `rowCount` (integer): Number of violation rows returned (0 = pass, >0 = fail)
+- `errorMsg` (string, optional): Error message if test execution failed
+- `durationMs` (integer): Test execution duration in milliseconds
+- `executedAt` (string): ISO 8601 timestamp of execution
+
+**Notes:**
+- Test passes if it returns **zero rows** (no violations found)
+- Test fails if it returns **one or more rows** (violations exist)
+- The test SQL is automatically wrapped with `SELECT COUNT(*) FROM (...) HAVING count > 0 LIMIT 1` for execution
+- Database connection must be established first using `POST /api/dag/connect`
+- **TaskUUID Generation**: A unique UUID is automatically generated and associated with the taskId if one doesn't already exist
+- **Data Storage**: Test results (including violation DataFrames) are stored in `DebugDag.TestExecutionMap` keyed by `taskId -> testName`
+- **Logs**: All structured logs are captured with consistent field names:
+  - `taskId` - The task identifier
+  - `taskUUID` - The generated UUID for this task
+  - `testName` - The test name (e.g., "dds.test_dim_airports_unique")
+  - Logs can be retrieved via `GET /api/logs/:taskId`
+
+---
+
+### GET /api/tests/data/:testName
+Retrieves the detailed violation data from a test execution, showing the actual rows that failed the test.
+
+**Parameters:**
+- `testName` (path parameter): Name of the test (e.g., "dds.test_dim_airports_unique")
+
+**Query Parameters:**
+- `taskId` (required): Task ID from test execution
+
+**Response: 200 OK (Test Passed)**
+```json
+{
+  "testName": "dds.test_dim_airports_unique",
+  "description": "## 🔍 Airport Dimension Uniqueness Test\n\n**Test Type**: Data Quality - Primary Key Constraint...",
+  "taskId": "manual_test_20250125_143022",
+  "status": "SUCCESS",
+  "rowCount": 0,
+  "data": [],
+  "executedAt": "2025-01-25T14:30:22Z"
+}
+```
+
+**Response: 200 OK (Test Failed with Violations)**
+```json
+{
+  "testName": "dds.test_dim_airports_unique",
+  "description": "## 🔍 Airport Dimension Uniqueness Test\n\n**Test Type**: Data Quality - Primary Key Constraint...",
+  "taskId": "manual_test_20250125_143022",
+  "status": "FAILED",
+  "rowCount": 3,
+  "data": [
+    {
+      "airport_key": "abc123def456",
+      "duplicate_count": 2
+    },
+    {
+      "airport_key": "xyz789ghi012",
+      "duplicate_count": 3
+    },
+    {
+      "airport_key": "mno345pqr678",
+      "duplicate_count": 2
+    }
+  ],
+  "executedAt": "2025-01-25T14:30:22Z"
+}
+```
+
+**Response: 404 Not Found**
+```json
+{
+  "testName": "unknown_test",
+  "description": "",
+  "taskId": "manual_test_20250125_143022",
+  "status": "INITIAL",
+  "rowCount": 0,
+  "data": [],
+  "executedAt": ""
+}
+```
+
+**Field Descriptions:**
+- `testName` (string): Name of the test
+- `description` (string, optional): Markdown description from test profile (base64 decoded)
+- `taskId` (string): Task ID for this test execution
+- `status` (string): Test status - "SUCCESS", "FAILED", "INITIAL"
+- `rowCount` (integer): Number of violation rows returned
+- `data` (array): Array of violation records (empty if test passed)
+  - Structure depends on the test SQL SELECT columns
+  - Each object represents one row that violated the test constraint
+- `executedAt` (string): ISO 8601 timestamp of execution
+
+**Notes:**
+- This endpoint returns the **raw violation data** from the test SQL query
+- Unlike the COUNT-wrapped query used for pass/fail determination, this returns actual rows
+- The `data` array is **always present** (empty array when test passes, populated when test fails)
+- Useful for debugging and understanding exactly what data violated the test constraint
+- The test must be executed first using `POST /api/tests/execute/:testName`
+- **Data Retrieval**: Violation data is retrieved from `DebugDag.TestExecutionMap[taskId][testName].DataFrame`
+- Database connection must be established first using `POST /api/dag/connect`
+- Each record in the `data` array corresponds to one row returned by the test query showing constraint violations
 
 ---
 
@@ -949,9 +1116,10 @@ Retrieves all log entries for a specific task.
     {
       "level": "debug",
       "time": "2025-01-25T14:30:23Z",
-      "message": "Executing asset: staging.hello",
+      "message": "Executing SQL select query",
       "taskId": "task_20250125_143022",
-      "asset": "staging.hello",
+      "taskUUID": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "assetName": "staging.hello",
       "connection": "memory_duck"
     }
   ],
@@ -1125,3 +1293,14 @@ All endpoints may return the following error responses:
 8. **Background Execution**: When POST endpoints return 202 Accepted due to timeout, the execution continues in the background. The mutex lock is only held briefly for state updates, not during long-running operations like SQL queries, ensuring the server remains responsive.
 
 9. **Connection Lifecycle**: Connections are managed separately from DAG execution state. Disconnecting (`POST /api/dag/disconnect`) does not reset DAG state or clear execution history. Use `POST /api/dag/reset` to clear execution data.
+
+10. **TaskUUID Generation**: All individual operations (test execution, asset select, asset mutate) automatically generate a unique UUID associated with the taskId if one doesn't already exist. The mapping is stored in `DebugDag.TaskUUIDMap[taskId]` and persists for the lifetime of the server session. This ensures every task has a unique identifier for tracing and correlation.
+
+11. **Test Data Storage**: Test execution results, including violation DataFrames, are stored in `DebugDag.TestExecutionMap` with the structure `taskId -> testName -> TestExecutionResult`. This allows retrieval of test violation data via `GET /api/tests/data/:testName?taskId=<taskId>`. Test data is separate from asset node data and persists until server restart or DAG reset.
+
+12. **Logging Field Standardization**: All structured logs use consistent field names for better querying and filtering:
+    - `assetName` - Name of the asset being executed (not `asset`)
+    - `testName` - Name of the test being executed (not `test`)
+    - `taskId` - Task identifier
+    - `taskUUID` - Unique UUID for the task (auto-generated)
+    - Example: `{"level":"debug", "taskId":"task_001", "taskUUID":"abc-123", "assetName":"staging.hello", "message":"Executing SQL select query"}`

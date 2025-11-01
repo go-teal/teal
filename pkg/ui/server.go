@@ -80,7 +80,9 @@ func (s *UIServer) Start() error {
 
 	r.GET("/api/dag", s.handleDagData)
 	r.GET("/api/tests", s.handleTestProfiles)
-	r.GET("/api/tests/:taskId", s.handleTestResultsForTask)
+	r.GET("/api/tests/results/:taskId", s.handleTestResultsForTask)
+	r.POST("/api/tests/execute/:testName", s.handleTestExecute)
+	r.GET("/api/tests/data/:testName", s.handleTestData)
 	r.POST("/api/dag/run", s.handleDagRun)
 	r.GET("/api/dag/status/:taskId", s.handleDagStatus)
 	r.GET("/api/dag/tasks", s.handleDagTasks)
@@ -146,6 +148,66 @@ func (s *UIServer) handleTestResultsForTask(c *gin.Context) {
 		"taskId": taskId,
 		"tests":  tests,
 	})
+}
+
+func (s *UIServer) handleTestExecute(c *gin.Context) {
+	testName := c.Param("testName")
+
+	if testName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "testName is required"})
+		return
+	}
+
+	var request debugging.TestExecuteRequestDTO
+
+	// Parse request body
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+
+	// Validate taskId
+	if request.TaskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+
+	// Execute test with timeout
+	responseChan := s.debuggingService.ExecuteTest(testName, request.TaskId)
+
+	// Wait for response (will timeout after 10 seconds if test takes too long)
+	response := <-responseChan
+
+	// Always return 200 OK for test execution (even if test failed)
+	// Test status (SUCCESS/FAILED) is in the response DTO
+	c.JSON(http.StatusOK, response)
+}
+
+func (s *UIServer) handleTestData(c *gin.Context) {
+	testName := c.Param("testName")
+
+	if testName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "testName is required"})
+		return
+	}
+
+	// Get taskId from query parameter
+	taskId := c.Query("taskId")
+	if taskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required as query parameter"})
+		return
+	}
+
+	// Get test data for the specific task
+	response := s.debuggingService.GetTestData(testName, taskId)
+
+	// Return 404 if test hasn't been executed for this taskId
+	if response.Status == "NOT_FOUND" {
+		c.JSON(http.StatusNotFound, response)
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (s *UIServer) handleDagRun(c *gin.Context) {

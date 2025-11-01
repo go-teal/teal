@@ -10,6 +10,8 @@ var ProjectTests = map[string] processing.ModelTesting{
 
 	"root.test_flight_delays":rootTestFlightDelaysSimpleTestCase,
 
+	"dds.test_dim_airports_invalid_codes":ddsTestDimAirportsInvalidCodesSimpleTestCase,
+
 	"dds.test_dim_airports_unique":ddsTestDimAirportsUniqueSimpleTestCase,
 
 	"dds.test_dim_employees_unique":ddsTestDimEmployeesUniqueSimpleTestCase,

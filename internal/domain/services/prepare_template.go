@@ -89,25 +89,31 @@ func prepareModelTemplate(modelFileByte []byte, refName string, modelsProjetDir 
 	// Extract and remove profile.yaml define block before processing
 	modelFileString, profileYAML := extractDefineBlock(modelFileString, "profile.yaml")
 
-	// Preserve runtime template blocks by stubbing them out before pongo2 processing
-	// Replace {% if ... %} and {% endif %} with placeholders ((?s) enables DOTALL mode)
-	runtimeBlockPattern := regexp.MustCompile(`(?s)(\{%\s*if\s+.*?%\}.*?\{%\s*endif\s*%\})`)
-	runtimeBlocks := runtimeBlockPattern.FindAllString(modelFileString, -1)
-	runtimeBlockStubs := make(map[string]string)
-	for _, block := range runtimeBlocks {
+	// Find ALL pongo2 template syntax: {{ ... }} and {% ... %}
+	// We'll replace them with {{ DYNAMIC_STAB("hash") }} so we can control what gets evaluated
+	dynamicStubs := make(map[string]string)
+
+	// Pattern to match {{ ... }} (variable/expression blocks)
+	variablePattern := regexp.MustCompile(`\{\{[^}]*\}\}`)
+	variableBlocks := variablePattern.FindAllString(modelFileString, -1)
+	for _, block := range variableBlocks {
 		stubHash := utils.GetMD5Hash(block)
-		runtimeBlockStubs[stubHash] = block
-		modelFileString = strings.ReplaceAll(modelFileString, block, "___RUNTIME_BLOCK_"+stubHash+"___")
+		dynamicStubs[stubHash] = block
+		modelFileString = strings.ReplaceAll(modelFileString, block, "{{ DYNAMIC_STAB(\""+stubHash+"\") }}")
 	}
 
-	inlineFunctions := utils.ExtractStringsBetweenBraces([]byte(modelFileString))
-	stubs := make(map[string]string, len(inlineFunctions))
-	funcsContext, uniqueRefs := GetStaticFunctions(refName, modelsProjetDir, stubs, profiles)
-	for _, inlineFunctionCall := range inlineFunctions {
-		stubHash := utils.GetMD5Hash(inlineFunctionCall)
-		stubs[stubHash] = inlineFunctionCall
-		modelFileString = strings.ReplaceAll(modelFileString, inlineFunctionCall, "{{ STAB(\""+stubHash+"\") }}")
+	// Pattern to match {% ... %} (control structure tags ONLY, not the content between)
+	// This matches individual tags like {% if ... %}, {% endif %}, {% for ... %}, {% endfor %}, etc.
+	controlPattern := regexp.MustCompile(`\{%[^%]*%\}`)
+	controlBlocks := controlPattern.FindAllString(modelFileString, -1)
+	for _, block := range controlBlocks {
+		stubHash := utils.GetMD5Hash(block)
+		dynamicStubs[stubHash] = block
+		modelFileString = strings.ReplaceAll(modelFileString, block, "{{ DYNAMIC_STAB(\""+stubHash+"\") }}")
 	}
+
+	// Create function context with DYNAMIC_STAB function
+	funcsContext, uniqueRefs := GetStaticFunctions(refName, modelsProjetDir, dynamicStubs, profiles)
 
 	modelFileFinalTemplate, err := pongo2.FromString(modelFileString)
 	if err != nil {
@@ -119,12 +125,7 @@ func prepareModelTemplate(modelFileByte []byte, refName string, modelsProjetDir 
 		return nil, uniqueRefs, err
 	}
 
-	// Restore runtime blocks after pongo2 processing
-	for stubHash, block := range runtimeBlockStubs {
-		output = strings.ReplaceAll(output, "___RUNTIME_BLOCK_"+stubHash+"___", block)
-	}
-
-	// Just return the processed string with runtime blocks intact
+	// Return the processed string with runtime template syntax intact
 	return &PreparedTemplate{
 		processedSQL: output,
 		uniqueRefs:   uniqueRefs,
