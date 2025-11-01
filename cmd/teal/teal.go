@@ -24,6 +24,7 @@ Usage:
 Commands:
 	init 	creates basic teal project structure
 	gen		generates GO code from asset model files
+	ui		starts UI development server with hot-reload
 		`
 		return errors.New(message)
 	}
@@ -34,6 +35,7 @@ Commands:
 		commands.NewCleanCommand(app),
 		commands.NewVersionCommand(app),
 		commands.NewInitCommand(app),
+		commands.NewUICommand(app),
 	}
 
 	subcommand := os.Args[1]

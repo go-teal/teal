@@ -6,9 +6,9 @@ Hot-reload development server for Teal UI that watches for file changes and auto
 ## Implementation Details
 
 ### 1. New CLI Command
-- Command: `teal ui --port=8000 --log-level=debug`
+- Command: `teal ui --port=8080 --log-level=debug`
 - Flags:
-  - `--port` (default: 8000) - Port for the UI server
+  - `--port` (default: 8080) - Port for the UI server
   - `--log-level` (default: debug) - Log level for both watcher and UI process
 
 ### 2. File Watcher Service
