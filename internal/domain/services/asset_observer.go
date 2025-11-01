@@ -250,27 +250,39 @@ func (ao *AssetObserver) stopUIProcess() error {
 		return nil
 	}
 
-	fmt.Printf("Stopping UI process (PID=%d)\n", ao.uiProcess.Process.Pid)
+	pid := ao.uiProcess.Process.Pid
+	fmt.Printf("Stopping UI process (PID=%d)\n", pid)
 
 	// Send SIGTERM for graceful shutdown
 	if err := ao.uiProcess.Process.Signal(syscall.SIGTERM); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to send SIGTERM, killing process: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: Failed to send SIGTERM, killing immediately: %v\n", err)
 		ao.uiProcess.Process.Kill()
+		ao.uiProcess.Wait()
+		ao.uiProcess = nil
+		ao.processActive = false
+		return nil
 	}
 
-	// Wait for process to exit with timeout
+	// Wait for process to exit with short timeout
 	done := make(chan error, 1)
 	go func() {
 		done <- ao.uiProcess.Wait()
 	}()
 
 	select {
-	case <-done:
-		fmt.Printf("UI process stopped gracefully\n")
-	case <-time.After(5 * time.Second):
-		fmt.Fprintf(os.Stderr, "Warning: UI process did not stop in time, killing\n")
+	case err := <-done:
+		if err != nil {
+			fmt.Printf("UI process exited with error: %v\n", err)
+		} else {
+			fmt.Printf("UI process stopped gracefully\n")
+		}
+	case <-time.After(2 * time.Second):
+		// Timeout - force kill
+		fmt.Fprintf(os.Stderr, "Warning: UI process did not stop in time, force killing\n")
 		ao.uiProcess.Process.Kill()
-		ao.uiProcess.Wait()
+		// Wait again to ensure it's dead
+		<-done
+		fmt.Printf("UI process force killed\n")
 	}
 
 	ao.uiProcess = nil
@@ -336,14 +348,26 @@ func (ao *AssetObserver) watchLoop() {
 				}
 				ao.changeMutex.Unlock()
 
-				// Stop UI process before regeneration
+				// Stop UI process before regeneration - this MUST complete before we continue
+				fmt.Printf("\n")
 				if err := ao.stopUIProcess(); err != nil {
 					fmt.Fprintf(os.Stderr, "Error: Failed to stop UI process: %v\n", err)
+					continue
+				}
+
+				// Verify process is stopped
+				ao.processMutex.Lock()
+				processActive := ao.processActive
+				ao.processMutex.Unlock()
+
+				if processActive {
+					fmt.Fprintf(os.Stderr, "Error: UI process still active after stop attempt, skipping regeneration\n")
+					continue
 				}
 
 				// Wait for port to be released
 				fmt.Printf("Waiting for port to be released...\n")
-				time.Sleep(2 * time.Second)
+				time.Sleep(1 * time.Second)
 
 				// Regenerate assets
 				if err := ao.regenerateAssets(); err != nil {
@@ -355,6 +379,7 @@ func (ao *AssetObserver) watchLoop() {
 				time.Sleep(500 * time.Millisecond)
 
 				// Restart UI process
+				fmt.Printf("\n")
 				if err := ao.startUIProcess(); err != nil {
 					fmt.Fprintf(os.Stderr, "Error: Failed to restart UI process: %v\n", err)
 				}
