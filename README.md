@@ -181,6 +181,26 @@ Your DAG is depicted in the Mermaid diagram file `docs/graph.mmd`
 
 1. Uncomment the following line: `_ "github.com/marcboeker/go-duckdb"` in both generated main files if using DuckDB.
 2. Run `go mod tidy`
+
+### Start development with hot-reload <!-- omit from toc -->
+
+```bash
+# Start UI server with automatic file watching and hot-reload
+teal ui
+
+# Access the debug UI at http://localhost:8080
+```
+
+The `teal ui` command watches for changes in:
+- `assets/` (all SQL models and tests)
+- `profile.yaml`
+- `config.yaml`
+
+When changes are detected, it automatically:
+1. Regenerates Go code
+2. Restarts the UI server
+3. Maintains the same port
+
 3. Final project structure:
 
 ```bash
@@ -347,7 +367,23 @@ Then run the compiled binary with various options:
 # 0 */6 * * * /path/to/bin/my-test-project --task-name "scheduled_$(date +\%Y\%m\%d_\%H\%M\%S)" --log-level info
 ```
 
-**Debug UI mode:**
+**Debug UI mode (recommended):**
+
+```bash
+# Run UI debug server with hot-reload (watches for file changes)
+teal ui
+
+# Run on custom port with specific log level
+teal ui --port 9090 --log-level info
+```
+
+The `teal ui` command automatically:
+- Watches `assets/`, `profile.yaml`, and `config.yaml` for changes
+- Regenerates code when files change
+- Restarts the UI server automatically
+- Handles graceful shutdown
+
+**Alternative: Run UI server directly (without hot-reload):**
 
 ```bash
 # Run UI debug server directly
@@ -383,7 +419,18 @@ Teal generates two entry points for different use cases:
 - Includes execution tracking and task history
 - Ideal for development and debugging
 
-**Command-line arguments:**
+**Recommended: Use `teal ui` command with hot-reload:**
+```bash
+teal ui --port 8080 --log-level debug
+```
+
+The `teal ui` command provides:
+- Automatic file watching (assets, config, profile)
+- Hot-reload on changes (regenerates code and restarts server)
+- Graceful shutdown handling
+- Built-in debouncing to prevent excessive regenerations
+
+**Direct execution command-line arguments:**
 - `--port` - Port for debug UI server (default: `8080`)
 - `--log-output` - Log output format: `json` or `raw` (default: `raw`)
 - `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `info`)
