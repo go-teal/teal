@@ -4,7 +4,7 @@
     description: |
         ## Airport Dimension (SCD Type 1)
         **Purpose**: Master dimension for airport reference data with surrogate keys
-
+        test
         **Key Design**:
         - Surrogate key: SHA256 hash of airport_code
         - Unique constraint on airport_code

@@ -229,6 +229,11 @@ func (ao *AssetObserver) startUIProcess() error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	// Set up process group so signals are propagated properly
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start UI process: %w", err)
 	}
@@ -253,9 +258,11 @@ func (ao *AssetObserver) stopUIProcess() error {
 	pid := ao.uiProcess.Process.Pid
 	fmt.Printf("Stopping UI process (PID=%d)\n", pid)
 
-	// Send SIGTERM for graceful shutdown
-	if err := ao.uiProcess.Process.Signal(syscall.SIGTERM); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to send SIGTERM, killing immediately: %v\n", err)
+	// Send SIGTERM to the entire process group (including go run and the binary)
+	// Negative PID sends signal to the process group
+	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to send SIGTERM to process group: %v\n", err)
+		// Fallback: try killing just the process
 		ao.uiProcess.Process.Kill()
 		ao.uiProcess.Wait()
 		ao.uiProcess = nil
@@ -277,9 +284,10 @@ func (ao *AssetObserver) stopUIProcess() error {
 			fmt.Printf("UI process stopped gracefully\n")
 		}
 	case <-time.After(2 * time.Second):
-		// Timeout - force kill
+		// Timeout - force kill the entire process group
 		fmt.Fprintf(os.Stderr, "Warning: UI process did not stop in time, force killing\n")
-		ao.uiProcess.Process.Kill()
+		syscall.Kill(-pid, syscall.SIGKILL)
+		ao.uiProcess.Process.Kill() // Also kill the main process as fallback
 		// Wait again to ensure it's dead
 		<-done
 		fmt.Printf("UI process force killed\n")
