@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg height="128" width="128" version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
+     viewBox="0 0 128 128" xml:space="preserve">
+  <!-- Horizontally flipped duck with transform -->
+  <g transform="scale(-1, 1) translate(-128, 0)">
+    <path fill="#14b8a6" d="M117.2,40.4h-1.7c-11.2-3-10.4-6.4-10.4-6.4C104,22.9,92.3,22.9,92.3,22.9c-17-1.1-17,19.7-12.7,27.1
+    c4.2,7.4-6.8,11-19.5,11c-18.6,0-48.9,9-48.9,9l7.3,4.9L6.8,79.1c8,2.1,28.1,11.3,28.1,11.3c17.5,10.1,39.5,11,39.5,11
+    c56,4.1,42.5-38.8,29.1-44c-7.8-3-7.3-8.1-7.3-8.1c0-1.3,0.6-2.2,1.5-2.9h19.6c1.6,0,3-1.3,3-3C120.2,41.8,118.8,40.4,117.2,40.4z"
+    />
+  </g>
+</svg>
