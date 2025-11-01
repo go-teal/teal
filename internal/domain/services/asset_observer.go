@@ -336,16 +336,23 @@ func (ao *AssetObserver) watchLoop() {
 				}
 				ao.changeMutex.Unlock()
 
-				// Stop UI process
+				// Stop UI process before regeneration
 				if err := ao.stopUIProcess(); err != nil {
 					fmt.Fprintf(os.Stderr, "Error: Failed to stop UI process: %v\n", err)
 				}
+
+				// Wait for port to be released
+				fmt.Printf("Waiting for port to be released...\n")
+				time.Sleep(2 * time.Second)
 
 				// Regenerate assets
 				if err := ao.regenerateAssets(); err != nil {
 					fmt.Fprintf(os.Stderr, "Error: Regeneration failed, not restarting UI: %v\n", err)
 					continue
 				}
+
+				// Wait a moment before restarting
+				time.Sleep(500 * time.Millisecond)
 
 				// Restart UI process
 				if err := ao.startUIProcess(); err != nil {

@@ -3,7 +3,6 @@
     is_data_framed: True
     description: |
         ## Airport Dimension (SCD Type 1)
-
         **Purpose**: Master dimension for airport reference data with surrogate keys
 
         **Key Design**:
