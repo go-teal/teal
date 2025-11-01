@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/go-teal/teal/internal/domain/services"
 	"github.com/go-teal/teal/pkg/dags"
 	"github.com/go-teal/teal/pkg/services/debugging"
 	"github.com/google/uuid"
@@ -67,17 +66,6 @@ type TestProfilesResponseDTO struct {
 
 func (s *UIServer) Start() error {
 	log.Info().Int("port", s.Port).Msg("Starting debug UI server with Gin")
-
-	// Start UI assets server on port+1
-	uiAssetsPort := s.Port + 1
-	uiAssetsServer := services.NewUIAssetsServer(uiAssetsPort)
-
-	// Run UI assets server in a goroutine
-	go func() {
-		if err := uiAssetsServer.Start(); err != nil {
-			log.Error().Err(err).Int("port", uiAssetsPort).Msg("UI assets server failed")
-		}
-	}()
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()

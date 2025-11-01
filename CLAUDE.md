@@ -110,12 +110,35 @@ The `teal gen` command generates two separate main entry points to ensure clean 
    - Provides execution tracking and task history
    - Designed for development and debugging
    - Runs on configurable port (default 8080)
+   - **Important**: This binary only provides the Debug API server; the UI Dashboard is served by the teal CLI itself
 
 This dual-generation approach ensures:
 - Production binaries have no unnecessary dependencies
 - Clean separation between production and debugging code
 - Developers get powerful debugging tools without affecting production
 - Both versions share the same asset and test implementations
+
+### UI Dashboard Architecture
+
+When running `teal ui`, two separate servers are started:
+
+1. **UI Assets Server** (port 8081 by default):
+   - Embedded in the `teal` CLI binary itself (NOT in generated projects)
+   - Located in: `internal/domain/services/ui_assets_server.go` in teal source
+   - Serves static React-based dashboard files using `//go:embed dist`
+   - **Persists across API server restarts** during hot-reload
+   - Managed by `AssetObserver` in `internal/domain/services/asset_observer.go`
+
+2. **Debug API Server** (port 8080 by default):
+   - Located in generated project: `cmd/<project-name>-ui/<project-name>-ui.go`
+   - Provides REST API endpoints for DAG operations, tests, logs, and data access
+   - **Restarts automatically** when assets, config, or profile files change
+   - Spawned as a child process by `teal ui` command
+
+This architecture ensures:
+- UI Dashboard remains responsive during code regeneration and API server restarts
+- Zero-dependency deployment (all UI assets embedded in teal binary)
+- Clean separation between static frontend (teal binary) and dynamic API (generated project)
 
 ### Key Concepts
 
@@ -368,6 +391,11 @@ connections:
 Assets can then reference these connections and data flows seamlessly between them when using DataFrames.
 
 ## Development Notes
+
+### Git Workflow
+- **IMPORTANT**: NEVER run `git push` unless the user explicitly requests it
+- You may stage files (`git add`) and create commits (`git commit`) when appropriate
+- Always wait for explicit permission before pushing changes to remote repository
 
 ### General
 - Always check for existing CLAUDE.md improvements when using `teal init`

@@ -34,6 +34,10 @@ type AssetObserver struct {
 	processMutex  sync.Mutex
 	processActive bool
 
+	// UI Assets server (persistent across API server restarts)
+	uiAssetsServer       *UIAssetsServer
+	uiAssetsServerActive bool
+
 	// Debouncing
 	lastChangeTime time.Time
 	changeMutex    sync.Mutex
@@ -396,6 +400,30 @@ func (ao *AssetObserver) watchLoop() {
 	}
 }
 
+// startUIAssetsServer starts the UI assets server (persistent across API server restarts)
+func (ao *AssetObserver) startUIAssetsServer() error {
+	if ao.uiAssetsServerActive {
+		return nil // Already running
+	}
+
+	uiAssetsPort := ao.port + 1
+	fmt.Printf("Starting UI Dashboard on port %d (static assets server)\n", uiAssetsPort)
+
+	ao.uiAssetsServer = NewUIAssetsServer(uiAssetsPort)
+
+	// Run UI assets server in a goroutine (persistent)
+	go func() {
+		if err := ao.uiAssetsServer.Start(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: UI assets server failed: %v\n", err)
+		}
+	}()
+
+	ao.uiAssetsServerActive = true
+	fmt.Printf("UI Dashboard started and will persist across API server restarts\n")
+
+	return nil
+}
+
 // Start begins watching files and managing the UI process
 func (ao *AssetObserver) Start() error {
 	fmt.Printf("Starting asset observer\n")
@@ -407,7 +435,15 @@ func (ao *AssetObserver) Start() error {
 
 	fmt.Printf("Initial file scan complete (%d files)\n", len(ao.fileHashes))
 
-	// Start UI process
+	// Start UI assets server ONCE (will not restart)
+	if err := ao.startUIAssetsServer(); err != nil {
+		return fmt.Errorf("failed to start UI assets server: %w", err)
+	}
+
+	// Small delay to let UI assets server start
+	time.Sleep(500 * time.Millisecond)
+
+	// Start UI API process
 	if err := ao.startUIProcess(); err != nil {
 		return fmt.Errorf("failed to start UI process: %w", err)
 	}
