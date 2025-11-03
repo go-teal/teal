@@ -21,6 +21,7 @@
   - [Data testing](#data-testing)
     - [Simple model testing](#simple-model-testing)
       - [Test profile](#test-profile)
+  - [Docker Deployment](#docker-deployment)
   - [General Architecture](#general-architecture)
     - [Cross database references](#cross-database-references)
   - [Road Map](#road-map)
@@ -262,11 +263,12 @@ Building: dds.fact_flights.sql
 Building: mart.mart_airport_statistics.sql
 Building: mart.mart_crew_utilization.sql
 Building: mart.mart_flight_performance.sql
-Files 26
+Files 28
 ./cmd/hello-world/hello-world.go ...................................... [OK]
 ./cmd/hello-world-ui/hello-world-ui.go ................................ [OK]
 ./go.mod .............................................................. [OK]
 ./Makefile ............................................................ [OK]
+./Dockerfile .......................................................... [OK]
 ./internal/assets/staging.stg_airports.go ............................. [OK]
 ./internal/assets/staging.stg_crew_assignments.go ..................... [OK]
 ./internal/assets/staging.stg_employees.go ............................ [OK]
@@ -377,6 +379,7 @@ Final project structure:
 │   └── hello-world-ui
 │       └── hello-world-ui.go
 ├── config.yaml
+├── Dockerfile
 ├── docs
 │   ├── README.md
 │   └── graph.mmd
