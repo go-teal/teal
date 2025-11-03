@@ -2,8 +2,8 @@
 
 - [Teal](#teal)
   - [QuickStart](#quickstart)
-      - [Production Binary (my-test-project.go)](#production-binary-my-test-projectgo)
-      - [Debug UI Binary (my-test-project-ui.go)](#debug-ui-binary-my-test-project-uigo)
+    - [Installation](#installation)
+    - [CLI Commands Reference](#cli-commands-reference)
   - [Configuration](#configuration)
     - [config.yaml](#configyaml)
     - [profile.yaml](#profileyaml)
@@ -39,17 +39,17 @@ Why Choose Teal?
 
 ## QuickStart
 
-### Installation <!-- omit from toc -->
+### Installation 
 
 ```bash
 go install github.com/go-teal/teal/cmd/teal@latest
 ```
 
-### CLI Commands Reference <!-- omit from toc -->
+### CLI Commands Reference 
 
 Teal CLI provides the following commands to manage your data pipeline projects:
 
-#### `teal init`
+#### `teal init` <!-- omit from toc -->
 
 Creates a basic Teal project structure with default configuration files.
 
@@ -65,7 +65,7 @@ This command initializes a new Teal project with:
 
 **No flags required.**
 
-#### `teal gen`
+#### `teal gen` <!-- omit from toc -->
 
 Generates Go code from SQL asset model files.
 
@@ -86,7 +86,7 @@ teal gen --model staging.customers          # Generate specific model only
 teal gen --config-file custom-config.yaml   # Use custom config file
 ```
 
-#### `teal clean`
+#### `teal clean` <!-- omit from toc -->
 
 Cleans generated files from the project.
 
@@ -109,7 +109,7 @@ teal clean --project-path ./my-project      # Clean in specific directory
 
 **Note:** When cleaning all models (`*`), you will be prompted for confirmation.
 
-#### `teal ui`
+#### `teal ui` <!-- omit from toc -->
 
 Starts the UI development server with hot-reload for debugging and monitoring.
 
@@ -139,7 +139,7 @@ The UI provides:
 
 **Access:** Open `http://localhost:8081` (or custom port + 1) in your browser.
 
-#### `teal version`
+#### `teal version` <!-- omit from toc -->
 
 Shows the current version of Teal CLI.
 
@@ -149,7 +149,7 @@ teal version
 
 **No flags required.**
 
-#### Getting Help
+#### Getting Help <!-- omit from toc -->
 
 ```bash
 teal --help              # Show all commands and their flags
@@ -531,7 +531,7 @@ go run ./cmd/my-test-project-ui/my-test-project-ui.go --port 9090
 
 Teal generates two entry points for different use cases:
 
-#### Production Binary (my-test-project.go)
+#### Production Binary (my-test-project.go) <!-- omit from toc -->
 
 - Uses **Channel DAG** for high-performance concurrent execution
 - Generates unique task names with timestamps (e.g., `my-test-project_1703123456`)
@@ -546,7 +546,7 @@ Teal generates two entry points for different use cases:
 - `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `debug`)
 - `--with-tests` - Run with tests enabled (default: `true`)
 
-#### Debug UI Binary (my-test-project-ui.go)
+#### Debug UI Binary (my-test-project-ui.go) <!-- omit from toc -->
 
 - Uses **Debug DAG** for visualization and monitoring
 - Provides REST API endpoints for DAG control and status

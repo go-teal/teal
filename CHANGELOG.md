@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.0.2] 2025-11-03
+
+### Added
+
+- **Enhanced CLI Help System**: Comprehensive help output for all commands
+  - Added `--help` and `-h` flag support for global and per-command help
+  - Documented all commands: `init`, `gen`, `clean`, `ui`, `version`
+  - Complete flag documentation with defaults and descriptions
+  - Usage examples for each command
+  - Detailed command-specific help with `teal [command] --help`
+
+### Changed
+
+- **README.md Documentation**: Added comprehensive CLI Commands Reference section
+  - Detailed documentation for each command with flags and examples
+  - Getting Help section showing how to access CLI help
+  - Improved discoverability of all CLI features
+
 ## [1.0.1] 2025-11-03
 
 ### Changed
