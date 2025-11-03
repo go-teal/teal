@@ -1,0 +1,106 @@
+package main
+
+import (
+
+	_ "github.com/marcboeker/go-duckdb/v2"
+
+
+	"context"
+	"flag"
+	"os"
+	"os/signal"
+	"syscall"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	modeltests "github.com/you_git_user/your_project/internal/model_tests"
+	"github.com/go-teal/teal/pkg/core"
+	"github.com/go-teal/teal/pkg/dags"
+	"github.com/go-teal/teal/pkg/services/logwriter"
+	"github.com/go-teal/teal/pkg/ui"
+	"github.com/you_git_user/your_project/internal/assets"
+)
+
+func main() {
+	// Parse command line flags
+	port := flag.Int("port", 8080, "Port for debug UI server")
+	logOutput := flag.String("log-output", "raw", "Log output format: json or raw")
+	logLevel := flag.String("log-level", "debug", "Log level: panic, fatal, error, warn, info, debug, trace")
+	flag.Parse()
+
+	// Create a context for the application
+	ctx := context.Background()
+
+	// Always use StoringConsoleWriter for UI mode to capture logs per task
+	storingWriter := logwriter.NewStoringConsoleWriter(ctx, os.Stderr)
+
+	// Configure output format
+	if *logOutput == "json" {
+		storingWriter.SetNoColor(true)
+		storingWriter.SetTimeFormat("")
+	}
+
+	// Set the global logger to use our storing writer
+	log.Logger = log.Output(storingWriter)
+
+	// Set log level
+	logLevels := map[string]zerolog.Level{
+		"panic": zerolog.PanicLevel,
+		"fatal": zerolog.FatalLevel,
+		"error": zerolog.ErrorLevel,
+		"warn":  zerolog.WarnLevel,
+		"info":  zerolog.InfoLevel,
+		"debug": zerolog.DebugLevel,
+		"trace": zerolog.TraceLevel,
+	}
+
+	if level, ok := logLevels[*logLevel]; ok {
+		zerolog.SetGlobalLevel(level)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
+	log.Info().Int("port", *port).Msg("Starting hello-world in UI debug mode")
+
+	// Initialize core
+	core.GetInstance().Init("config.yaml", ".")
+	config := core.GetInstance().Config
+
+	// Create DebugDag for UI mode
+	dag := dags.InitDebugDag(assets.DAG, assets.ProjectAssets, modeltests.ProjectTests, config, "hello-world")
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start UI server with DebugDag, log writer, and readme path in a goroutine
+	readmePath := "./docs/README.md"
+	server := ui.NewUIServerWithLogWriterAndReadme("hello-world", "github.com/you_git_user/your_project", *port, dag, storingWriter, readmePath)
+
+	serverErrors := make(chan error, 1)
+	go func() {
+		if err := server.Start(); err != nil {
+			serverErrors <- err
+		}
+	}()
+
+	// Wait for shutdown signal or server error
+	select {
+	case sig := <-sigChan:
+		log.Info().Str("signal", sig.String()).Msg("Shutdown signal received")
+	case err := <-serverErrors:
+		log.Fatal().Err(err).Msg("Failed to start UI server")
+		return
+	}
+
+	// Graceful shutdown: close database connections if they are open
+	if dag.IsConnected() {
+		log.Info().Msg("Closing database connections...")
+		if err := dag.Disconnect(); err != nil {
+			log.Error().Err(err).Msg("Error closing database connections")
+		} else {
+			log.Info().Msg("Database connections closed successfully")
+		}
+	}
+
+	log.Info().Msg("Shutdown complete")
+}

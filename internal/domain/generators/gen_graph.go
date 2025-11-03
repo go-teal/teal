@@ -53,7 +53,7 @@ func sanitizeNodeID(name string) string {
 	return strings.ReplaceAll(name, ".", "_")
 }
 
-func (g *GenGraph) RenderToFile() error {
+func (g *GenGraph) RenderToFile() (error, bool) {
 
 	utils.CreateDir(g.config.ProjectPath + "/docs")
 	stages := make([]string, len(g.profile.Models.Stages))
@@ -107,5 +107,5 @@ func (g *GenGraph) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

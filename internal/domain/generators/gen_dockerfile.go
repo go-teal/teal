@@ -8,31 +8,37 @@ import (
 	"github.com/go-teal/teal/pkg/configs"
 )
 
-//go:embed templates/Makefile.tmpl
-var makefileTemplate string
+//go:embed templates/Dockerfile.tmpl
+var dockerfileTemplate string
 
-type GenMakefile struct {
+type GenDockerfile struct {
 	config  *configs.Config
 	profile *configs.ProjectProfile
 }
 
-func InitGenMakefile(config *configs.Config, projectProfile *configs.ProjectProfile) *GenMakefile {
-	return &GenMakefile{
+func InitGenDockerfile(config *configs.Config, projectProfile *configs.ProjectProfile) *GenDockerfile {
+	return &GenDockerfile{
 		config:  config,
 		profile: projectProfile,
 	}
 }
 
-func (g *GenMakefile) GetFileName() string {
-	return "Makefile"
+func (g *GenDockerfile) GetFileName() string {
+	return "Dockerfile"
 }
 
-func (g *GenMakefile) GetFullPath() string {
+func (g *GenDockerfile) GetFullPath() string {
 	return g.config.ProjectPath + "/" + g.GetFileName()
 }
 
-func (g *GenMakefile) RenderToFile() (error, bool) {
-	tmpl, err := pongo2.FromString(makefileTemplate)
+func (g *GenDockerfile) RenderToFile() (error, bool) {
+	// Check if Dockerfile already exists
+	if _, err := os.Stat(g.GetFullPath()); err == nil {
+		// File exists, skip generation
+		return nil, true
+	}
+
+	tmpl, err := pongo2.FromString(dockerfileTemplate)
 	if err != nil {
 		return err, false
 	}

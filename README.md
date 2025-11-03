@@ -97,17 +97,39 @@ teal clean [flags]
 **Flags:**
 - `--project-path string` - Project directory (default: `.`)
 - `--model string` - Models for cleaning (default: `*` for all)
-- `--clean-main` - Delete main.go files in cmd/ directory
+- `--clean-main` - Delete production main.go in `cmd/<project-name>/`
+- `--clean-main-ui` - Delete UI debug main.go in `cmd/<project-name>-ui/`
+- `--clean-dockerfile` - Delete Dockerfile
+- `--clean-go-mod` - Delete go.mod and go.sum
+- `--clean-all` - Delete ALL generated files (prompts for confirmation)
 
 **Examples:**
 ```bash
-teal clean                                  # Clean all generated models (with confirmation)
+teal clean                                  # Clean all models (with confirmation)
 teal clean --model staging.customers        # Clean specific model
-teal clean --clean-main                     # Clean main.go files in addition to models
+teal clean --clean-main                     # Clean production main.go only
+teal clean --clean-main-ui                  # Clean UI main.go only
+teal clean --clean-dockerfile               # Clean Dockerfile only
+teal clean --clean-go-mod                   # Clean go.mod and go.sum
+teal clean --clean-all                      # Clean ALL generated files
 teal clean --project-path ./my-project      # Clean in specific directory
 ```
 
-**Note:** When cleaning all models (`*`), you will be prompted for confirmation.
+**Note:**
+- When cleaning all models (`*`), you will be prompted for confirmation.
+- `--clean-all` will delete ALL generated files including go.mod, Dockerfile, and main files.
+
+**Files NOT Overwritten by `teal gen`:**
+
+The following files are generated only once and will NOT be overwritten on subsequent `teal gen` executions:
+- **`Dockerfile`** - Container configuration (skip if exists)
+- **`go.mod`** - Go module definition (skip if exists)
+- **`cmd/<project-name>/<project-name>.go`** - Production binary main file (skip if exists)
+- **`cmd/<project-name>-ui/<project-name>-ui.go`** - UI debug binary main file (skip if exists)
+
+All other files (assets, tests, configs, docs) are regenerated on every `teal gen` run.
+
+To regenerate these protected files, use the appropriate `--clean-*` flags before running `teal gen`.
 
 #### `teal ui` <!-- omit from toc -->
 

@@ -34,7 +34,11 @@ Commands:
 	          Flags:
 	            --project-path string    Project directory (default ".")
 	            --model string          Models for cleaning (default "*")
-	            --clean-main            Delete main.go files
+	            --clean-main            Delete production main.go
+	            --clean-main-ui         Delete UI debug main.go
+	            --clean-dockerfile      Delete Dockerfile
+	            --clean-go-mod          Delete go.mod and go.sum
+	            --clean-all             Delete ALL generated files
 
 	ui        Start UI development server with hot-reload
 	          Flags:
@@ -97,15 +101,26 @@ Cleans generated files from the project.
 Flags:
   --project-path string    Project directory (default ".")
   --model string          Models for cleaning (default "*" for all)
-  --clean-main            Delete main.go files in cmd/ directory
+  --clean-main            Delete production main.go in cmd/<project-name>/
+  --clean-main-ui         Delete UI debug main.go in cmd/<project-name>-ui/
+  --clean-dockerfile      Delete Dockerfile
+  --clean-go-mod          Delete go.mod and go.sum
+  --clean-all             Delete ALL generated files (prompts for confirmation)
 
 Examples:
-  teal clean
-  teal clean --model staging.customers
-  teal clean --clean-main
-  teal clean --project-path ./my-project
+  teal clean                               # Clean all models (prompts for confirmation)
+  teal clean --model staging.customers     # Clean specific model
+  teal clean --clean-main                  # Clean production main.go only
+  teal clean --clean-main-ui               # Clean UI main.go only
+  teal clean --clean-dockerfile            # Clean Dockerfile only
+  teal clean --clean-go-mod                # Clean go.mod and go.sum
+  teal clean --clean-all                   # Clean everything (prompts for confirmation)
+  teal clean --project-path ./my-project   # Clean in specific directory
 
-Note: When cleaning all models (*), you will be prompted for confirmation.
+Note:
+- When cleaning all models (*), you will be prompted for confirmation
+- --clean-all will delete ALL generated files including go.mod, Dockerfile, and main files
+- Files not overwritten during 'teal gen': Dockerfile, go.mod, production main.go, UI main.go
 `,
 		"ui": `
 Usage: teal ui [flags]

@@ -39,7 +39,7 @@ func (g *GenReadme) GetFullPath() string {
 	return g.config.ProjectPath + "/docs/" + README_FILENAME
 }
 
-func (g *GenReadme) RenderToFile() error {
+func (g *GenReadme) RenderToFile() (error, bool) {
 
 	utils.CreateDir(g.config.ProjectPath + "/docs")
 
@@ -65,7 +65,7 @@ func (g *GenReadme) RenderToFile() error {
 
 	templ, err := pongo2.FromString(readmeTemplate)
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	output, err := templ.Execute(pongo2.Context{
@@ -78,15 +78,15 @@ func (g *GenReadme) RenderToFile() error {
 		"Connections": g.config.Connections,
 	})
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	file, err := os.Create(g.GetFullPath())
 	if err != nil {
-		return err
+		return err, false
 	}
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }
