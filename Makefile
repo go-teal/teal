@@ -4,6 +4,7 @@ make:
 
 	rm -rf scaffold/cmd
 	rm -rf scaffold/internal
+	rm -rf scaffold/bin
 
 	if [ -f scaffold/docs/graph.mmd ]; then rm scaffold/docs/graph.mmd; fi;
 	if [ -f scaffold/Makefile ]; then rm scaffold/Makefile; fi;
