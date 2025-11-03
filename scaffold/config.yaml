@@ -6,5 +6,5 @@ connections:
     config:
       path: ./store/test.duckdb            
       extensions:
-        - postgres
-        - httpfs    
+        # - postgres
+        # - httpfs    
