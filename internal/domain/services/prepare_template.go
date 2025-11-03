@@ -10,9 +10,9 @@ import (
 )
 
 type PreparedTemplate struct {
-	processedSQL  string
-	uniqueRefs    *utils.UpstreamDependencies
-	profileYAML   string
+	processedSQL string
+	uniqueRefs   *utils.UpstreamDependencies
+	profileYAML  string
 }
 
 func (pt *PreparedTemplate) Execute(data interface{}) (string, error) {

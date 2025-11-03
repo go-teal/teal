@@ -26,10 +26,10 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	}
 
 	var generatorsList []generators.Generator = []generators.Generator{
-		generators.InitGenMain(config, projectProfile),      // Production main.go
-		generators.InitGenMainUI(config, projectProfile),    // UI debugging main.go
+		generators.InitGenMain(config, projectProfile),   // Production main.go
+		generators.InitGenMainUI(config, projectProfile), // UI debugging main.go
 		generators.InitGenGoMod(config, projectProfile),
-		generators.InitGenMakefile(config, projectProfile),  // Makefile
+		generators.InitGenMakefile(config, projectProfile),   // Makefile
 		generators.InitGenDockerfile(config, projectProfile), // Dockerfile
 	}
 

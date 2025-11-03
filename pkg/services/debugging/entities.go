@@ -204,6 +204,6 @@ type TestDataResponseDTO struct {
 	TaskId      string                   `json:"taskId"`
 	Status      string                   `json:"status"`
 	RowCount    int                      `json:"rowCount"`
-	Data        []map[string]interface{} `json:"data"` // Always present (empty array or populated)
+	Data        []map[string]interface{} `json:"data"`       // Always present (empty array or populated)
 	ExecutedAt  string                   `json:"executedAt"` // ISO 8601 timestamp
 }

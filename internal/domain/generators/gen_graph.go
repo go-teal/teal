@@ -41,12 +41,12 @@ func (g *GenGraph) GetFullPath() string {
 }
 
 type GraphNode struct {
-	NodeID         string
-	ModelName      string
-	Stage          string
+	NodeID          string
+	ModelName       string
+	Stage           string
 	Materialization string
-	Downstreams    []string
-	DownstreamIDs  []string
+	Downstreams     []string
+	DownstreamIDs   []string
 }
 
 func sanitizeNodeID(name string) string {
@@ -75,12 +75,12 @@ func (g *GenGraph) RenderToFile() (error, bool) {
 		}
 
 		nodes[i] = &GraphNode{
-			NodeID:         sanitizeNodeID(model.ModelName),
-			ModelName:      model.ModelName,
-			Stage:          model.Stage,
+			NodeID:          sanitizeNodeID(model.ModelName),
+			ModelName:       model.ModelName,
+			Stage:           model.Stage,
 			Materialization: materialization,
-			Downstreams:    model.Downstreams,
-			DownstreamIDs:  downstreamIDs,
+			Downstreams:     model.Downstreams,
+			DownstreamIDs:   downstreamIDs,
 		}
 	}
 

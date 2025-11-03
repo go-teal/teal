@@ -20,7 +20,7 @@ type UIServer struct {
 	Port             int
 	debuggingService *debugging.DebuggingService
 	logWriter        interface{} // Store the log writer (interface to avoid import cycle)
-	readmePath       string       // Path to the docs/readme.md file
+	readmePath       string      // Path to the docs/readme.md file
 }
 
 func NewUIServer(projectName, moduleName string, port int, dag *dags.DebugDag) *UIServer {

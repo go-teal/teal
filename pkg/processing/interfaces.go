@@ -20,11 +20,11 @@ const (
 
 // TestResult represents the result of a single test execution
 type TestResult struct {
-	TestName    string     `json:"testName"`
-	Status      TestStatus `json:"status"`
-	Error       error      `json:"error,omitempty"`
-	DurationMs  int64      `json:"durationMs"`
-	Message     string     `json:"message,omitempty"`
+	TestName   string     `json:"testName"`
+	Status     TestStatus `json:"status"`
+	Error      error      `json:"error,omitempty"`
+	DurationMs int64      `json:"durationMs"`
+	Message    string     `json:"message,omitempty"`
 }
 
 type Asset interface {

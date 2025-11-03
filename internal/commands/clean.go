@@ -27,15 +27,15 @@ func NewCleanCommand(app *application.Application) *CleanCommand {
 }
 
 type CleanCommand struct {
-	fs               *flag.FlagSet
-	models           string
-	projectPath      string
-	cleanMain        bool
-	cleanMainUI      bool
-	cleanDockerfile  bool
-	cleanGoMod       bool
-	cleanAll         bool
-	app              *application.Application
+	fs              *flag.FlagSet
+	models          string
+	projectPath     string
+	cleanMain       bool
+	cleanMainUI     bool
+	cleanDockerfile bool
+	cleanGoMod      bool
+	cleanAll        bool
+	app             *application.Application
 }
 
 func (cleanCommand *CleanCommand) Name() string {
