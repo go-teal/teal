@@ -15,18 +15,145 @@ type Runner interface {
 	Name() string
 }
 
-func root(args []string) error {
-	if len(args) < 1 {
-		message := `
+func getHelpMessage() string {
+	return `
 Usage:
-	teal [command]
+	teal [command] [flags]
 
 Commands:
-	init 	creates basic teal project structure
-	gen		generates GO code from asset model files
-	ui		starts UI development server with hot-reload
-		`
-		return errors.New(message)
+	init      Create basic teal project structure
+	          No flags required
+
+	gen       Generate Go code from asset model files
+	          Flags:
+	            --project-path string    Project directory (default ".")
+	            --config-file string     Path to config.yaml (default "config.yaml")
+	            --model string          Name of target model (optional)
+
+	clean     Clean generated files
+	          Flags:
+	            --project-path string    Project directory (default ".")
+	            --model string          Models for cleaning (default "*")
+	            --clean-main            Delete main.go files
+
+	ui        Start UI development server with hot-reload
+	          Flags:
+	            --port int              Port for UI server (default 8080)
+	            --log-level string      Log level: debug, info, warn, error (default "debug")
+	            --project-path string    Project directory (default ".")
+
+	version   Show teal version
+	          No flags required
+
+Global Flags:
+	--help, -h    Show this help message
+
+Examples:
+	teal init
+	teal gen --project-path ./my-project
+	teal clean --clean-main
+	teal ui --port 9090
+	teal version
+
+For more information, visit: https://github.com/go-teal/teal
+`
+}
+
+func getCommandHelp(command string) string {
+	helpTexts := map[string]string{
+		"init": `
+Usage: teal init
+
+Creates basic teal project structure with default configuration files.
+
+This command initializes a new Teal project with:
+  - config.yaml (database connections)
+  - profile.yaml (project configuration)
+  - assets/ directory structure
+
+No flags required.
+`,
+		"gen": `
+Usage: teal gen [flags]
+
+Generates Go code from asset model files.
+
+Flags:
+  --project-path string    Project directory (default ".")
+  --config-file string     Path to config.yaml (default "config.yaml")
+  --model string          Name of target model to generate (optional, generates all if not specified)
+
+Examples:
+  teal gen
+  teal gen --project-path ./my-project
+  teal gen --model staging.customers
+  teal gen --config-file custom-config.yaml
+`,
+		"clean": `
+Usage: teal clean [flags]
+
+Cleans generated files from the project.
+
+Flags:
+  --project-path string    Project directory (default ".")
+  --model string          Models for cleaning (default "*" for all)
+  --clean-main            Delete main.go files in cmd/ directory
+
+Examples:
+  teal clean
+  teal clean --model staging.customers
+  teal clean --clean-main
+  teal clean --project-path ./my-project
+
+Note: When cleaning all models (*), you will be prompted for confirmation.
+`,
+		"ui": `
+Usage: teal ui [flags]
+
+Starts UI development server with hot-reload for debugging and monitoring.
+
+Flags:
+  --port int              Port for UI server (default 8080)
+  --log-level string      Log level: debug, info, warn, error (default "debug")
+  --project-path string    Project directory (default ".")
+
+Examples:
+  teal ui
+  teal ui --port 9090
+  teal ui --log-level info
+  teal ui --project-path ./my-project
+
+The UI provides:
+  - DAG visualization
+  - Real-time execution monitoring
+  - Test result tracking
+  - Log viewing
+  - Data inspection
+`,
+		"version": `
+Usage: teal version
+
+Shows the current version of Teal CLI.
+
+No flags required.
+`,
+	}
+
+	if help, ok := helpTexts[command]; ok {
+		return help
+	}
+	return fmt.Sprintf("No detailed help available for command: %s\n", command)
+}
+
+func root(args []string) error {
+	if len(args) < 1 {
+		return errors.New(getHelpMessage())
+	}
+
+	// Handle --help or -h flag
+	if args[0] == "--help" || args[0] == "-h" {
+		fmt.Println(getHelpMessage())
+		os.Exit(0)
 	}
 
 	app := application.InitApplication()
@@ -42,6 +169,15 @@ Commands:
 
 	for _, cmd := range cmds {
 		if cmd.Name() == subcommand {
+			// Check if user wants help for this specific command
+			if len(os.Args) > 2 && (os.Args[2] == "--help" || os.Args[2] == "-h") {
+				// Initialize without running to trigger flag parsing help
+				if err := cmd.Init([]string{"--help"}); err != nil {
+					// Flag package prints help and returns ErrHelp
+					fmt.Println(getCommandHelp(subcommand))
+				}
+				os.Exit(0)
+			}
 			cmd.Init(os.Args[2:])
 			return cmd.Run()
 		}
