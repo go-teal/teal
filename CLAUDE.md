@@ -393,6 +393,97 @@ Assets can then reference these connections and data flows seamlessly between th
 ## Development Notes
 
 ### Git Workflow
+
+#### Conventional Commits
+
+This project follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for commit messages.
+
+**Commit Message Format:**
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Common Types:**
+- `feat`: New feature (correlates to MINOR in semantic versioning)
+- `fix`: Bug fix (correlates to PATCH in semantic versioning)
+- `docs`: Documentation changes
+- `refactor`: Code refactoring without functionality changes
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks, dependencies, build process
+- `perf`: Performance improvements
+- `style`: Code style/formatting changes
+- `ci`: CI/CD configuration changes
+- `build`: Build system or external dependencies changes
+
+**Scopes (optional but recommended):**
+- `cli`: CLI command changes
+- `gen`: Code generation
+- `dag`: DAG execution engine
+- `drivers`: Database drivers (duckdb, postgres)
+- `ui`: UI Dashboard
+- `api`: REST API endpoints
+- `templates`: Template changes
+- `tests`: Testing infrastructure
+- `docs`: Documentation
+
+**Breaking Changes:**
+Indicate breaking changes with `!` after type/scope or in footer:
+```
+feat(api)!: remove deprecated endpoint
+
+BREAKING CHANGE: /api/old-endpoint has been removed, use /api/new-endpoint instead
+```
+
+**Examples:**
+```bash
+# Feature additions
+feat(cli): add comprehensive help system for all commands
+feat(drivers): add MySQL database driver support
+feat(ui): add real-time log streaming to dashboard
+
+# Bug fixes
+fix(dag): resolve deadlock in channel-based execution
+fix(postgres): handle SSL certificate validation errors
+fix(gen): correct template rendering for pointer fields
+
+# Documentation
+docs(readme): add CLI commands reference section
+docs(api): document test execution endpoints
+
+# Refactoring
+refactor(drivers): extract common DataFrame operations
+refactor(templates): migrate from text/template to pongo2
+
+# Chores
+chore: update dependencies to latest versions
+chore(release): bump version to v1.0.2
+
+# Multiple scopes
+feat(cli,docs): enhance help system and update documentation
+```
+
+**Full Commit Example:**
+```bash
+git commit -m "$(cat <<'EOF'
+feat(cli): add comprehensive help system for all commands
+
+- Add --help and -h flag support for global and per-command help
+- Document all commands: init, gen, clean, ui, version
+- Complete flag documentation with defaults and examples
+- Usage examples for each command
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
+```
+
+#### Push Policy
 - **IMPORTANT**: NEVER run `git push` unless the user explicitly requests it
 - You may stage files (`git add`) and create commits (`git commit`) when appropriate
 - Always wait for explicit permission before pushing changes to remote repository
