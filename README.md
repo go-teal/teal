@@ -131,18 +131,6 @@ All other files (assets, tests, configs, docs) are regenerated on every `teal ge
 
 To regenerate these protected files, use the appropriate `--clean-*` flags before running `teal gen`.
 
-**Docker Deployment:**
-
-The generated `Dockerfile` is specifically optimized for **DuckDB compatibility** and uses **Debian bookworm** base images (`golang:bookworm` for build stage, `debian:bookworm-slim` for runtime). The final image size is approximately **311MB** with embedded DuckDB bindings.
-
-Key characteristics:
-- **CGO-enabled builds** required for DuckDB's native bindings
-- **glibc-based** (Debian) instead of musl-based (Alpine) for DuckDB compatibility
-- Includes gcc/g++ build dependencies for CGO compilation
-- Non-root user with home directory for DuckDB extension installation
-
-**Note:** If your project does **not use DuckDB**, you can modify the Dockerfile to use smaller Alpine-based images and disable CGO for significantly reduced image sizes (~20-30MB).
-
 #### `teal ui` <!-- omit from toc -->
 
 Starts the UI development server with hot-reload for debugging and monitoring.
@@ -1072,6 +1060,19 @@ Test profiles can be defined in test SQL files using the same template syntax as
 |name|String|`<stage>.<filename>`|The test name following the pattern `<stage>.<test_name>`. Can be specified in the test file's profile or in the model profile when defining tests. For tests in `assets/tests/`, stage is `root`.|
 |description|String||Optional description of what the test validates, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
+
+## Docker Deployment
+
+The generated `Dockerfile` is specifically optimized for **DuckDB compatibility** and uses **Debian bookworm** base images (`golang:bookworm` for build stage, `debian:bookworm-slim` for runtime). The final image size is approximately **311MB** with embedded DuckDB bindings.
+
+**Key characteristics:**
+
+- **CGO-enabled builds** required for DuckDB's native bindings
+- **glibc-based** (Debian) instead of musl-based (Alpine) for DuckDB compatibility
+- Includes gcc/g++ build dependencies for CGO compilation
+- Non-root user with home directory for DuckDB extension installation
+
+**Note:** If your project does **not use DuckDB**, you can modify the Dockerfile to use smaller Alpine-based images and disable CGO for significantly reduced image sizes (~20-30MB).
 
 ## General Architecture
 
