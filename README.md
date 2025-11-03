@@ -131,6 +131,18 @@ All other files (assets, tests, configs, docs) are regenerated on every `teal ge
 
 To regenerate these protected files, use the appropriate `--clean-*` flags before running `teal gen`.
 
+**Docker Deployment:**
+
+The generated `Dockerfile` is specifically optimized for **DuckDB compatibility** and uses **Debian bookworm** base images (`golang:bookworm` for build stage, `debian:bookworm-slim` for runtime). The final image size is approximately **311MB** with embedded DuckDB bindings.
+
+Key characteristics:
+- **CGO-enabled builds** required for DuckDB's native bindings
+- **glibc-based** (Debian) instead of musl-based (Alpine) for DuckDB compatibility
+- Includes gcc/g++ build dependencies for CGO compilation
+- Non-root user with home directory for DuckDB extension installation
+
+**Note:** If your project does **not use DuckDB**, you can modify the Dockerfile to use smaller Alpine-based images and disable CGO for significantly reduced image sizes (~20-30MB).
+
 #### `teal ui` <!-- omit from toc -->
 
 Starts the UI development server with hot-reload for debugging and monitoring.
