@@ -6,10 +6,9 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/rs/zerolog/log"
 )
 
 //go:embed dist
@@ -26,7 +25,7 @@ func NewUIAssetsServer(port int) *UIAssetsServer {
 	// Extract the dist subdirectory from the embedded filesystem
 	distFS, err := fs.Sub(uiAssets, "dist")
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to create sub filesystem for UI assets")
+		panic(fmt.Sprintf("Failed to create sub filesystem for UI assets: %v", err))
 	}
 
 	return &UIAssetsServer{
@@ -44,10 +43,7 @@ func (s *UIAssetsServer) Start() error {
 
 	addr := fmt.Sprintf(":%d", s.port)
 
-	log.Info().
-		Int("port", s.port).
-		Str("url", fmt.Sprintf("http://localhost:%d", s.port)).
-		Msg("UI assets server starting")
+	fmt.Printf("UI assets server starting on port %d (http://localhost:%d)\n", s.port, s.port)
 
 	// Print clickable URL for terminal
 	fmt.Printf("\n✨ UI available at: \033]8;;http://localhost:%d\033\\http://localhost:%d\033]8;;\033\\\n\n", s.port, s.port)
@@ -74,7 +70,7 @@ func (s *UIAssetsServer) serveFile(w http.ResponseWriter, r *http.Request) {
 		file, err = s.fs.Open("index.html")
 		if err != nil {
 			http.Error(w, "Not Found", http.StatusNotFound)
-			log.Debug().Str("path", r.URL.Path).Msg("File not found")
+			// File not found - this is normal for SPA routing
 			return
 		}
 		path = "index.html"
@@ -85,7 +81,7 @@ func (s *UIAssetsServer) serveFile(w http.ResponseWriter, r *http.Request) {
 	stat, err := file.Stat()
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		log.Error().Err(err).Str("path", path).Msg("Failed to stat file")
+		fmt.Fprintf(os.Stderr, "Failed to stat file %s: %v\n", path, err)
 		return
 	}
 
@@ -115,12 +111,6 @@ func (s *UIAssetsServer) serveFile(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the file
 	http.ServeContent(w, r, stat.Name(), stat.ModTime(), file.(io.ReadSeeker))
-
-	log.Debug().
-		Str("path", r.URL.Path).
-		Str("file", path).
-		Str("content-type", contentType).
-		Msg("Served UI asset")
 }
 
 // setCORSHeaders adds CORS headers to allow API access

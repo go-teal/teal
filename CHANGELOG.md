@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.1] 2025-11-03
+
+### Changed
+
+- **Logging Separation**: Refactored logging approach for better separation of concerns
+  - `internal/` packages now use `fmt.Printf` and `panic` instead of zerolog
+  - `cmd/teal` uses standard `fmt` output for CLI logging
+  - `pkg/` packages continue to use zerolog for library-level structured logging
+  - UI assets server (`internal/domain/services/ui_assets_server.go`) now uses simple fmt-based logging
+  - Fatal errors in internal packages now use `panic()` instead of `log.Fatal()`
+  - Error output uses `fmt.Fprintf(os.Stderr, ...)` for consistency
+
 ## [1.0.0] 2025-11-01
 
 ### Added
