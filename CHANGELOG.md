@@ -11,10 +11,28 @@
   - Usage examples for each command
   - Detailed command-specific help with `teal [command] --help`
 
+- **Dockerfile Generator**: Automatic multi-stage Dockerfile generation
+  - Generated only once (skip if exists) to allow customization
+  - Optimized for DuckDB compatibility using Debian bookworm base images
+  - CGO-enabled builds for DuckDB native bindings support
+  - Security best practices: non-root user with home directory
+  - Final image size ~311MB with embedded DuckDB bindings
+  - Can be modified for Alpine-based images (~20-30MB) when not using DuckDB
+
+- **Enhanced Clean Command**: New flags for selective file cleanup
+  - `--clean-dockerfile` - Delete generated Dockerfile
+  - `--clean-main-ui` - Delete UI debug binary main file
+  - `--clean-go-mod` - Delete go.mod and go.sum files
+  - `--clean-all` - Delete ALL generated files (with confirmation)
+  - Smart confirmation logic: specific file flags work independently of model cleaning
+
 ### Changed
 
-- **README.md Documentation**: Added comprehensive CLI Commands Reference section
-  - Detailed documentation for each command with flags and examples
+- **README.md Documentation**: Comprehensive updates and additions
+  - Added CLI Commands Reference section with all commands, flags, and examples
+  - Added Docker Deployment section explaining Dockerfile design and image characteristics
+  - Documented files NOT overwritten by `teal gen` (Dockerfile, go.mod, main files)
+  - Updated project structure examples to include Dockerfile
   - Getting Help section showing how to access CLI help
   - Improved discoverability of all CLI features
 
