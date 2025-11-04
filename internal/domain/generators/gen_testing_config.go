@@ -43,7 +43,7 @@ func InitGenTestConfig(
 	}
 }
 
-func (g *GenTestingConfig) RenderToFile() error {
+func (g *GenTestingConfig) RenderToFile() (error, bool) {
 	// fmt.Printf("Rendering: %s", g.GetFullPath())
 	dirName := g.config.ProjectPath + "/internal/model_tests/"
 	utils.CreateDir(dirName)
@@ -69,5 +69,5 @@ func (g *GenTestingConfig) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

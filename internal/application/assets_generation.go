@@ -26,10 +26,11 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	}
 
 	var generatorsList []generators.Generator = []generators.Generator{
-		generators.InitGenMain(config, projectProfile),    // Production main.go
-		generators.InitGenMainUI(config, projectProfile),  // UI debugging main.go
+		generators.InitGenMain(config, projectProfile),   // Production main.go
+		generators.InitGenMainUI(config, projectProfile), // UI debugging main.go
 		generators.InitGenGoMod(config, projectProfile),
-		generators.InitGenMakefile(config, projectProfile), // Makefile
+		generators.InitGenMakefile(config, projectProfile),   // Makefile
+		generators.InitGenDockerfile(config, projectProfile), // Dockerfile
 	}
 
 	services.CombineProfiles(config, projectProfile)
@@ -81,9 +82,11 @@ func (app *Application) GenegateAssets(pojectPath string, configFilePath string,
 	fmt.Printf("Files %d\n", len(generatorsList))
 
 	for _, g := range generatorsList {
-		err := g.RenderToFile()
+		err, skipped := g.RenderToFile()
 		if err != nil {
 			fmt.Printf("\033[39m%s %s \033[91m[FAIL]\n%v\n", g.GetFullPath(), strings.Repeat(".", 70-len(g.GetFullPath())), err)
+		} else if skipped {
+			fmt.Printf("\033[39m%s %s [SKIPPED]\n", g.GetFullPath(), strings.Repeat(".", 70-len(g.GetFullPath())))
 		} else {
 			fmt.Printf("\033[39m%s %s \033[92m[OK]\n", g.GetFullPath(), strings.Repeat(".", 70-len(g.GetFullPath())))
 		}

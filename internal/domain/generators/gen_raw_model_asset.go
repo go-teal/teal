@@ -43,7 +43,7 @@ func (g *GenRawModelAsset) GetFullPath() string {
 	return g.config.ProjectPath + "/internal/assets/" + g.GetFileName() + ".go"
 }
 
-func (g *GenRawModelAsset) RenderToFile() error {
+func (g *GenRawModelAsset) RenderToFile() (error, bool) {
 
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
@@ -56,7 +56,7 @@ func (g *GenRawModelAsset) RenderToFile() error {
 
 	goTempl, err := pongo2.FromString(dwhRawModelTemplate)
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	output, err := goTempl.Execute(pongo2.Context{
@@ -67,7 +67,7 @@ func (g *GenRawModelAsset) RenderToFile() error {
 		"Downstreams":  g.modelConfig.Downstreams,
 	})
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	file, err := os.Create(g.GetFullPath())
@@ -79,5 +79,5 @@ func (g *GenRawModelAsset) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

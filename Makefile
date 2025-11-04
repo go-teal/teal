@@ -5,9 +5,11 @@ make:
 	rm -rf scaffold/cmd
 	rm -rf scaffold/internal
 	rm -rf scaffold/bin
+	rm -rf scaffold/docs
 
 	if [ -f scaffold/docs/graph.mmd ]; then rm scaffold/docs/graph.mmd; fi;
 	if [ -f scaffold/Makefile ]; then rm scaffold/Makefile; fi;
+	if [ -f scaffold/Dockerfile ]; then rm scaffold/Dockerfile; fi;
 	if [ -f scaffold/store/test.duckdb ]; then rm scaffold/store/test.duckdb; fi;
 	if [ -f internal/application/templates/scaffold.tar.gz ]; then rm internal/application/templates/scaffold.tar.gz; fi;
 
@@ -28,10 +30,10 @@ make:
 install:
 	go install ./cmd/teal
 
-test: 
-	go build -o teal.out ./cmd/teal
-	./teal.out gen --project-path=scaffold  
+test:
+	go build -o bin/teal ./cmd/teal
+	./bin/teal gen --project-path=scaffold
 
 test_clean:
-	go build -o teal.out ./cmd/teal
-	./teal.out clean --project-path=scaffold --clean-main
+	go build -o bin/teal ./cmd/teal
+	./bin/teal clean --project-path=scaffold --clean-main

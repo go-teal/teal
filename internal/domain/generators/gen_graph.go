@@ -41,19 +41,19 @@ func (g *GenGraph) GetFullPath() string {
 }
 
 type GraphNode struct {
-	NodeID         string
-	ModelName      string
-	Stage          string
+	NodeID          string
+	ModelName       string
+	Stage           string
 	Materialization string
-	Downstreams    []string
-	DownstreamIDs  []string
+	Downstreams     []string
+	DownstreamIDs   []string
 }
 
 func sanitizeNodeID(name string) string {
 	return strings.ReplaceAll(name, ".", "_")
 }
 
-func (g *GenGraph) RenderToFile() error {
+func (g *GenGraph) RenderToFile() (error, bool) {
 
 	utils.CreateDir(g.config.ProjectPath + "/docs")
 	stages := make([]string, len(g.profile.Models.Stages))
@@ -75,12 +75,12 @@ func (g *GenGraph) RenderToFile() error {
 		}
 
 		nodes[i] = &GraphNode{
-			NodeID:         sanitizeNodeID(model.ModelName),
-			ModelName:      model.ModelName,
-			Stage:          model.Stage,
+			NodeID:          sanitizeNodeID(model.ModelName),
+			ModelName:       model.ModelName,
+			Stage:           model.Stage,
 			Materialization: materialization,
-			Downstreams:    model.Downstreams,
-			DownstreamIDs:  downstreamIDs,
+			Downstreams:     model.Downstreams,
+			DownstreamIDs:   downstreamIDs,
 		}
 	}
 
@@ -107,5 +107,5 @@ func (g *GenGraph) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

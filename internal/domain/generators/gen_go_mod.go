@@ -35,12 +35,12 @@ func (g *GenGoMod) GetFullPath() string {
 	return g.config.ProjectPath + "/" + GO_MOD_FILE_NAME
 }
 
-func (g *GenGoMod) RenderToFile() error {
+func (g *GenGoMod) RenderToFile() (error, bool) {
 
 	_, err := os.Stat(g.GetFullPath())
-	if err == nil {
-
-		return nil
+	if !os.IsNotExist(err) {
+		// File exists, skip generation
+		return nil, true
 	}
 
 	templ, err := pongo2.FromString(goModTemplate)
@@ -65,5 +65,5 @@ func (g *GenGoMod) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

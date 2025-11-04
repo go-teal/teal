@@ -47,7 +47,7 @@ func InitGenAssetsConfig(
 	}
 }
 
-func (g *GenAssetsConfig) RenderToFile() error {
+func (g *GenAssetsConfig) RenderToFile() (error, bool) {
 	// fmt.Printf("Rendering: %s", g.GetFullPath())
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
@@ -90,5 +90,5 @@ func (g *GenAssetsConfig) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

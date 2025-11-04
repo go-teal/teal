@@ -159,10 +159,10 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 			}
 			if s.descriptor.ModelProfile.IsDataFramed {
 				log.Warn().
-				Str("taskId", ctx.TaskID).
-				Str("taskUUID", ctx.TaskUUID).
-				Str("assetName", s.descriptor.Name).
-				Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+					Str("taskId", ctx.TaskID).
+					Str("taskUUID", ctx.TaskUUID).
+					Str("assetName", s.descriptor.Name).
+					Msg("Dataframe can slow this operation, considner custom or incremental materialization")
 				data, err = s.getDataFrame(ctx, false)
 				if err != nil {
 					return nil, err
@@ -187,10 +187,10 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 				}
 				if s.descriptor.ModelProfile.IsDataFramed {
 					log.Warn().
-				Str("taskId", ctx.TaskID).
-				Str("taskUUID", ctx.TaskUUID).
-				Str("assetName", s.descriptor.Name).
-				Msg("Dataframe can slow this operation, considner custom or incremental materialization")
+						Str("taskId", ctx.TaskID).
+						Str("taskUUID", ctx.TaskUUID).
+						Str("assetName", s.descriptor.Name).
+						Msg("Dataframe can slow this operation, considner custom or incremental materialization")
 					data, err = s.getDataFrame(ctx, false)
 					if err != nil {
 						return nil, err

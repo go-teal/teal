@@ -34,7 +34,7 @@ func InitGenMainUI(config *configs.Config, profile *configs.ProjectProfile) Gene
 	}
 }
 
-func (g *GenMainUI) RenderToFile() error {
+func (g *GenMainUI) RenderToFile() (error, bool) {
 	mainDirName := g.config.ProjectPath + "/cmd/" + g.profile.Name + "-ui"
 	if g.config.ProjectPath == "." {
 		mainDirName = "cmd/" + g.profile.Name + "-ui"
@@ -49,7 +49,7 @@ func (g *GenMainUI) RenderToFile() error {
 	_, err = os.Stat(g.GetFullPath())
 
 	if !os.IsNotExist(err) {
-		return nil
+		return nil, true
 	}
 
 	connectionsFlags := make(map[string]bool)
@@ -77,5 +77,5 @@ func (g *GenMainUI) RenderToFile() error {
 
 	_, err = file.WriteString(output)
 
-	return err
+	return err, false
 }

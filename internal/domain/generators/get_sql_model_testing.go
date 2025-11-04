@@ -31,7 +31,7 @@ func (g *GenSQLModelTest) GetFullPath() string {
 }
 
 // RenderToFile implements Generator.
-func (g *GenSQLModelTest) RenderToFile() error {
+func (g *GenSQLModelTest) RenderToFile() (error, bool) {
 	dirName := g.config.ProjectPath + "/internal/model_tests/"
 	utils.CreateDir(dirName)
 
@@ -43,7 +43,7 @@ func (g *GenSQLModelTest) RenderToFile() error {
 
 	goTempl, err := pongo2.FromString(dwhModelTestTemplate)
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	output, err := goTempl.Execute(pongo2.Context{
@@ -54,7 +54,7 @@ func (g *GenSQLModelTest) RenderToFile() error {
 		"TestProfile":   g.testConfig.TestProfile,
 	})
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	file, err := os.Create(g.GetFullPath())
@@ -66,7 +66,7 @@ func (g *GenSQLModelTest) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }
 
 func InitGenSQLModelTest(

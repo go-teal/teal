@@ -16,12 +16,12 @@ import (
 type NodeState string
 
 const (
-	NodeStateInitial       NodeState = "INITIAL"
-	NodeStateInProgress    NodeState = "IN_PROGRESS"
-	NodeStateTesting       NodeState = "TESTING"
-	NodeStateFailed        NodeState = "FAILED"
-	NodeStateSuccess       NodeState = "SUCCESS"
-	NodeStateTestsFailed   NodeState = "TESTS_FAILED"  // Asset succeeded but tests failed
+	NodeStateInitial     NodeState = "INITIAL"
+	NodeStateInProgress  NodeState = "IN_PROGRESS"
+	NodeStateTesting     NodeState = "TESTING"
+	NodeStateFailed      NodeState = "FAILED"
+	NodeStateSuccess     NodeState = "SUCCESS"
+	NodeStateTestsFailed NodeState = "TESTS_FAILED" // Asset succeeded but tests failed
 )
 
 // DagAssetDebugService represents a node in the debug DAG with pointer-based connections
@@ -53,21 +53,21 @@ type TestExecutionResult struct {
 
 // DebugDag is a debug-enabled DAG implementation using pointers instead of channels
 type DebugDag struct {
-	InnerDag        DAG // Keep for compatibility but will be nil
-	DagInstanceName string
-	DagInstanceUUID string
-	DagGraph        [][]string
-	AssetsMap       map[string]processing.Asset
-	TestsMap        map[string]processing.ModelTesting
-	Config          *configs.Config
-	NodeMap         map[string]*DagAssetDebugService            // Map of asset name to debug service node
-	RootNodes       []*DagAssetDebugService                     // Nodes with no upstreams
-	LeafNodes       []*DagAssetDebugService                     // Nodes with no downstreams
-	RootTestResults []processing.TestResult                     // Results from root tests
-	TaskUUIDMap     map[string]string                           // Map of taskId to taskUUID
+	InnerDag         DAG // Keep for compatibility but will be nil
+	DagInstanceName  string
+	DagInstanceUUID  string
+	DagGraph         [][]string
+	AssetsMap        map[string]processing.Asset
+	TestsMap         map[string]processing.ModelTesting
+	Config           *configs.Config
+	NodeMap          map[string]*DagAssetDebugService           // Map of asset name to debug service node
+	RootNodes        []*DagAssetDebugService                    // Nodes with no upstreams
+	LeafNodes        []*DagAssetDebugService                    // Nodes with no downstreams
+	RootTestResults  []processing.TestResult                    // Results from root tests
+	TaskUUIDMap      map[string]string                          // Map of taskId to taskUUID
 	TestExecutionMap map[string]map[string]*TestExecutionResult // Map of taskId -> testName -> result
-	isConnected     bool                                        // Track database connection status
-	mu              sync.RWMutex                                // Mutex for thread-safe access
+	isConnected      bool                                       // Track database connection status
+	mu               sync.RWMutex                               // Mutex for thread-safe access
 }
 
 // InitDebugDag creates a new DebugDag with pointer-based structure
@@ -344,8 +344,8 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 
 					// Update final state based on test results
 					if node.TestsFailed > 0 {
-						node.State = NodeStateTestsFailed  // Use TESTS_FAILED instead of FAILED
-						
+						node.State = NodeStateTestsFailed // Use TESTS_FAILED instead of FAILED
+
 						// Collect failed test names
 						var failedTestNames []string
 						for _, tr := range node.TestResults {
@@ -353,7 +353,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 								failedTestNames = append(failedTestNames, tr.TestName)
 							}
 						}
-						
+
 						log.Warn().
 							Str("taskId", taskId).
 							Str("assetName", assetName).
@@ -387,7 +387,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 		if d.TestsMap != nil {
 			log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Executing root tests")
 			d.RootTestResults = []processing.TestResult{} // Reset root test results
-			
+
 			for testName, testCase := range d.TestsMap {
 				// Only run tests with "root." prefix
 				if len(testName) >= 5 && testName[:5] == "root." {
@@ -401,12 +401,12 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					}
 					status, executedTestName, err := testCase.Execute(rootCtx)
 					duration := time.Since(startTime).Milliseconds()
-					
+
 					testResult := processing.TestResult{
 						TestName:   executedTestName,
 						DurationMs: duration,
 					}
-					
+
 					if status {
 						testResult.Status = processing.TestStatusSuccess
 						testResult.Message = "Root test passed"
@@ -417,7 +417,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 						testResult.Message = "Root test failed"
 						log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Int64("durationMs", duration).Err(err).Msg("Root test failed")
 					}
-					
+
 					d.RootTestResults = append(d.RootTestResults, testResult)
 				}
 			}

@@ -19,12 +19,12 @@ import (
 )
 
 type DebuggingService struct {
-	dag                   *dags.DebugDag
-	taskHistory           map[string]DagExecutionResponseDTO              // Store execution results by taskId
-	testHistory           map[string][]TestProfileDTO                     // Store test results by taskId
-	assetHistory          map[string]map[string]AssetExecuteResponseDTO   // Store asset execution results by taskId -> assetName
-	testExecutionHistory  map[string]map[string]*TestExecuteResponseDTO   // Store test execution results by taskId -> testName
-	mu                    sync.RWMutex                                    // Mutex for thread-safe access to taskHistory
+	dag                  *dags.DebugDag
+	taskHistory          map[string]DagExecutionResponseDTO            // Store execution results by taskId
+	testHistory          map[string][]TestProfileDTO                   // Store test results by taskId
+	assetHistory         map[string]map[string]AssetExecuteResponseDTO // Store asset execution results by taskId -> assetName
+	testExecutionHistory map[string]map[string]*TestExecuteResponseDTO // Store test execution results by taskId -> testName
+	mu                   sync.RWMutex                                  // Mutex for thread-safe access to taskHistory
 }
 
 func NewDebuggingService(dag *dags.DebugDag) *DebuggingService {
@@ -458,8 +458,8 @@ func (s *DebuggingService) ExecuteDag(taskId string, data map[string]interface{}
 	// Check if DAG is connected to databases
 	if !s.dag.IsConnected() {
 		response := DagExecutionResponseDTO{
-			TaskId:      taskId,
-			Status:      DagExecutionStatusFailed,
+			TaskId: taskId,
+			Status: DagExecutionStatusFailed,
 			NodesStatus: []NodeStatusDTO{{
 				Name:    "connection_check",
 				State:   NodeStateFailed,
@@ -1063,10 +1063,10 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			startTime := time.Now()
 			startTimeMs := startTime.UnixMilli()
 			execResponse := AssetExecuteResponseDTO{
-				AssetName:  assetName,
-				TaskId:     taskId,
-				Status:     NodeStateFailed,
-				StartTime:  &startTimeMs,
+				AssetName: assetName,
+				TaskId:    taskId,
+				Status:    NodeStateFailed,
+				StartTime: &startTimeMs,
 			}
 
 			// Validate and get node (with lock)

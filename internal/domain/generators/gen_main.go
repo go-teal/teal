@@ -34,7 +34,7 @@ func InitGenMain(config *configs.Config, profile *configs.ProjectProfile) Genera
 	}
 }
 
-func (g *GenMain) RenderToFile() error {
+func (g *GenMain) RenderToFile() (error, bool) {
 
 	mainDirName := g.config.ProjectPath + "/cmd/" + g.profile.Name
 	if g.config.ProjectPath == "." {
@@ -50,7 +50,7 @@ func (g *GenMain) RenderToFile() error {
 	_, err = os.Stat(g.GetFullPath())
 
 	if !os.IsNotExist(err) {
-		return nil
+		return nil, true
 	}
 
 	connectionsFlags := make(map[string]bool)
@@ -78,5 +78,5 @@ func (g *GenMain) RenderToFile() error {
 
 	_, err = file.WriteString(output)
 
-	return err
+	return err, false
 }

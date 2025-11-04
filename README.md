@@ -2,8 +2,8 @@
 
 - [Teal](#teal)
   - [QuickStart](#quickstart)
-      - [Production Binary (my-test-project.go)](#production-binary-my-test-projectgo)
-      - [Debug UI Binary (my-test-project-ui.go)](#debug-ui-binary-my-test-project-uigo)
+    - [Installation](#installation)
+    - [CLI Commands Reference](#cli-commands-reference)
   - [Configuration](#configuration)
     - [config.yaml](#configyaml)
     - [profile.yaml](#profileyaml)
@@ -21,6 +21,7 @@
   - [Data testing](#data-testing)
     - [Simple model testing](#simple-model-testing)
       - [Test profile](#test-profile)
+  - [Docker Deployment](#docker-deployment)
   - [General Architecture](#general-architecture)
     - [Cross database references](#cross-database-references)
   - [Road Map](#road-map)
@@ -39,10 +40,143 @@ Why Choose Teal?
 
 ## QuickStart
 
-### Installation <!-- omit from toc -->
+### Installation 
 
 ```bash
 go install github.com/go-teal/teal/cmd/teal@latest
+```
+
+### CLI Commands Reference 
+
+Teal CLI provides the following commands to manage your data pipeline projects:
+
+#### `teal init` <!-- omit from toc -->
+
+Creates a basic Teal project structure with default configuration files.
+
+```bash
+teal init
+```
+
+This command initializes a new Teal project with:
+- `config.yaml` (database connections)
+- `profile.yaml` (project configuration)
+- `assets/` directory structure with example models and tests
+- `store/` directory with sample CSV data
+
+**No flags required.**
+
+#### `teal gen` <!-- omit from toc -->
+
+Generates Go code from SQL asset model files.
+
+```bash
+teal gen [flags]
+```
+
+**Flags:**
+- `--project-path string` - Project directory (default: `.`)
+- `--config-file string` - Path to config.yaml (default: `config.yaml`)
+- `--model string` - Name of target model to generate (optional, generates all if not specified)
+
+**Examples:**
+```bash
+teal gen                                    # Generate all models in current directory
+teal gen --project-path ./my-project        # Generate in specific directory
+teal gen --model staging.customers          # Generate specific model only
+teal gen --config-file custom-config.yaml   # Use custom config file
+```
+
+#### `teal clean` <!-- omit from toc -->
+
+Cleans generated files from the project.
+
+```bash
+teal clean [flags]
+```
+
+**Flags:**
+- `--project-path string` - Project directory (default: `.`)
+- `--model string` - Models for cleaning (default: `*` for all)
+- `--clean-main` - Delete production main.go in `cmd/<project-name>/`
+- `--clean-main-ui` - Delete UI debug main.go in `cmd/<project-name>-ui/`
+- `--clean-dockerfile` - Delete Dockerfile
+- `--clean-go-mod` - Delete go.mod and go.sum
+- `--clean-all` - Delete ALL generated files (prompts for confirmation)
+
+**Examples:**
+```bash
+teal clean                                  # Clean all models (with confirmation)
+teal clean --model staging.customers        # Clean specific model
+teal clean --clean-main                     # Clean production main.go only
+teal clean --clean-main-ui                  # Clean UI main.go only
+teal clean --clean-dockerfile               # Clean Dockerfile only
+teal clean --clean-go-mod                   # Clean go.mod and go.sum
+teal clean --clean-all                      # Clean ALL generated files
+teal clean --project-path ./my-project      # Clean in specific directory
+```
+
+**Note:**
+- When cleaning all models (`*`), you will be prompted for confirmation.
+- `--clean-all` will delete ALL generated files including go.mod, Dockerfile, and main files.
+
+**Files NOT Overwritten by `teal gen`:**
+
+The following files are generated only once and will NOT be overwritten on subsequent `teal gen` executions:
+- **`Dockerfile`** - Container configuration (skip if exists)
+- **`go.mod`** - Go module definition (skip if exists)
+- **`cmd/<project-name>/<project-name>.go`** - Production binary main file (skip if exists)
+- **`cmd/<project-name>-ui/<project-name>-ui.go`** - UI debug binary main file (skip if exists)
+
+All other files (assets, tests, configs, docs) are regenerated on every `teal gen` run.
+
+To regenerate these protected files, use the appropriate `--clean-*` flags before running `teal gen`.
+
+#### `teal ui` <!-- omit from toc -->
+
+Starts the UI development server with hot-reload for debugging and monitoring.
+
+```bash
+teal ui [flags]
+```
+
+**Flags:**
+- `--port int` - Port for API server (default: `8080`). UI Dashboard runs on port+1.
+- `--log-level string` - Log level: `debug`, `info`, `warn`, `error` (default: `debug`)
+- `--project-path string` - Project directory (default: `.`)
+
+**Examples:**
+```bash
+teal ui                                     # Start on default port 8080 (Dashboard on 8081)
+teal ui --port 9090                        # Start on port 9090 (Dashboard on 9091)
+teal ui --log-level info                   # Start with info log level
+teal ui --project-path ./my-project        # Start for specific project
+```
+
+The UI provides:
+- **DAG Visualization:** Interactive graph showing all assets and dependencies
+- **Execution Control:** Trigger DAG runs and monitor task status
+- **Test Results:** View test execution results and data quality checks
+- **Asset Inspection:** Examine asset data and execution results
+- **Real-time Logs:** View logs for specific task executions
+
+**Access:** Open `http://localhost:8081` (or custom port + 1) in your browser.
+
+#### `teal version` <!-- omit from toc -->
+
+Shows the current version of Teal CLI.
+
+```bash
+teal version
+```
+
+**No flags required.**
+
+#### Getting Help <!-- omit from toc -->
+
+```bash
+teal --help              # Show all commands and their flags
+teal [command] --help    # Show detailed help for specific command
 ```
 
 ### Creating your project <!-- omit from toc -->
@@ -129,11 +263,12 @@ Building: dds.fact_flights.sql
 Building: mart.mart_airport_statistics.sql
 Building: mart.mart_crew_utilization.sql
 Building: mart.mart_flight_performance.sql
-Files 26
+Files 28
 ./cmd/hello-world/hello-world.go ...................................... [OK]
 ./cmd/hello-world-ui/hello-world-ui.go ................................ [OK]
 ./go.mod .............................................................. [OK]
 ./Makefile ............................................................ [OK]
+./Dockerfile .......................................................... [OK]
 ./internal/assets/staging.stg_airports.go ............................. [OK]
 ./internal/assets/staging.stg_crew_assignments.go ..................... [OK]
 ./internal/assets/staging.stg_employees.go ............................ [OK]
@@ -244,6 +379,7 @@ Final project structure:
 │   └── hello-world-ui
 │       └── hello-world-ui.go
 ├── config.yaml
+├── Dockerfile
 ├── docs
 │   ├── README.md
 │   └── graph.mmd
@@ -420,7 +556,7 @@ go run ./cmd/my-test-project-ui/my-test-project-ui.go --port 9090
 
 Teal generates two entry points for different use cases:
 
-#### Production Binary (my-test-project.go)
+#### Production Binary (my-test-project.go) <!-- omit from toc -->
 
 - Uses **Channel DAG** for high-performance concurrent execution
 - Generates unique task names with timestamps (e.g., `my-test-project_1703123456`)
@@ -435,7 +571,7 @@ Teal generates two entry points for different use cases:
 - `--log-level` - Log level: `panic`, `fatal`, `error`, `warn`, `info`, `debug`, `trace` (default: `debug`)
 - `--with-tests` - Run with tests enabled (default: `true`)
 
-#### Debug UI Binary (my-test-project-ui.go)
+#### Debug UI Binary (my-test-project-ui.go) <!-- omit from toc -->
 
 - Uses **Debug DAG** for visualization and monitoring
 - Provides REST API endpoints for DAG control and status
@@ -927,6 +1063,19 @@ Test profiles can be defined in test SQL files using the same template syntax as
 |name|String|`<stage>.<filename>`|The test name following the pattern `<stage>.<test_name>`. Can be specified in the test file's profile or in the model profile when defining tests. For tests in `assets/tests/`, stage is `root`.|
 |description|String||Optional description of what the test validates, displayed in UI and API responses.|
 |connection|String|profile.connection|The connection name from `config.yaml`.|
+
+## Docker Deployment
+
+The generated `Dockerfile` is specifically optimized for **DuckDB compatibility** and uses **Debian bookworm** base images (`golang:bookworm` for build stage, `debian:bookworm-slim` for runtime). The final image size is approximately **311MB** with embedded DuckDB bindings.
+
+**Key characteristics:**
+
+- **CGO-enabled builds** required for DuckDB's native bindings
+- **glibc-based** (Debian) instead of musl-based (Alpine) for DuckDB compatibility
+- Includes gcc/g++ build dependencies for CGO compilation
+- Non-root user with home directory for DuckDB extension installation
+
+**Note:** If your project does **not use DuckDB**, you can modify the Dockerfile to use smaller Alpine-based images and disable CGO for significantly reduced image sizes (~20-30MB).
 
 ## General Architecture
 

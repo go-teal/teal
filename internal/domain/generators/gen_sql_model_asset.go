@@ -43,7 +43,7 @@ func (g *GenSQLModelAsset) GetFullPath() string {
 	return g.config.ProjectPath + "/internal/assets/" + g.GetFileName() + ".go"
 }
 
-func (g *GenSQLModelAsset) RenderToFile() error {
+func (g *GenSQLModelAsset) RenderToFile() (error, bool) {
 
 	dirName := g.config.ProjectPath + "/internal/assets/"
 	utils.CreateDir(dirName)
@@ -56,7 +56,7 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 
 	goTempl, err := pongo2.FromString(dwhModelTemplate)
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	g.modelConfig.ModelFieldsFunc = "{{ ModelFields }}"
@@ -81,7 +81,7 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 		"Downstreams":          g.modelConfig.Downstreams,
 	})
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	file, err := os.Create(g.GetFullPath())
@@ -93,5 +93,5 @@ func (g *GenSQLModelAsset) RenderToFile() error {
 	defer file.Close()
 
 	_, err = file.WriteString(output)
-	return err
+	return err, false
 }

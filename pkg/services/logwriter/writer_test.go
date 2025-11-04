@@ -132,7 +132,7 @@ func TestStoringConsoleWriter_ClearLogs(t *testing.T) {
 	logger.Info().Str("task_name", "task2").Msg("message 2")
 
 	writer.ClearLogs("task1")
-	
+
 	task1Logs := writer.GetLogs("task1")
 	assert.Len(t, task1Logs, 0)
 
@@ -150,7 +150,7 @@ func TestStoringConsoleWriter_ClearAllLogs(t *testing.T) {
 	logger.Info().Str("task_name", "task2").Msg("message 2")
 
 	writer.ClearAllLogs()
-	
+
 	allLogs := writer.GetAllLogs()
 	assert.Len(t, allLogs, 0)
 }
@@ -223,12 +223,12 @@ func TestStoringConsoleWriter_Settings(t *testing.T) {
 func TestMultiWriter(t *testing.T) {
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
-	
+
 	multiWriter := NewMultiWriter(buf1, buf2)
-	
+
 	testData := []byte("test message")
 	n, err := multiWriter.Write(testData)
-	
+
 	assert.NoError(t, err)
 	assert.Equal(t, len(testData), n)
 	assert.Equal(t, string(testData), buf1.String())
@@ -239,15 +239,15 @@ func TestMultiWriter_WithStoringConsoleWriter(t *testing.T) {
 	ctx := context.Background()
 	consoleBuf := &bytes.Buffer{}
 	jsonBuf := &bytes.Buffer{}
-	
+
 	storingWriter := NewStoringConsoleWriter(ctx, consoleBuf)
 	jsonWriter := zerolog.ConsoleWriter{Out: jsonBuf, NoColor: true}
-	
+
 	multiWriter := NewMultiWriter(storingWriter, jsonWriter)
 	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
-	
+
 	logger.Info().Str("task_name", "multi_task").Msg("multi message")
-	
+
 	logs := storingWriter.GetLogs("multi_task")
 	assert.Len(t, logs, 1)
 	assert.Contains(t, consoleBuf.String(), "multi message")
@@ -256,11 +256,11 @@ func TestMultiWriter_WithStoringConsoleWriter(t *testing.T) {
 
 func TestWithTaskName_GetTaskName(t *testing.T) {
 	ctx := context.Background()
-	
+
 	taskName, ok := GetTaskName(ctx)
 	assert.False(t, ok)
 	assert.Empty(t, taskName)
-	
+
 	ctx = WithTaskName(ctx, "test_task")
 	taskName, ok = GetTaskName(ctx)
 	assert.True(t, ok)
@@ -271,14 +271,14 @@ func TestStoringConsoleWriter_InvalidJSON(t *testing.T) {
 	ctx := context.Background()
 	buf := &bytes.Buffer{}
 	writer := NewStoringConsoleWriter(ctx, buf)
-	
+
 	invalidJSON := []byte("this is not json")
 	n, err := writer.Write(invalidJSON)
-	
+
 	// ConsoleWriter will fail to parse invalid JSON
 	assert.Error(t, err)
 	assert.Equal(t, 0, n)
-	
+
 	allLogs := writer.GetAllLogs()
 	assert.Len(t, allLogs, 0)
 }
@@ -289,29 +289,29 @@ func TestStoringConsoleWriter_StructuredLogging(t *testing.T) {
 	writer := NewStoringConsoleWriter(ctx, buf)
 
 	logger := zerolog.New(writer).With().Timestamp().Logger()
-	
+
 	type User struct {
 		Name  string
 		Email string
 		Age   int
 	}
-	
+
 	user := User{
 		Name:  "John Doe",
 		Email: "john@example.com",
 		Age:   30,
 	}
-	
+
 	logger.Info().
 		Str("task_name", "structured_task").
 		Interface("user", user).
 		Str("operation", "create").
 		Int("status_code", 201).
 		Msg("User created successfully")
-	
+
 	logs := writer.GetLogs("structured_task")
 	assert.Len(t, logs, 1)
-	
+
 	logData, ok := logs[0].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "User created successfully", logData["message"])
@@ -355,10 +355,10 @@ func ExampleStoringConsoleWriter() {
 	ctx := WithTaskName(context.Background(), "example_task")
 	buf := &bytes.Buffer{}
 	writer := NewStoringConsoleWriter(ctx, buf)
-	
+
 	logger := zerolog.New(writer).With().Timestamp().Logger()
 	logger.Info().Msg("This is an example log")
-	
+
 	logs := writer.GetLogs("example_task")
 	if len(logs) > 0 {
 		if logData, ok := logs[0].(map[string]interface{}); ok {
