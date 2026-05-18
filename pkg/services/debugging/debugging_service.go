@@ -62,12 +62,12 @@ func (s *DebuggingService) GetDagNodes() []DagNodeDTO {
 				TaskGroupIndex:  taskGroupIndex,
 			}
 
-			// Get actual runtime state from NodeMap if available
-			if debugNode, exists := s.dag.NodeMap[name]; exists {
-				node.State = NodeState(debugNode.State) // Convert dags.NodeState to debugging.NodeState
-				node.SuccessfulTests = debugNode.TestsPassed
-				node.LastExecutionDuration = debugNode.LastExecutionDuration
-				node.LastTestsDuration = debugNode.LastTestsDuration
+			// Get actual runtime state from a lock-protected snapshot.
+			if snap, ok := s.dag.NodeRuntimeStateFor(name); ok {
+				node.State = NodeState(snap.State) // Convert dags.NodeState to debugging.NodeState
+				node.SuccessfulTests = snap.TestsPassed
+				node.LastExecutionDuration = snap.LastExecutionDuration
+				node.LastTestsDuration = snap.LastTestsDuration
 				// TotalTests will be set below from model profile
 			}
 
@@ -399,8 +399,8 @@ func (s *DebuggingService) GetDagExecutionStatus(taskId string) DagExecutionResp
 
 	// Convert root test results if available
 	var rootTestResults []TestResultDTO
-	if s.dag != nil && s.dag.RootTestResults != nil {
-		for _, tr := range s.dag.RootTestResults {
+	if s.dag != nil {
+		for _, tr := range s.dag.GetRootTestResults() {
 			rootTestResults = append(rootTestResults, TestResultDTO{
 				TestName: tr.TestName,
 				Status:   string(tr.Status),
@@ -624,31 +624,9 @@ func (s *DebuggingService) ResetDagState() error {
 		return nil // Nothing else to reset
 	}
 
-	// Reset all node states and clear execution history
-	for _, node := range s.dag.NodeMap {
-		node.State = dags.NodeStateInitial
-
-		// Clear execution results - this handles both regular results and dataframes
-		// If the asset is_data_framed, LastResult would be a *dataframe.DataFrame
-		// Setting it to nil properly clears the pointer and allows GC to free memory
-		node.LastResult = nil
-		node.LastError = nil
-
-		// Reset execution metrics
-		node.LastExecutionDuration = 0
-		node.LastTestsDuration = 0
-		node.TestsPassed = 0
-		node.TestsFailed = 0
-		node.TestResults = nil // Clear test results
-		node.StartTime = nil
-		node.EndTime = nil
-
-		// Note: The DAG structure (Upstreams, Downstreams pointers) remains intact
-		// Only the data in LastResult is cleared, which will be recreated on next execution
-	}
-
-	// Clear root test results
-	s.dag.RootTestResults = nil
+	// Reset per-node fields and root-test results under the dag's lock.
+	// DAG structure (Upstreams, Downstreams pointers) is left intact.
+	s.dag.ResetAllNodes()
 
 	return nil
 }

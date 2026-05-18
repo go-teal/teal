@@ -67,7 +67,17 @@ type DebugDag struct {
 	TaskUUIDMap      map[string]string                          // Map of taskId to taskUUID
 	TestExecutionMap map[string]map[string]*TestExecutionResult // Map of taskId -> testName -> result
 	isConnected      bool                                       // Track database connection status
-	mu               sync.RWMutex                               // Mutex for thread-safe access
+
+	// mu protects short read/write windows on shared state: NodeMap entries
+	// (per-node mutable fields), TaskUUIDMap, TestExecutionMap, RootTestResults,
+	// and isConnected. It MUST NOT be held across DB-backed calls
+	// (Asset.Execute, RunTests, ModelTesting.Execute), otherwise status
+	// polling from the UI is blocked for the duration of the DAG run.
+	mu sync.RWMutex
+
+	// execMu serializes concurrent Push calls (one DAG execution at a time).
+	// Separated from mu so that long-running execution does not block readers.
+	execMu sync.Mutex
 }
 
 // InitDebugDag creates a new DebugDag with pointer-based structure
@@ -198,12 +208,17 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 	d.TaskUUIDMap[taskId] = taskUUID
 	d.mu.Unlock()
 
-	// Execute in a goroutine to not block
+	// Execute in a goroutine to not block.
+	// execMu serializes concurrent Push calls so per-node fields are not
+	// written by two executions at once. mu is taken briefly around each
+	// state mutation so HTTP readers (GetNodeStates, GetNode, etc.) can
+	// observe progress without waiting for the whole DAG run.
 	go func() {
-		d.mu.Lock()
-		defer d.mu.Unlock()
+		d.execMu.Lock()
+		defer d.execMu.Unlock()
 
-		// Reset all node states and results
+		// Reset all node states and results.
+		d.mu.Lock()
 		for _, node := range d.NodeMap {
 			node.State = NodeStateInitial
 			node.LastResult = nil
@@ -216,46 +231,49 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 			node.StartTime = nil
 			node.EndTime = nil
 		}
-
-		// Store initial input data if provided
 		if data != nil {
-			// Store initial data as a special "input" result that all root nodes can access
 			for _, rootNode := range d.RootNodes {
 				rootNode.LastResult = data
 			}
 		}
+		d.mu.Unlock()
 
 		// Execute assets according to dagGraph order (level by level)
 		for levelIdx, taskGroup := range d.DagGraph {
 			log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Int("level", levelIdx).Int("tasks", len(taskGroup)).Msg("Executing DAG level")
 
 			for _, assetName := range taskGroup {
+				d.mu.RLock()
 				node, exists := d.NodeMap[assetName]
+				d.mu.RUnlock()
 				if !exists {
 					log.Error().Caller().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("assetName", assetName).Msg("Asset not found in NodeMap")
 					continue
 				}
 
-				// Prepare input data from upstream results
+				// Snapshot upstream results into a local input map.
+				d.mu.RLock()
 				inputData := make(map[string]interface{})
 				for _, upstream := range node.Upstreams {
 					if upstream.LastResult != nil {
 						inputData[upstream.Name] = upstream.LastResult
 					}
 				}
+				d.mu.RUnlock()
 
 				// If this is a root node with initial data, use it
 				if len(node.Upstreams) == 0 && data != nil {
 					inputData["__input__"] = data
 				}
 
-				// Execute the asset
 				log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("assetName", assetName).Msg("Executing asset")
-				node.State = NodeStateInProgress
-
 				startTime := time.Now()
+
+				d.mu.Lock()
+				node.State = NodeStateInProgress
 				node.StartTime = &startTime
-				// Create TaskContext
+				d.mu.Unlock()
+
 				ctx := &processing.TaskContext{
 					TaskID:       taskId,
 					TaskUUID:     taskUUID,
@@ -263,53 +281,62 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 					InstanceUUID: d.DagInstanceUUID,
 					Input:        inputData,
 				}
+
+				// Asset.Execute may run DB queries — do NOT hold d.mu here.
 				result, err := node.Asset.Execute(ctx)
 				endTime := time.Now()
-				node.EndTime = &endTime
-				node.LastExecutionDuration = endTime.Sub(startTime).Milliseconds()
+				execDuration := endTime.Sub(startTime).Milliseconds()
 
+				d.mu.Lock()
+				node.EndTime = &endTime
+				node.LastExecutionDuration = execDuration
 				if err != nil {
 					node.State = NodeStateFailed
 					node.LastError = err
+				} else {
+					node.LastResult = result
+					node.State = NodeStateSuccess
+				}
+				d.mu.Unlock()
+
+				if err != nil {
 					log.Error().Caller().
 						Str("taskId", taskId).
 						Str("assetName", assetName).
-						Int64("durationMs", node.LastExecutionDuration).
+						Int64("durationMs", execDuration).
 						Err(err).
 						Msg("Asset execution failed")
 					continue
 				}
 
-				// Store the result in the node
-				node.LastResult = result
-				node.State = NodeStateSuccess
 				log.Info().
 					Str("taskId", taskId).
 					Str("assetName", assetName).
-					Int64("durationMs", node.LastExecutionDuration).
+					Int64("durationMs", execDuration).
 					Msg("Asset executed successfully")
 
-				// Run tests using the asset's RunTests method if tests are configured
+				// Run tests if configured. RunTests may run DB queries —
+				// do NOT hold d.mu across it.
 				if len(node.Tests) > 0 && d.TestsMap != nil {
+					d.mu.Lock()
 					node.State = NodeStateTesting
 					node.TestsPassed = 0
 					node.TestsFailed = 0
+					d.mu.Unlock()
 
 					log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("assetName", assetName).Int("tests", len(node.Tests)).Msg("Running tests")
 
-					// Track test execution time
 					testStartTime := time.Now()
-
-					// Execute tests and get results
 					testResults := node.Asset.RunTests(ctx, d.TestsMap)
+					testEndTime := time.Now()
+					testDuration := testEndTime.Sub(testStartTime).Milliseconds()
 
-					// Store test results for later retrieval
-					node.TestResults = testResults
-
-					// Process test results
+					passed := 0
+					failed := 0
 					for _, testResult := range testResults {
-						if testResult.Status == processing.TestStatusSuccess {
-							node.TestsPassed++
+						switch testResult.Status {
+						case processing.TestStatusSuccess:
+							passed++
 							log.Info().
 								Str("taskId", taskId).
 								Str("taskUUID", taskUUID).
@@ -317,8 +344,8 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 								Str("testName", testResult.TestName).
 								Int64("durationMs", testResult.DurationMs).
 								Msg("Test passed")
-						} else if testResult.Status == processing.TestStatusFailed {
-							node.TestsFailed++
+						case processing.TestStatusFailed:
+							failed++
 							log.Warn().
 								Str("taskId", taskId).
 								Str("taskUUID", taskUUID).
@@ -327,7 +354,7 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 								Err(testResult.Error).
 								Int64("durationMs", testResult.DurationMs).
 								Msg("Test failed")
-						} else if testResult.Status == processing.TestStatusNotFound {
+						case processing.TestStatusNotFound:
 							log.Warn().
 								Str("taskId", taskId).
 								Str("taskUUID", taskUUID).
@@ -338,37 +365,39 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 						}
 					}
 
-					// Calculate total test duration
-					testEndTime := time.Now()
-					node.LastTestsDuration = testEndTime.Sub(testStartTime).Milliseconds()
+					d.mu.Lock()
+					node.TestResults = testResults
+					node.TestsPassed = passed
+					node.TestsFailed = failed
+					node.LastTestsDuration = testDuration
+					if failed > 0 {
+						node.State = NodeStateTestsFailed
+					} else {
+						node.State = NodeStateSuccess
+					}
+					d.mu.Unlock()
 
-					// Update final state based on test results
-					if node.TestsFailed > 0 {
-						node.State = NodeStateTestsFailed // Use TESTS_FAILED instead of FAILED
-
-						// Collect failed test names
+					if failed > 0 {
 						var failedTestNames []string
-						for _, tr := range node.TestResults {
+						for _, tr := range testResults {
 							if tr.Status == processing.TestStatusFailed {
 								failedTestNames = append(failedTestNames, tr.TestName)
 							}
 						}
-
 						log.Warn().
 							Str("taskId", taskId).
 							Str("assetName", assetName).
-							Int("failed", node.TestsFailed).
-							Int("passed", node.TestsPassed).
+							Int("failed", failed).
+							Int("passed", passed).
 							Strs("failedTests", failedTestNames).
-							Int64("testDurationMs", node.LastTestsDuration).
+							Int64("testDurationMs", testDuration).
 							Msg("Some tests failed")
 					} else {
-						node.State = NodeStateSuccess
 						log.Info().
 							Str("taskId", taskId).
 							Str("assetName", assetName).
-							Int("passed", node.TestsPassed).
-							Int64("testDurationMs", node.LastTestsDuration).
+							Int("passed", passed).
+							Int64("testDurationMs", testDuration).
 							Msg("All tests passed")
 					}
 				}
@@ -377,28 +406,33 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 
 		// Collect results from leaf nodes
 		finalResults := make(map[string]interface{})
+		d.mu.RLock()
 		for _, leafNode := range d.LeafNodes {
 			if leafNode.State == NodeStateSuccess && leafNode.LastResult != nil {
 				finalResults[leafNode.Name] = leafNode.LastResult
 			}
 		}
+		d.mu.RUnlock()
 
 		// Execute root tests after all DAG tasks are complete
 		if d.TestsMap != nil {
 			log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Executing root tests")
-			d.RootTestResults = []processing.TestResult{} // Reset root test results
+
+			d.mu.Lock()
+			d.RootTestResults = d.RootTestResults[:0]
+			d.mu.Unlock()
 
 			for testName, testCase := range d.TestsMap {
 				// Only run tests with "root." prefix
 				if len(testName) >= 5 && testName[:5] == "root." {
-					startTime := time.Now()
-					// Create TaskContext for root tests
 					rootCtx := &processing.TaskContext{
 						TaskID:       taskId,
 						TaskUUID:     taskUUID,
 						InstanceName: d.DagInstanceName,
 						InstanceUUID: d.DagInstanceUUID,
 					}
+					startTime := time.Now()
+					// testCase.Execute runs DB queries — no lock held.
 					status, executedTestName, err := testCase.Execute(rootCtx)
 					duration := time.Since(startTime).Milliseconds()
 
@@ -418,7 +452,9 @@ func (d *DebugDag) Push(taskId string, data interface{}, resultChan chan map[str
 						log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Int64("durationMs", duration).Err(err).Msg("Root test failed")
 					}
 
+					d.mu.Lock()
 					d.RootTestResults = append(d.RootTestResults, testResult)
+					d.mu.Unlock()
 				}
 			}
 		}
@@ -590,4 +626,73 @@ func (d *DebugDag) GetTestResult(taskId, testName string) *TestExecutionResult {
 		return taskTests[testName]
 	}
 	return nil
+}
+
+// NodeRuntimeState is a thread-safe snapshot of a node's mutable execution
+// state. Returned by NodeRuntimeStateFor; callers may read the fields
+// without holding any lock.
+type NodeRuntimeState struct {
+	State                 NodeState
+	TestsPassed           int
+	TestsFailed           int
+	LastExecutionDuration int64
+	LastTestsDuration     int64
+	TestResults           []processing.TestResult
+}
+
+// NodeRuntimeStateFor returns a copy of the named node's mutable fields,
+// taken under d.mu. Returns ok=false if the node does not exist.
+func (d *DebugDag) NodeRuntimeStateFor(name string) (NodeRuntimeState, bool) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	n, ok := d.NodeMap[name]
+	if !ok {
+		return NodeRuntimeState{}, false
+	}
+	snap := NodeRuntimeState{
+		State:                 n.State,
+		TestsPassed:           n.TestsPassed,
+		TestsFailed:           n.TestsFailed,
+		LastExecutionDuration: n.LastExecutionDuration,
+		LastTestsDuration:     n.LastTestsDuration,
+	}
+	if len(n.TestResults) > 0 {
+		snap.TestResults = make([]processing.TestResult, len(n.TestResults))
+		copy(snap.TestResults, n.TestResults)
+	}
+	return snap, true
+}
+
+// GetRootTestResults returns a copy of the most recent root-test results,
+// taken under d.mu.
+func (d *DebugDag) GetRootTestResults() []processing.TestResult {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	if len(d.RootTestResults) == 0 {
+		return nil
+	}
+	out := make([]processing.TestResult, len(d.RootTestResults))
+	copy(out, d.RootTestResults)
+	return out
+}
+
+// ResetAllNodes clears per-node execution state and root-test results under
+// d.mu. Callers that previously mutated NodeMap entries directly should use
+// this instead.
+func (d *DebugDag) ResetAllNodes() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, node := range d.NodeMap {
+		node.State = NodeStateInitial
+		node.LastResult = nil
+		node.LastError = nil
+		node.LastExecutionDuration = 0
+		node.LastTestsDuration = 0
+		node.TestsPassed = 0
+		node.TestsFailed = 0
+		node.TestResults = nil
+		node.StartTime = nil
+		node.EndTime = nil
+	}
+	d.RootTestResults = nil
 }
