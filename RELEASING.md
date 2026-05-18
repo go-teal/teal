@@ -16,7 +16,7 @@ Teal is published as both a Go library (`github.com/go-teal/teal`) and a CLI bin
    git push origin v0.3.0
    ```
 4. The `Release` workflow in `.github/workflows/release.yml` will:
-   - Build CLI binaries for linux / macOS / windows × amd64 / arm64
+   - Build CLI binaries for linux / macOS × amd64 / arm64 (see "Supported platforms" below for why Windows is excluded)
    - Inject the tag into `pkg/configs.TEAL_VERSION` via `-ldflags`
    - Generate a changelog from commits since the previous tag (grouped by type)
    - Publish a GitHub Release with binaries, checksums, and the changelog

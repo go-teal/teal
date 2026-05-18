@@ -17,6 +17,22 @@ go build -o bin/teal ./cmd/teal
 go install ./cmd/teal
 ```
 
+### Releasing
+Releases are automated via GoReleaser. Pushing a `v*` git tag triggers `.github/workflows/release.yml`, which builds cross-platform CLI binaries (linux/darwin × amd64/arm64), injects the tag into `pkg/configs.TEAL_VERSION` via `-ldflags`, auto-generates a grouped changelog from commits since the previous tag, and publishes a GitHub Release with checksums.
+
+```bash
+# Cut a release
+git tag -a v1.2.3 -m "v1.2.3"
+git push origin v1.2.3
+```
+
+- Configuration: `.goreleaser.yaml`
+- Workflow: `.github/workflows/release.yml`
+- CI/lint: `.github/workflows/ci.yml` (also runs `goreleaser check` on PRs)
+- Full procedure and conventions: `RELEASING.md`
+- Windows binaries are intentionally excluded — `internal/domain/services/asset_observer.go` uses Unix-only `syscall.Kill`/`Setpgid` for the `teal ui` hot-reload child process. Library use on Windows via `go get` is unaffected.
+- `TEAL_VERSION` is a `var` (not `const`); it defaults to `"dev"` and is overridden at release-build time via ldflags.
+
 ### Testing Generated Projects
 ```bash
 # Generate test project from scaffold
@@ -487,6 +503,22 @@ EOF
 - **IMPORTANT**: NEVER run `git push` unless the user explicitly requests it
 - You may stage files (`git add`) and create commits (`git commit`) when appropriate
 - Always wait for explicit permission before pushing changes to remote repository
+- **Tag pushes are releases**: pushing a `v*` tag fires the GoReleaser workflow and publishes a public GitHub Release. Treat `git push origin <tag>` as a release action and never run it without explicit confirmation, even if `git push origin main` was already approved for the same session.
+
+### Security model
+Teal is a developer tool, not a multi-tenant runtime. The trust boundary is the developer's local machine.
+
+- **Code generators (`internal/domain/generators/`, `teal gen`, `teal init`, `teal clean`) are dev-time tools.** They are not exposed to untrusted input, they are not triggered on a schedule, and they are not invoked from network requests. Inputs (model filenames, SQL contents, `config.yaml`, `profile.yaml`) come from the developer's own repo. Do not treat user-controlled model names or SQL bodies as a security boundary inside the generators.
+- **Therefore, do not flag the following as bugs** (they have been reviewed and accepted):
+  - SQL identifiers (schema/table names) interpolated into DDL via `fmt.Sprintf` in `pkg/processing/sql_asset.go` and similar places — model names are filenames the developer controls.
+  - File paths constructed from model names without `filepath.Clean` in `internal/domain/generators/gen_*.go` — same trust model.
+  - Template-rendered SQL passed through `|safe` without HTML escaping — SQL is not HTML and the inputs are developer-authored.
+- **What IS a real boundary:** the debug HTTP API (`pkg/services/debugging/`, `pkg/ui/`) is local-dev only. It must never be exposed to a network unless that is an explicit feature with auth. The DAG/driver runtime code (`pkg/dags/`, `pkg/drivers/`, `pkg/processing/` at execute time) handles production data — concurrency bugs, transaction leaks, and unintended `defer` behavior in those paths ARE real bugs and should be fixed.
+
+### Fail-fast policy in DB drivers
+`pkg/drivers/postgres.go` and `pkg/drivers/duckdb.go` deliberately `panic(err)` when low-level introspection fails (`CheckSchemaExists`, `CheckTableExists`, `GetListOfFields`, etc.). **This is intentional, not a bug.** If we cannot verify the state of the target database, the only safe action for an ETL tool is to abort the whole process rather than continue writing potentially incorrect data. Do not "fix" these panics by converting them to error returns. The fail-fast crash is a data-protection measure.
+
+The corollary: if you ever add new driver methods, follow the same convention — failing introspection panics; only expected, recoverable conditions (e.g. "table doesn't exist") return a typed error or boolean.
 
 ### General
 - Always check for existing CLAUDE.md improvements when using `teal init`
