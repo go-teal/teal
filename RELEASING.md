@@ -57,6 +57,10 @@ goreleaser release --snapshot --clean --skip=publish
 
 Artifacts land in `./dist/`. Requires [GoReleaser](https://goreleaser.com/install/) installed locally.
 
+## Supported platforms
+
+Released binaries cover **linux** and **darwin** on `amd64` and `arm64`. Windows is intentionally excluded: the `teal ui` hot-reload uses Unix process-group syscalls (`syscall.Kill`, `Setpgid`) that don't exist on Windows. Library use via `go get` works on Windows; only the CLI binary is unsupported.
+
 ## Version visibility
 
 `teal version` prints the value of `pkg/configs.TEAL_VERSION`. On released binaries this is the git tag (e.g. `v0.3.0`); on a `go build` from source it falls back to `dev`.
