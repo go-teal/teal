@@ -7,7 +7,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const TEAL_VERSION = "v1.0.2"
+// TEAL_VERSION is the CLI version. Overridden at build/release time via
+// -ldflags "-X github.com/go-teal/teal/pkg/configs.TEAL_VERSION=vX.Y.Z".
+var TEAL_VERSION = "dev"
 
 type ConfigService struct {
 }
