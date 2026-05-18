@@ -35,6 +35,9 @@ type ChannelDag struct {
 	config               *configs.Config
 	completeTasksResults map[string]*taskResult
 	numberOfFinalTasks   int
+	// mu guards completeTasksResults and each taskResult.results map.
+	// Leaf-node goroutines write concurrently when a task completes.
+	mu sync.RWMutex
 }
 
 type taskResult struct {
@@ -149,12 +152,15 @@ func (dag *ChannelDag) Push(taskId string, data interface{}, resultChan chan map
 	taskUUID := uuid.New().String()
 
 	if resultChan != nil {
-		dag.completeTasksResults[taskId] = &taskResult{
+		tr := &taskResult{
 			results:              make(map[string]interface{}),
 			remainingTasksNumber: new(atomic.Int32),
 			resultChan:           resultChan,
 		}
-		dag.completeTasksResults[taskId].remainingTasksNumber.Store(int32(dag.numberOfFinalTasks))
+		tr.remainingTasksNumber.Store(int32(dag.numberOfFinalTasks))
+		dag.mu.Lock()
+		dag.completeTasksResults[taskId] = tr
+		dag.mu.Unlock()
 	}
 
 	log.Debug().Str("DAG", dag.DagInstanceName).Str("taskId", taskId).Str("taskUUID", taskUUID).Int("results", dag.numberOfFinalTasks).Msg("New task has been registred")
@@ -298,45 +304,55 @@ func (dag *ChannelDag) propagateTask(taskId string, taskUUID string, assetName s
 			Str("taskId", taskId).
 			Msg("No next channels found")
 
-		if taskId != "STOP" {
+		if taskId != STOP_TASK_ID {
+			dag.mu.Lock()
 			resultTask, ok := dag.completeTasksResults[taskId]
-			if ok {
-				resultTask.remainingTasksNumber.Add(-1)
-				resultTask.results[assetName] = data
-				if int(resultTask.remainingTasksNumber.Load()) == 0 {
-					log.Debug().
-						Str("DAG", dag.DagInstanceName).
-						Str("assetName", assetName).
-						Str("taskId", taskId).
-						Str("taskUUID", taskUUID).
-						Msg("Task complete")
+			if !ok {
+				dag.mu.Unlock()
+				return
+			}
+			resultTask.results[assetName] = data
+			dag.mu.Unlock()
 
-					// Execute root tests after all DAG tasks are complete
-					if dag.testsMap != nil {
-						log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Executing root tests")
-						// Create TaskContext for root tests
-						rootCtx := &processing.TaskContext{
-							TaskID:       taskId,
-							TaskUUID:     taskUUID,
-							InstanceName: dag.DagInstanceName,
-							InstanceUUID: dag.DagInstanceUUID,
-						}
-						for testName, testCase := range dag.testsMap {
-							// Only run tests with "root." prefix
-							if len(testName) >= 5 && testName[:5] == "root." {
-								status, executedTestName, err := testCase.Execute(rootCtx)
-								if status {
-									log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Msg("Root test passed")
-								} else {
-									log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Err(err).Msg("Root test failed")
-								}
+			// Decrement after the map write so the goroutine that observes
+			// remaining==0 is guaranteed to see all other goroutines' writes
+			// (Mutex release happens-before the subsequent atomic Add; the
+			// goroutine that sees zero load happens-after every Add).
+			if resultTask.remainingTasksNumber.Add(-1) == 0 {
+				log.Debug().
+					Str("DAG", dag.DagInstanceName).
+					Str("assetName", assetName).
+					Str("taskId", taskId).
+					Str("taskUUID", taskUUID).
+					Msg("Task complete")
+
+				// Execute root tests after all DAG tasks are complete
+				if dag.testsMap != nil {
+					log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Msg("Executing root tests")
+					rootCtx := &processing.TaskContext{
+						TaskID:       taskId,
+						TaskUUID:     taskUUID,
+						InstanceName: dag.DagInstanceName,
+						InstanceUUID: dag.DagInstanceUUID,
+					}
+					for testName, testCase := range dag.testsMap {
+						// Only run tests with "root." prefix
+						if len(testName) >= 5 && testName[:5] == "root." {
+							status, executedTestName, err := testCase.Execute(rootCtx)
+							if status {
+								log.Info().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Msg("Root test passed")
+							} else {
+								log.Error().Str("taskId", taskId).Str("taskUUID", taskUUID).Str("testName", executedTestName).Err(err).Msg("Root test failed")
 							}
 						}
 					}
-
-					resultTask.resultChan <- resultTask.results
-					delete(dag.completeTasksResults, taskId)
 				}
+
+				resultTask.resultChan <- resultTask.results
+
+				dag.mu.Lock()
+				delete(dag.completeTasksResults, taskId)
+				dag.mu.Unlock()
 			}
 		}
 		return
