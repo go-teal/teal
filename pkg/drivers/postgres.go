@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/go-teal/teal/pkg/configs"
 	"github.com/rs/zerolog/log"
@@ -13,7 +14,7 @@ import (
 
 type PostgresDBEngine struct {
 	dbConnection *configs.DBConnectionConfig
-	db           *pgx.Conn
+	db           *pgxpool.Pool
 }
 
 type PostgresDBEngineFactory struct {
@@ -51,7 +52,11 @@ func (d *PostgresDBEngine) Connect() error {
 		connectionParams = append(connectionParams, fmt.Sprintf("sslkey=%s", d.dbConnection.Config.DBKey))
 	}
 
-	d.db, err = pgx.Connect(context.Background(), strings.Join(connectionParams, " "))
+	if d.dbConnection.Config.PoolMaxConns > 0 {
+		connectionParams = append(connectionParams, fmt.Sprintf("pool_max_conns=%d", d.dbConnection.Config.PoolMaxConns))
+	}
+
+	d.db, err = pgxpool.New(context.Background(), strings.Join(connectionParams, " "))
 	log.Debug().Msg("Connected")
 	if err != nil {
 		return err
@@ -103,7 +108,8 @@ func (d *PostgresDBEngine) Close() error {
 	if d.db == nil {
 		return nil
 	}
-	return d.db.Close(context.Background())
+	d.db.Close()
+	return nil
 }
 
 // Commit implements DBEngine.
@@ -156,10 +162,7 @@ func initPostgresDb(dbConnectionConfig *configs.DBConnectionConfig) (DBDriver, e
 	return PostgresDBConnection, nil
 }
 
-func (d *PostgresDBEngine) ConcurrencyLock() {
-
-}
-
-func (d *PostgresDBEngine) ConcurrencyUnlock() {
-
-}
+// pgxpool.Pool is safe for concurrent use; each Begin/Query checks out its own
+// connection from the pool. No driver-level serialization needed.
+func (d *PostgresDBEngine) ConcurrencyLock()   {}
+func (d *PostgresDBEngine) ConcurrencyUnlock() {}

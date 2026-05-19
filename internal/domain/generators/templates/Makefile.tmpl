@@ -15,13 +15,13 @@ all: build
 
 # Build production binary
 .PHONY: build
-build:
+build: deps
 	@echo "Building production binary..."
 	go build $(GO_BUILD_FLAGS) -o $(BIN_DIR)/$(PROJECT_NAME) ./$(MAIN_DIR)/$(PROJECT_NAME).go
 
 # Build UI debug binary
 .PHONY: build-ui
-build-ui:
+build-ui: deps
 	@echo "Building UI debug binary..."
 	go build $(GO_BUILD_FLAGS) -o $(BIN_DIR)/$(PROJECT_NAME)-ui ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go
 

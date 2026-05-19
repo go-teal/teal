@@ -950,6 +950,12 @@ FROM {{ Ref("staging.raw_orders") }}  -- Resolved at generation-time
 | db_key_env       | String | The environment variable name for the path to the client key file for SSL connections.                       |
 | db_sslnmode      | String | The SSL mode for connections to the PostgreSQL server. Options include `disable`, `require`, `verify-ca`, and `verify-full`. |
 | db_sslnmode_env  | String | The environment variable name for specifying the SSL mode for connections.                                   |
+| pool_max_conns   | Int    | Max open connections in the pgxpool. `0` (or unset) keeps pgxpool's default of `4`. Raise this if the DAG has many independent assets that can execute in parallel; cap it well below your PostgreSQL `max_connections` budget. |
+
+The PostgreSQL driver is backed by `pgxpool.Pool`, so concurrent asset execution
+checks out separate connections from the pool. With the default of 4, a DAG with
+more concurrently-runnable assets will queue on `Begin()`; bump `pool_max_conns`
+to widen the concurrency.
 
 ## Raw Assets
 

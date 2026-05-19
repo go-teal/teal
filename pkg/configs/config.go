@@ -37,6 +37,10 @@ type DBConnectionConfig struct {
 		DBSSLMode    string `yaml:"db_sslnmode"`
 		DBSSLModeEnv string `yaml:"db_sslnmode_env"`
 
+		// PoolMaxConns sets pgxpool's max open connections. 0 = pgxpool default (4).
+		// Only honored by the postgres driver.
+		PoolMaxConns int `yaml:"pool_max_conns"`
+
 		Extensions  []string `yaml:"extensions"`
 		ExtraParams []*struct {
 			Name     string `yaml:"name"`

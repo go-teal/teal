@@ -2,6 +2,8 @@ module {{ Config.Module }}
 
 go 1.25.1
 
-require github.com/go-teal/teal {{ Version }}
+// teal and its dependencies are picked up from the imports in
+// internal/assets/*.go and cmd/*. Run `go mod tidy` (or `make deps`) after
+// `teal gen` to populate the require/replace blocks.
 
 // replace github.com/go-teal/teal => ./..

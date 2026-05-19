@@ -4,9 +4,6 @@ import (
 {% if "duckdb" in Connections %}
 	_ "github.com/marcboeker/go-duckdb/v2"
 {% endif %}
-{% if "postgres" in Connections %}
-	"github.com/jackc/pgx/v5"
-{% endif %}
 	"context"
 	"flag"
 	"os"
