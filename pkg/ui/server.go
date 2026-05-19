@@ -1,3 +1,20 @@
+//go:build teal_ui
+
+// Package ui hosts the in-browser DAG debugger that is started by
+// `teal ui` and by the generated `cmd/<project>-ui/<project>-ui.go`
+// binary. It depends on gin (HTTP framework), gin-contrib/cors, and a
+// large transitive tree (sonic, validator, mimetype, quic-go, …) — none
+// of which production DAG runs need.
+//
+// To keep production builds slim, this file is gated behind the
+// `teal_ui` build tag. Build the debug UI with:
+//
+//	go build -tags teal_ui ./cmd/<project>-ui
+//
+// Production builds (no tag) skip this file entirely, which makes the
+// whole debug-server dependency tree (gin + cors + sonic + validator +
+// mimetype + quic-go + …) drop out of the compiled artefact — typically
+// saves several seconds of compile time and ~15 MB of vendored deps.
 package ui
 
 import (

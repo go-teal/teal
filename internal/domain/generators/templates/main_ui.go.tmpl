@@ -1,3 +1,8 @@
+//go:build teal_ui
+
+// Debug UI binary — depends on gin and the rest of pkg/ui, so it's
+// gated behind the same `teal_ui` build tag as pkg/ui/server.go.
+// Build with: go build -tags teal_ui ./cmd/<project>-ui
 package main
 
 import (
