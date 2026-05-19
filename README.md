@@ -8,8 +8,8 @@
     - [config.yaml](#configyaml)
     - [profile.yaml](#profileyaml)
       - [Model Profile](#model-profile)
-  - [Materializations](#materializations)
   - [Build tags](#build-tags)
+  - [Materializations](#materializations)
   - [Template functions](#template-functions)
     - [Template Engine Features](#template-engine-features)
     - [Template Functions](#template-functions-1)
@@ -712,6 +712,36 @@ What this code does:
 2. `dag.Push()` triggers the execution of this DAG with a unique task name for tracking.
 3. `dag.Stop()` sends the deactivation command.
 
+## Build tags
+
+Teal uses Go build tags to keep production binaries small. The
+**production binary** (`cmd/<project>/`) compiles with no extra tags and
+pulls only what the DAG runtime needs (pgx + zerolog + pongo2 + a small
+graph of utilities). The **debug UI binary** (`cmd/<project>-ui/`)
+depends on `pkg/ui`, which in turn brings in **gin** + `gin-contrib/cors`
++ a heavy transitive tree (sonic, bytedance JIT, validator, mimetype,
+quic-go, cloudwego/base64x, ugorji codec, go-playground locales /
+translator, klauspost cpuid). To keep that tree out of production builds,
+`pkg/ui` and the generated `cmd/<project>-ui` main file are both gated
+behind the `teal_ui` build tag.
+
+|Target|Command|Includes|
+|---|---|---|
+|Production binary|`go build ./cmd/<project>`|DAG runtime only — no UI, no gin tree|
+|Debug UI binary|`go build -tags teal_ui ./cmd/<project>-ui`|Adds `pkg/ui`, gin, debug REST API, and the transitive tree above|
+
+The generated `Makefile` already wires the tag into the `build-ui` and
+`run` targets, so `make build-ui` / `make run` work without
+remembering the flag manually. Only direct `go build` / `go run` of the
+UI binary needs the explicit `-tags teal_ui`.
+
+**Why this matters in practice:** on platforms with a fixed build-time
+budget (DigitalOcean Functions caps build time at 120 s, AWS Lambda has
+similar limits), the gin transitive tree alone is enough to blow that
+budget. Without the build tag, a slim teal pipeline that runs in
+sub-second at runtime can fail to deploy. With the tag, the prod build
+compiles in tens of seconds and deploys cleanly.
+
 ## Configuration
 
 ### config.yaml
@@ -840,36 +870,6 @@ select
 |view|The SQL query is saved as a view.|
 |custom|A custom SQL query is executed; no tables or views are created.|
 |raw|A custom Go function is executed.|
-
-## Build tags
-
-Teal uses Go build tags to keep production binaries small. The
-**production binary** (`cmd/<project>/`) compiles with no extra tags and
-pulls only what the DAG runtime needs (pgx + zerolog + pongo2 + a small
-graph of utilities). The **debug UI binary** (`cmd/<project>-ui/`)
-depends on `pkg/ui`, which in turn brings in **gin** + `gin-contrib/cors`
-+ a heavy transitive tree (sonic, bytedance JIT, validator, mimetype,
-quic-go, cloudwego/base64x, ugorji codec, go-playground locales /
-translator, klauspost cpuid). To keep that tree out of production builds,
-`pkg/ui` and the generated `cmd/<project>-ui` main file are both gated
-behind the `teal_ui` build tag.
-
-|Target|Command|Includes|
-|---|---|---|
-|Production binary|`go build ./cmd/<project>`|DAG runtime only — no UI, no gin tree|
-|Debug UI binary|`go build -tags teal_ui ./cmd/<project>-ui`|Adds `pkg/ui`, gin, debug REST API, and the transitive tree above|
-
-The generated `Makefile` already wires the tag into the `build-ui` and
-`run` targets, so `make build-ui` / `make run` work without
-remembering the flag manually. Only direct `go build` / `go run` of the
-UI binary needs the explicit `-tags teal_ui`.
-
-**Why this matters in practice:** on platforms with a fixed build-time
-budget (DigitalOcean Functions caps build time at 120 s, AWS Lambda has
-similar limits), the gin transitive tree alone is enough to blow that
-budget. Without the build tag, a slim teal pipeline that runs in
-sub-second at runtime can fail to deploy. With the tag, the prod build
-compiles in tens of seconds and deploys cleanly.
 
 ## Template functions
 
