@@ -19,19 +19,24 @@ build: deps
 	@echo "Building production binary..."
 	go build $(GO_BUILD_FLAGS) -o $(BIN_DIR)/$(PROJECT_NAME) ./$(MAIN_DIR)/$(PROJECT_NAME).go
 
-# Build UI debug binary
+# Build UI debug binary.
+# Requires the `teal_ui` build tag — the UI binary depends on pkg/ui which
+# is gated behind that tag to keep production builds slim (gin and its
+# transitive tree drop out when the tag is absent). See README section
+# "Build tags".
 .PHONY: build-ui
 build-ui: deps
 	@echo "Building UI debug binary..."
-	go build $(GO_BUILD_FLAGS) -o $(BIN_DIR)/$(PROJECT_NAME)-ui ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go
+	go build $(GO_BUILD_FLAGS) -tags teal_ui -o $(BIN_DIR)/$(PROJECT_NAME)-ui ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go
 
-# Run UI debug server (regenerate assets first)
+# Run UI debug server (regenerate assets first).
+# Same `teal_ui` build tag requirement as `build-ui`.
 .PHONY: run
 run:
 	@echo "Generating assets..."
 	teal gen
 	@echo "Running UI debug server on port $(or $(PORT),8080)..."
-	go run ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go --port $(or $(PORT),8080)
+	go run -tags teal_ui ./$(MAIN_UI_DIR)/$(PROJECT_NAME)-ui.go --port $(or $(PORT),8080)
 
 
 # Run with tests
