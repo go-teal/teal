@@ -143,6 +143,7 @@ type AssetExecuteResponseDTO struct {
 	EndTime         *int64      `json:"endTime,omitempty"`
 	ExecutionTimeMs int64       `json:"executionTimeMs,omitempty"`
 	Result          interface{} `json:"result,omitempty"`
+	Columns         []string    `json:"columns,omitempty"` // Column order as returned by the SQL query (result rows are JSON objects with alphabetically sorted keys)
 	Error           string      `json:"error,omitempty"`
 	UpstreamsUsed   []string    `json:"upstreamsUsed"`
 	TotalRecords    int         `json:"totalRecords,omitempty"`
@@ -204,6 +205,7 @@ type TestDataResponseDTO struct {
 	TaskId      string                   `json:"taskId"`
 	Status      string                   `json:"status"`
 	RowCount    int                      `json:"rowCount"`
-	Data        []map[string]interface{} `json:"data"`       // Always present (empty array or populated)
-	ExecutedAt  string                   `json:"executedAt"` // ISO 8601 timestamp
+	Data        []map[string]interface{} `json:"data"`              // Always present (empty array or populated)
+	Columns     []string                 `json:"columns,omitempty"` // Column order as returned by the SQL query
+	ExecutedAt  string                   `json:"executedAt"`        // ISO 8601 timestamp
 }

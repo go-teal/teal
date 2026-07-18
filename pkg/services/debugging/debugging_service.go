@@ -882,7 +882,7 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit 
 					// Add the actual result from node's LastResult (for downstream access)
 					if node.LastResult != nil && response.Status == NodeStateSuccess {
 						totalRecords := 0
-						response.Result, totalRecords = s.serializeResultWithPagination(node.LastResult, offset, limit)
+						response.Result, totalRecords, response.Columns = s.serializeResultWithPagination(node.LastResult, offset, limit)
 						response.TotalRecords = totalRecords
 					}
 
@@ -924,7 +924,7 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit 
 			// Add result or error from node
 			if node.LastResult != nil {
 				totalRecords := 0
-				response.Result, totalRecords = s.serializeResultWithPagination(node.LastResult, offset, limit)
+				response.Result, totalRecords, response.Columns = s.serializeResultWithPagination(node.LastResult, offset, limit)
 				response.TotalRecords = totalRecords
 			}
 			if node.LastError != nil {
@@ -950,16 +950,19 @@ func (s *DebuggingService) GetAssetData(taskId, assetName string, offset, limit 
 }
 
 // serializeResultWithPagination converts the result to a JSON-serializable format with pagination support
-// Returns the serialized result and total record count
+// Returns the serialized result, total record count, and column order (non-nil only for DataFrames).
+// Rows are maps, so their JSON keys come out alphabetically sorted — the returned column list is the
+// only way for clients to recover the original SQL column order.
 // offset: starting index (0-based), limit: max records to return (0 = no limit)
-func (s *DebuggingService) serializeResultWithPagination(result interface{}, offset, limit int) (interface{}, int) {
+func (s *DebuggingService) serializeResultWithPagination(result interface{}, offset, limit int) (interface{}, int, []string) {
 	if result == nil {
-		return nil, 0
+		return nil, 0, nil
 	}
 
 	// Check if result is a DataFrame
 	if df, ok := result.(*dataframe.DataFrame); ok {
 		totalRecords := df.Nrow()
+		columns := df.Names()
 
 		// Calculate slice boundaries
 		start := offset
@@ -967,7 +970,7 @@ func (s *DebuggingService) serializeResultWithPagination(result interface{}, off
 
 		if start >= totalRecords {
 			// Offset beyond data, return empty slice
-			return []map[string]interface{}{}, totalRecords
+			return []map[string]interface{}{}, totalRecords, columns
 		}
 
 		if limit > 0 {
@@ -990,7 +993,7 @@ func (s *DebuggingService) serializeResultWithPagination(result interface{}, off
 			}
 			records = append(records, record)
 		}
-		return records, totalRecords
+		return records, totalRecords, columns
 	}
 
 	// For arrays, apply pagination
@@ -1001,7 +1004,7 @@ func (s *DebuggingService) serializeResultWithPagination(result interface{}, off
 		end := totalRecords
 
 		if start >= totalRecords {
-			return []interface{}{}, totalRecords
+			return []interface{}{}, totalRecords, nil
 		}
 
 		if limit > 0 {
@@ -1011,12 +1014,12 @@ func (s *DebuggingService) serializeResultWithPagination(result interface{}, off
 			}
 		}
 
-		return arr[start:end], totalRecords
+		return arr[start:end], totalRecords, nil
 	}
 
 	// For all other types, return as-is (maps, primitives)
 	// Total records = 1 for non-array types
-	return result, 1
+	return result, 1, nil
 }
 
 // ExecuteAssetSelect executes the asset's SQL query using ToDataFrame and saves the result to the DAG node
@@ -1557,6 +1560,7 @@ func (s *DebuggingService) GetTestData(testName, taskId string) TestDataResponse
 				if testExecResult := s.dag.GetTestResult(taskId, testName); testExecResult != nil && testExecResult.DataFrame != nil {
 					if df, ok := testExecResult.DataFrame.(*dataframe.DataFrame); ok {
 						// Convert DataFrame to JSON-serializable format
+						response.Columns = df.Names()
 						records := make([]map[string]interface{}, 0, df.Nrow())
 						for i := 0; i < df.Nrow(); i++ {
 							record := make(map[string]interface{})
