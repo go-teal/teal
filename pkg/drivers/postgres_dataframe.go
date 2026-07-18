@@ -146,12 +146,11 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 			seriesData[i] = make([]string, 0)
 		case "numeric", "float4", "float8":
 			seriesData[i] = make([]float64, 0)
-		case "int2":
+		case "int2", "int4", "int8":
+			// gota's series.New only understands []int (no []int32/[]int64
+			// cases — unknown slice types degrade to NA/null, see issue #005).
+			// int is 64-bit on every release target, so this is lossless.
 			seriesData[i] = make([]int, 0)
-		case "int4":
-			seriesData[i] = make([]int32, 0)
-		case "int8":
-			seriesData[i] = make([]int64, 0)
 		case "bool":
 			seriesData[i] = make([]bool, 0)
 		default:
@@ -212,14 +211,14 @@ func (d *PostgresDBEngine) ToDataFrame(sqlQuery string) (*dataframe.DataFrame, e
 				sd = append(sd, int(val.Int16))
 				seriesData[i] = sd
 			case "int4":
-				sd := seriesData[i].([]int32)
+				sd := seriesData[i].([]int)
 				val := safeData[i].(*sql.NullInt32)
-				sd = append(sd, int32(val.Int32))
+				sd = append(sd, int(val.Int32))
 				seriesData[i] = sd
 			case "int8":
-				sd := seriesData[i].([]int64)
+				sd := seriesData[i].([]int)
 				val := safeData[i].(*sql.NullInt64)
-				sd = append(sd, int64(val.Int64))
+				sd = append(sd, int(val.Int64))
 				seriesData[i] = sd
 			case "bool":
 				sd := seriesData[i].([]bool)
