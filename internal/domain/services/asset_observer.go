@@ -226,7 +226,11 @@ func (ao *AssetObserver) startUIProcess() error {
 
 	fmt.Printf("Starting UI process: %s (port=%d, log_level=%s)\n", uiPath, ao.port, ao.logLevel)
 
-	cmd := exec.Command("go", "run", uiPath,
+	// Local patch (Elstate): the generated cmd/<project>-ui and pkg/ui are
+	// gated behind the `teal_ui` build tag, but upstream spawns `go run`
+	// without it — the UI process always fails to compile (still broken in
+	// v1.2.0). Pass the tag explicitly.
+	cmd := exec.Command("go", "run", "-tags", "teal_ui", uiPath,
 		"--port", fmt.Sprintf("%d", ao.port),
 		"--log-level", ao.logLevel)
 	cmd.Dir = ao.projectPath
