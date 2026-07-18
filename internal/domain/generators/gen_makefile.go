@@ -32,6 +32,14 @@ func (g *GenMakefile) GetFullPath() string {
 }
 
 func (g *GenMakefile) RenderToFile() (error, bool) {
+	// The Makefile is scaffolding the developer is expected to customize
+	// (extra targets, env wiring). Like go.mod / main.go / Dockerfile, skip
+	// regeneration when it already exists so `teal gen` never clobbers hand
+	// edits. Delete the file to force a fresh template on the next gen.
+	if _, err := os.Stat(g.GetFullPath()); err == nil {
+		return nil, true
+	}
+
 	tmpl, err := pongo2.FromString(makefileTemplate)
 	if err != nil {
 		return err, false

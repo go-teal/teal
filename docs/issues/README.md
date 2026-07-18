@@ -13,6 +13,7 @@
 | 004 | High | [`teal ui` спавнит API-процесс без `-tags teal_ui`](./004-ui-spawn-missing-build-tag.md) | 2026-07-17 | partner-analytics |
 | 005 | High | [int4/int8 колонки теряются в DataFrame — везде null](./005-pg-dataframe-int-slices-become-null.md) | 2026-07-18 | partner-analytics |
 | 006 | High | [«Select» ассета исполняет SQL модели — 42601 на SCD2, риск мутаций](./006-asset-select-executes-model-script.md) | 2026-07-18 | partner-analytics |
+| 007 | High | [`teal gen` затирает пользовательский Makefile](./007-gen-makefile-clobbers-user-edits.md) | 2026-07-18 | partner-analytics |
 
 ## Resolved
 
