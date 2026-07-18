@@ -6,8 +6,9 @@ API-процесс проекта падает на компиляции, вес
 
 **Discovered:** 2026-07-17 при отладке `partner-analytics` (AN-01, minikube-БД).
 
-**Status:** ✅ пофикшено локально (ветка `fix/ui-spawn-build-tag`, коммит `050e137`);
-апстрим — TODO (см. Next steps).
+**Status:** ✅ RESOLVED — PR [#20](https://github.com/go-teal/teal/pull/20) смержен,
+выпущен релиз [v1.2.1](https://github.com/go-teal/teal/releases/tag/v1.2.1) (2026-07-18);
+локальный патч снят, CLI переустановлен с v1.2.1.
 
 ---
 
@@ -57,10 +58,10 @@ cmd := exec.Command("go", "run", "-tags", "teal_ui", uiPath, ...)
 
 ## Next steps
 
-- [ ] PR в апстрим `go-teal/teal` (одна строка + при желании тест на команду спавна).
-- [ ] После релиза апстрима — вернуть CLI на released-версию, локальный патч снять.
-- [ ] Примечание в `partner-analytics/Makefile` (`make ui`) обновить, когда патч
-      перестанет быть нужен.
+- [x] PR в апстрим `go-teal/teal` — [#20](https://github.com/go-teal/teal/pull/20), merged.
+- [x] Релиз v1.2.1; CLI переустановлен (`go install .../cmd/teal@v1.2.1`; `teal version`
+      печатает `dev` — ldflags-версию прошивают только релизные бинарники, код идентичен).
+- [x] Примечание в `partner-analytics/Makefile` (`make ui`) обновлено: teal ≥ v1.2.1.
 
 ## Workaround (без патча CLI)
 
