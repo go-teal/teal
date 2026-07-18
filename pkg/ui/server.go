@@ -106,6 +106,8 @@ func (s *UIServer) Start() error {
 	r.POST("/api/dag/asset/:name/mutate", s.handleAssetMutate)
 	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
 	r.POST("/api/dag/asset/:name/select", s.handleAssetSelect)
+	r.POST("/api/dag/asset/:name/drop", s.handleAssetDropPersisted)
+	r.POST("/api/dag/asset/:name/truncate", s.handleAssetTruncate)
 	r.POST("/api/dag/reset", s.handleDagReset)
 	r.POST("/api/dag/connect", s.handleConnect)
 	r.POST("/api/dag/disconnect", s.handleDisconnect)
@@ -435,6 +437,50 @@ func (s *UIServer) handleAssetSelect(c *gin.Context) {
 	statusCode := http.StatusOK
 
 	// Return 202 Accepted if the operation is still in progress (timed out)
+	if response.Status == debugging.NodeStateInProgress {
+		statusCode = http.StatusAccepted
+	}
+
+	c.JSON(statusCode, response)
+}
+
+// handleAssetDropPersisted drops the physical relation an asset materializes
+// (DROP TABLE for table/incremental, DROP VIEW for view). It is idempotent and
+// rejects assets that do not own a droppable relation (custom/raw).
+func (s *UIServer) handleAssetDropPersisted(c *gin.Context) {
+	s.runAssetMaintenance(c, s.debuggingService.DropAssetPersistedData)
+}
+
+// handleAssetTruncate empties the table an asset materializes (table/incremental only).
+func (s *UIServer) handleAssetTruncate(c *gin.Context) {
+	s.runAssetMaintenance(c, s.debuggingService.TruncateAssetTable)
+}
+
+// runAssetMaintenance is the shared HTTP glue for the destructive relation
+// operations: it validates the asset name and taskId, invokes the given service
+// operation, and maps its result to a status code.
+func (s *UIServer) runAssetMaintenance(c *gin.Context, op func(assetName, taskId string) <-chan debugging.AssetExecuteResponseDTO) {
+	assetName := c.Param("name")
+	if assetName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
+		return
+	}
+
+	var request debugging.AssetExecuteRequestDTO
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+	if request.TaskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+
+	response := <-op(assetName, request.TaskId)
+
+	// Match the rest of the debug API: always 200 OK (202 only while in progress);
+	// failures are carried in the response DTO's status/error fields.
+	statusCode := http.StatusOK
 	if response.Status == debugging.NodeStateInProgress {
 		statusCode = http.StatusAccepted
 	}
