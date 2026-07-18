@@ -7,7 +7,7 @@
 `ui` / `run` / `check-minikube-db` (env-обвязка под minikube postgresql,
 влиты в develop) исчезли после `teal gen` — `make ui` перестал существовать.
 
-**Status:** ✅ RESOLVED — fix в `fix/gen-makefile-skip-existing`, релиз vX.Y.Z.
+**Status:** ✅ RESOLVED — fix в `fix/gen-makefile-skip-existing` (PR #24), релиз v1.2.7.
 
 ## Root cause
 
