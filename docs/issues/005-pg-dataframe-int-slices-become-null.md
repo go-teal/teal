@@ -7,7 +7,7 @@ cross-DB dataframe-потоках.
 **Discovered:** 2026-07-18 при исследовании данных `partner-analytics`
 (raw.stg_leads: `amocrm_lead_id` «пуст» при заполненной колонке в БД).
 
-**Status:** ✅ RESOLVED — фикс в `fix/pg-dataframe-int-slices`, релиз v1.2.2.
+**Status:** ✅ RESOLVED — фикс в `fix/pg-dataframe-int-slices` (PR #21), релиз **v1.2.3** (v1.2.2 успел выйти параллельно с фиксом column-order — v1.2.3 содержит оба).
 
 ---
 
