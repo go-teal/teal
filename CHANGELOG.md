@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.11] 2026-07-19
+
+### Added
+
+- Debug UI shows an amber **"0 records"** hint under the asset toolbar when a
+  Run Select or Data Preview succeeds but returns an empty result set, instead of
+  the green success message
+
 ## [1.2.10] 2026-07-19
 
 ### Added
