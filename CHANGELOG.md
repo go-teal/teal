@@ -1,5 +1,111 @@
 # Changelog
 
+## [1.2.10] 2026-07-19
+
+### Added
+
+- **Data Preview** in the debug UI: reads an asset's materialized relation
+  (`SELECT * FROM <name>`) with pagination and shows it in the Data panel — a
+  plain "what's in the table" view, independent of the model's transformation SQL
+  - New endpoint `POST /api/dag/asset/:name/preview`
+  - Magnifying-glass button in the asset toolbar for table/incremental/view assets
+
+## [1.2.9] 2026-07-19
+
+### Added
+
+- Asset action **icon toolbar** under the asset name (Run Select, Run Mutation,
+  Truncate, Delete Persisted Data), reachable from any tab
+- **Drag-to-pan** on the DAG canvas — hold the mouse button and drag to scroll
+
+### Fixed
+
+- Debug UI bundle was served with a one-year cache; since teal-ui builds fixed
+  asset filenames, browsers kept serving a stale dashboard across upgrades. Assets
+  are now served with `no-cache`
+
+## [1.2.8] 2026-07-18
+
+### Added
+
+- **Drop / Truncate persisted data** in the debug UI
+  - `POST /api/dag/asset/:name/drop` — DROP TABLE (table/incremental) / DROP VIEW (view)
+  - `POST /api/dag/asset/:name/truncate` — empty the table (table/incremental)
+  - Confirm-dialog buttons in the asset panel
+
+### Fixed
+
+- Data panel now follows the most recent write, so `RUN SELECTED QUERY` results
+  are no longer hidden behind a prior mutation's task
+
+## [1.2.7] 2026-07-18
+
+### Fixed
+
+- `teal gen` no longer clobbers an existing `Makefile` in a generated project
+
+## [1.2.6] 2026-07-18
+
+### Fixed
+
+- Correct materialization icons in the dashboard: the gopher marks **raw Go**
+  assets only; **custom** materialization gets a table icon and `.sql` extension
+
+## [1.2.5] 2026-07-18
+
+### Changed
+
+- Vendored the teal-ui build that renders result columns in SQL order (UI side of
+  the 1.2.2 fix)
+
+## [1.2.4] 2026-07-18
+
+### Fixed
+
+- Asset select previews the materialized relation (`SELECT * FROM <name>`) for
+  models whose SQL is not a single read-only SELECT (SCD2 / custom scripts),
+  instead of failing or running the model's mutations
+
+## [1.2.3] 2026-07-18
+
+### Fixed
+
+- Postgres `int4` / `int8` columns no longer degrade to null in DataFrames
+  (gota only understands `[]int`)
+
+## [1.2.2] 2026-07-18
+
+### Fixed
+
+- Preserve SQL column order in select/test data responses via a `columns` field
+  (result rows are maps, so their JSON keys come back alphabetized)
+
+## [1.2.1] 2026-07-18
+
+### Fixed
+
+- `teal ui` passes `-tags teal_ui` when spawning the generated project's UI process
+
+## [1.2.0] 2026-07-18
+
+### Changed
+
+- Updated dependencies to their latest versions (gin, pgx/v5, zerolog, pongo2/v6,
+  gin-contrib/cors, and transitive updates)
+
+## [1.1.1] 2026-05-19
+
+### Added
+
+- `pkg/ui` is now gated behind the `teal_ui` build tag, so the default library
+  build stays slim; documented the build tag in the README and templates
+
+## [1.1.0] 2026-05-19
+
+### Fixed
+
+- PostgreSQL pipelines now work out of the box (drivers + generation)
+
 ## [1.0.2] 2025-11-03
 
 ### Added
