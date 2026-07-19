@@ -1149,7 +1149,7 @@ classDiagram
         +Connect() error
         +Begin() any, error
         +Commit(tx any) error
-        +Rallback(tx any) error
+        +Rollback(tx any) error
         +Close() error
         +Exec(tx any, sql string) error
         +GetListOfFields(tx any, tableName string) []string

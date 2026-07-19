@@ -9,7 +9,7 @@ type DBDriver interface {
 	Connect() error
 	Begin() (interface{}, error)
 	Commit(tx interface{}) error
-	Rallback(tx interface{}) error
+	Rollback(tx interface{}) error
 	Close() error
 	Exec(tx interface{}, sql string) error
 	ToDataFrame(sql string) (*dataframe.DataFrame, error)

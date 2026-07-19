@@ -169,7 +169,7 @@ func (s *DebuggingService) runRelationMaintenance(assetName, taskId string, op r
 		}
 
 		if err := dbConnection.Exec(tx, sqlDDL); err != nil {
-			dbConnection.Rallback(tx)
+			dbConnection.Rollback(tx)
 			log.Error().Caller().Str("taskId", taskId).Str("assetName", assetName).
 				Str("sql", sqlDDL).Err(err).Msgf("Failed to %s relation", op.name)
 			fail(fmt.Sprintf("Failed to %s relation: %v", op.name, err))

@@ -20,8 +20,8 @@ type DuckDBEngine struct {
 type DuckDBEngineFactory struct {
 }
 
-// Rallback implements DBEngine.
-func (d *DuckDBEngine) Rallback(tx interface{}) error {
+// Rollback implements DBEngine.
+func (d *DuckDBEngine) Rollback(tx interface{}) error {
 	return tx.(*sql.Tx).Rollback()
 }
 

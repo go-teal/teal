@@ -75,7 +75,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return nil, err
 	}
 
@@ -91,7 +91,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 		// TODO: Move this to the driver
 		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA %s;", splitted[0]))
 		if err != nil {
-			defer dbConnection.Rallback(tx)
+			defer dbConnection.Rollback(tx)
 			log.Error().Caller().
 				Str("taskId", ctx.TaskID).
 				Str("taskUUID", ctx.TaskUUID).
@@ -114,7 +114,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to create schema or table")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return nil, err
 	}
 
@@ -199,7 +199,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 				err = s.insertToTable(ctx)
 
 				if err != nil {
-					defer dbConnection.Rallback(tx)
+					defer dbConnection.Rollback(tx)
 					log.Error().Caller().
 						Str("taskId", ctx.TaskID).
 						Str("taskUUID", ctx.TaskUUID).
@@ -223,7 +223,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 		if s.descriptor.ModelProfile.PersistInputs {
 			err := s.persistInputs(ctx.Input)
 			if err != nil {
-				defer dbConnection.Rallback(tx)
+				defer dbConnection.Rollback(tx)
 				log.Error().Caller().
 					Str("taskId", ctx.TaskID).
 					Str("taskUUID", ctx.TaskUUID).
@@ -351,13 +351,13 @@ func (s *SQLModelAsset) createView(ctx *TaskContext) error {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return err
 	}
 
 	createViewSQLTemplate, err := pongo2.FromString(s.descriptor.CreateViewSQL)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -374,7 +374,7 @@ func (s *SQLModelAsset) createView(ctx *TaskContext) error {
 	)
 	sqlQuery, err := createViewSQLTemplate.Execute(context)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -386,7 +386,7 @@ func (s *SQLModelAsset) createView(ctx *TaskContext) error {
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -417,7 +417,7 @@ func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return err
 	}
 
@@ -427,7 +427,7 @@ func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 
 	createTableSQLTempl, err := pongo2.FromString(s.descriptor.CreateTableSQL)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -444,7 +444,7 @@ func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 	)
 	sqlQuery, err := createTableSQLTempl.Execute(context)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -456,7 +456,7 @@ func (s *SQLModelAsset) createTable(ctx *TaskContext) error {
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -487,13 +487,13 @@ func (s *SQLModelAsset) truncateTable(ctx *TaskContext) error {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return err
 	}
 
 	err = dbConnection.Exec(tx, s.descriptor.TruncateTableSQL)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -527,7 +527,7 @@ func (s *SQLModelAsset) customQuery(ctx *TaskContext) error {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return err
 	}
 
@@ -559,7 +559,7 @@ func (s *SQLModelAsset) customQuery(ctx *TaskContext) error {
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -589,7 +589,7 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return err
 	}
 
@@ -599,7 +599,7 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 
 	runSQLTemplate, err := pongo2.FromString(s.descriptor.InsertSQL)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -616,7 +616,7 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 	)
 	sqlQuery, err := runSQLTemplate.Execute(context)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -628,7 +628,7 @@ func (s *SQLModelAsset) insertToTable(ctx *TaskContext) error {
 	}
 	err = dbConnection.Exec(tx, sqlQuery)
 	if err != nil {
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		log.Error().Caller().Stack().
 			Str("taskId", ctx.TaskID).
 			Str("taskUUID", ctx.TaskUUID).
@@ -704,7 +704,7 @@ func (s *SQLModelAsset) persistInputs(inputs map[string]interface{}) error {
 			Str("assetName", s.descriptor.Name).
 			Err(err).
 			Msg("Failed to begin transaction")
-		defer dbConnection.Rallback(tx)
+		defer dbConnection.Rollback(tx)
 		return err
 	}
 
@@ -724,7 +724,7 @@ func (s *SQLModelAsset) persistInputs(inputs map[string]interface{}) error {
 					Str("connection", s.descriptor.ModelProfile.Connection).
 					Err(err).
 					Msg("Failed to persist inputs")
-				defer dbConnection.Rallback(tx)
+				defer dbConnection.Rollback(tx)
 				return err
 			}
 		default:

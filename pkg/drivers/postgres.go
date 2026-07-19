@@ -20,8 +20,8 @@ type PostgresDBEngine struct {
 type PostgresDBEngineFactory struct {
 }
 
-// Rallback implements DBEngine.
-func (d *PostgresDBEngine) Rallback(tx interface{}) error {
+// Rollback implements DBEngine.
+func (d *PostgresDBEngine) Rollback(tx interface{}) error {
 	return tx.(pgx.Tx).Rollback(context.Background())
 }
 
