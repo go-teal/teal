@@ -106,6 +106,7 @@ func (s *UIServer) Start() error {
 	r.POST("/api/dag/asset/:name/mutate", s.handleAssetMutate)
 	r.GET("/api/dag/asset/:name/data", s.handleAssetData)
 	r.POST("/api/dag/asset/:name/select", s.handleAssetSelect)
+	r.POST("/api/dag/asset/:name/preview", s.handleAssetPreview)
 	r.POST("/api/dag/asset/:name/drop", s.handleAssetDropPersisted)
 	r.POST("/api/dag/asset/:name/truncate", s.handleAssetTruncate)
 	r.POST("/api/dag/reset", s.handleDagReset)
@@ -437,6 +438,36 @@ func (s *UIServer) handleAssetSelect(c *gin.Context) {
 	statusCode := http.StatusOK
 
 	// Return 202 Accepted if the operation is still in progress (timed out)
+	if response.Status == debugging.NodeStateInProgress {
+		statusCode = http.StatusAccepted
+	}
+
+	c.JSON(statusCode, response)
+}
+
+// handleAssetPreview reads the asset's materialized relation (SELECT * FROM <name>)
+// and stores it so the Data panel can page through it — a plain table preview,
+// independent of the model's transformation SQL.
+func (s *UIServer) handleAssetPreview(c *gin.Context) {
+	assetName := c.Param("name")
+	if assetName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "asset name is required"})
+		return
+	}
+
+	var request debugging.AssetExecuteRequestDTO
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
+		return
+	}
+	if request.TaskId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "taskId is required"})
+		return
+	}
+
+	response := <-s.debuggingService.PreviewAssetData(assetName, request.TaskId)
+
+	statusCode := http.StatusOK
 	if response.Status == debugging.NodeStateInProgress {
 		statusCode = http.StatusAccepted
 	}

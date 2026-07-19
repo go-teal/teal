@@ -1025,7 +1025,23 @@ func (s *DebuggingService) serializeResultWithPagination(result interface{}, off
 // ExecuteAssetSelect executes the asset's SQL query using ToDataFrame and saves the result to the DAG node
 // The SQL template is rendered first, executing all template functions (like Ref)
 // Returns a response with taskId that can be used to retrieve the data via GetAssetData endpoint
+// ExecuteAssetSelect runs the asset's own model SQL and stores the result for
+// preview. If the rendered model SQL is not a single read-only SELECT, it falls
+// back to reading the materialized relation (SELECT * FROM <name>).
 func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan AssetExecuteResponseDTO {
+	return s.runAssetSelect(assetName, taskId, false)
+}
+
+// PreviewAssetData reads the materialized relation directly (SELECT * FROM <name>),
+// ignoring the model's transformation SQL — a plain "show me what's in the table"
+// preview. The Data panel paginates the result exactly as it does for select.
+func (s *DebuggingService) PreviewAssetData(assetName, taskId string) <-chan AssetExecuteResponseDTO {
+	return s.runAssetSelect(assetName, taskId, true)
+}
+
+// runAssetSelect backs both ExecuteAssetSelect and PreviewAssetData. previewRelation
+// forces reading the materialized relation instead of running the model SQL.
+func (s *DebuggingService) runAssetSelect(assetName, taskId string, previewRelation bool) <-chan AssetExecuteResponseDTO {
 	responseChan := make(chan AssetExecuteResponseDTO, 1)
 
 	go func() {
@@ -1170,8 +1186,13 @@ func (s *DebuggingService) ExecuteAssetSelect(assetName, taskId string) <-chan A
 			// model's mutations from a data-preview button. For anything that
 			// is not a single read-only SELECT, preview the materialized
 			// relation instead.
+			// Data Preview always reads the materialized relation. Run Select runs
+			// the model SQL, unless it isn't a single read-only SELECT (issue #006),
+			// in which case it also falls back to the relation.
 			querySQL := renderedSQL
-			if !isSingleReadOnlySelect(renderedSQL) {
+			if previewRelation {
+				querySQL = fmt.Sprintf("SELECT * FROM %s", sqlModelDesc.Name)
+			} else if !isSingleReadOnlySelect(renderedSQL) {
 				querySQL = fmt.Sprintf("SELECT * FROM %s", sqlModelDesc.Name)
 				log.Debug().
 					Str("assetName", assetName).
