@@ -102,12 +102,11 @@ func (s *UIAssetsServer) serveFile(w http.ResponseWriter, r *http.Request) {
 	contentType := getContentType(path)
 	w.Header().Set("Content-Type", contentType)
 
-	// Set caching headers for static assets
-	if strings.HasPrefix(path, "assets/") {
-		w.Header().Set("Cache-Control", "public, max-age=31536000") // 1 year for assets
-	} else {
-		w.Header().Set("Cache-Control", "no-cache") // No cache for index.html
-	}
+	// teal-ui emits fixed asset filenames (assets/index.js, assets/index.css —
+	// not content-hashed), so a long-lived cache would pin the browser to a stale
+	// bundle across teal upgrades: users would keep seeing the old UI until a hard
+	// refresh. Revalidate on every load instead.
+	w.Header().Set("Cache-Control", "no-cache")
 
 	// Serve the file
 	http.ServeContent(w, r, stat.Name(), stat.ModTime(), file.(io.ReadSeeker))
