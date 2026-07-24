@@ -31,6 +31,6 @@ func (versionCommand *VersionCommand) Init(args []string) error {
 }
 
 func (genCommand *VersionCommand) Run() error {
-	fmt.Println(configs.TEAL_VERSION)
+	fmt.Println(configs.ResolvedVersion())
 	return nil
 }

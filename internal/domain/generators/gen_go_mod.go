@@ -50,7 +50,7 @@ func (g *GenGoMod) RenderToFile() (error, bool) {
 
 	output, err := templ.Execute(pongo2.Context{
 		"Config":  g.config,
-		"Version": configs.TEAL_VERSION,
+		"Version": configs.ResolvedVersion(),
 	})
 	if err != nil {
 		panic(err)
