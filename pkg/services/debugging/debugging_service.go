@@ -1179,24 +1179,17 @@ func (s *DebuggingService) runAssetSelect(assetName, taskId string, previewRelat
 				return
 			}
 
-			// Guard (issue #006): a rendered model may be a multi-statement
-			// script (SCD2 / custom materializations). Executing it here would
-			// both fail — pgx's extended protocol forbids multiple commands in
-			// one prepared statement (SQLSTATE 42601) — and, worse, RUN the
-			// model's mutations from a data-preview button. For anything that
-			// is not a single read-only SELECT, preview the materialized
-			// relation instead.
-			// Data Preview always reads the materialized relation. Run Select runs
-			// the model SQL, unless it isn't a single read-only SELECT (issue #006),
-			// in which case it also falls back to the relation.
+			// Two independent, unconditional behaviours:
+			//   - Data Preview (magnifying glass) always reads the materialized
+			//     relation: SELECT * FROM <schema>.<asset>.
+			//   - Run Select (play) always runs the model's OWN rendered SQL —
+			//     unconditionally. It is an explicit request to preview the
+			//     transformation output, so we never silently swap it for a
+			//     relation read (that hid the real query and broke preview of
+			//     not-yet-materialized / renamed models).
 			querySQL := renderedSQL
 			if previewRelation {
 				querySQL = fmt.Sprintf("SELECT * FROM %s", sqlModelDesc.Name)
-			} else if !isSingleReadOnlySelect(renderedSQL) {
-				querySQL = fmt.Sprintf("SELECT * FROM %s", sqlModelDesc.Name)
-				log.Debug().
-					Str("assetName", assetName).
-					Msg("model SQL is not a single SELECT — previewing the materialized relation instead")
 			}
 
 			log.Debug().
@@ -1621,40 +1614,5 @@ func (s *DebuggingService) GetTestData(testName, taskId string) TestDataResponse
 	return response
 }
 
-// isSingleReadOnlySelect reports whether the rendered model SQL is a single
-// read-only SELECT/WITH statement — the only shape ExecuteAssetSelect may run
-// verbatim. Multi-statement scripts (SCD2, custom materializations) and
-// anything that does not start with SELECT/WITH must be previewed via the
-// materialized relation instead (see issue #006). A semicolon inside a string
-// literal yields a false negative, which safely degrades to the relation
-// preview.
-func isSingleReadOnlySelect(sqlText string) bool {
-	s := strings.TrimSpace(sqlText)
-	s = strings.TrimSuffix(s, ";")
-	if strings.Contains(s, ";") {
-		return false
-	}
-	// Skip leading comments before the first keyword.
-	for {
-		s = strings.TrimSpace(s)
-		if strings.HasPrefix(s, "--") {
-			i := strings.Index(s, "\n")
-			if i < 0 {
-				return false
-			}
-			s = s[i+1:]
-			continue
-		}
-		if strings.HasPrefix(s, "/*") {
-			i := strings.Index(s, "*/")
-			if i < 0 {
-				return false
-			}
-			s = s[i+2:]
-			continue
-		}
-		break
-	}
-	up := strings.ToUpper(s)
-	return strings.HasPrefix(up, "SELECT") || strings.HasPrefix(up, "WITH")
-}
+// (isSingleReadOnlySelect removed — «Run Select» now runs the model SQL
+// unconditionally; см. правку runAssetSelect выше.)
