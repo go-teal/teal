@@ -29,15 +29,15 @@ func TestStoringConsoleWriter_Write(t *testing.T) {
 	writer := NewStoringConsoleWriter(ctx, buf)
 
 	logger := zerolog.New(writer).With().Timestamp().Logger()
-	logger.Info().Str("task_name", "test_task").Msg("test message")
+	logger.Info().Str("taskId", "test_task").Msg("test message")
 
 	logs := writer.GetLogs("test_task")
-	assert.Len(t, logs, 1)
+	require.Len(t, logs, 1)
 
 	logData, ok := logs[0].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "test message", logData["message"])
-	assert.Equal(t, "test_task", logData["task_name"])
+	assert.Equal(t, "test_task", logData["taskId"])
 
 	assert.Contains(t, buf.String(), "test message")
 }
@@ -52,7 +52,7 @@ func TestStoringConsoleWriter_ExtractTaskName(t *testing.T) {
 		{
 			name:     "task name from log data",
 			ctx:      context.Background(),
-			logData:  map[string]interface{}{"task_name": "log_task"},
+			logData:  map[string]interface{}{"taskId": "log_task"},
 			expected: "log_task",
 		},
 		{
@@ -64,7 +64,7 @@ func TestStoringConsoleWriter_ExtractTaskName(t *testing.T) {
 		{
 			name:     "log data takes precedence over context",
 			ctx:      WithTaskName(context.Background(), "ctx_task"),
-			logData:  map[string]interface{}{"task_name": "log_task"},
+			logData:  map[string]interface{}{"taskId": "log_task"},
 			expected: "log_task",
 		},
 		{
@@ -91,9 +91,9 @@ func TestStoringConsoleWriter_GetLogs(t *testing.T) {
 	writer := NewStoringConsoleWriter(ctx, buf)
 
 	logger := zerolog.New(writer).With().Timestamp().Logger()
-	logger.Info().Str("task_name", "task1").Msg("message 1")
-	logger.Info().Str("task_name", "task1").Msg("message 2")
-	logger.Info().Str("task_name", "task2").Msg("message 3")
+	logger.Info().Str("taskId", "task1").Msg("message 1")
+	logger.Info().Str("taskId", "task1").Msg("message 2")
+	logger.Info().Str("taskId", "task2").Msg("message 3")
 
 	task1Logs := writer.GetLogs("task1")
 	assert.Len(t, task1Logs, 2)
@@ -111,8 +111,8 @@ func TestStoringConsoleWriter_GetAllLogs(t *testing.T) {
 	writer := NewStoringConsoleWriter(ctx, buf)
 
 	logger := zerolog.New(writer).With().Timestamp().Logger()
-	logger.Info().Str("task_name", "task1").Msg("message 1")
-	logger.Info().Str("task_name", "task2").Msg("message 2")
+	logger.Info().Str("taskId", "task1").Msg("message 1")
+	logger.Info().Str("taskId", "task2").Msg("message 2")
 	logger.Info().Msg("message without task")
 
 	allLogs := writer.GetAllLogs()
@@ -128,8 +128,8 @@ func TestStoringConsoleWriter_ClearLogs(t *testing.T) {
 	writer := NewStoringConsoleWriter(ctx, buf)
 
 	logger := zerolog.New(writer).With().Timestamp().Logger()
-	logger.Info().Str("task_name", "task1").Msg("message 1")
-	logger.Info().Str("task_name", "task2").Msg("message 2")
+	logger.Info().Str("taskId", "task1").Msg("message 1")
+	logger.Info().Str("taskId", "task2").Msg("message 2")
 
 	writer.ClearLogs("task1")
 
@@ -146,8 +146,8 @@ func TestStoringConsoleWriter_ClearAllLogs(t *testing.T) {
 	writer := NewStoringConsoleWriter(ctx, buf)
 
 	logger := zerolog.New(writer).With().Timestamp().Logger()
-	logger.Info().Str("task_name", "task1").Msg("message 1")
-	logger.Info().Str("task_name", "task2").Msg("message 2")
+	logger.Info().Str("taskId", "task1").Msg("message 1")
+	logger.Info().Str("taskId", "task2").Msg("message 2")
 
 	writer.ClearAllLogs()
 
@@ -171,7 +171,7 @@ func TestStoringConsoleWriter_ConcurrentAccess(t *testing.T) {
 			logger := zerolog.New(writer).With().Timestamp().Logger()
 			for j := 0; j < numLogs; j++ {
 				logger.Info().
-					Str("task_name", "concurrent_task").
+					Str("taskId", "concurrent_task").
 					Int("goroutine", id).
 					Int("log_num", j).
 					Msg("concurrent message")
@@ -215,7 +215,7 @@ func TestStoringConsoleWriter_Settings(t *testing.T) {
 	writer.SetTimeFormat("2006-01-02")
 	assert.Equal(t, "2006-01-02", writer.consoleWriter.TimeFormat)
 
-	fieldsOrder := []string{"level", "message", "task_name"}
+	fieldsOrder := []string{"level", "message", "taskId"}
 	writer.SetFieldsOrder(fieldsOrder)
 	assert.Equal(t, fieldsOrder, writer.consoleWriter.FieldsOrder)
 }
@@ -246,7 +246,7 @@ func TestMultiWriter_WithStoringConsoleWriter(t *testing.T) {
 	multiWriter := NewMultiWriter(storingWriter, jsonWriter)
 	logger := zerolog.New(multiWriter).With().Timestamp().Logger()
 
-	logger.Info().Str("task_name", "multi_task").Msg("multi message")
+	logger.Info().Str("taskId", "multi_task").Msg("multi message")
 
 	logs := storingWriter.GetLogs("multi_task")
 	assert.Len(t, logs, 1)
@@ -303,19 +303,19 @@ func TestStoringConsoleWriter_StructuredLogging(t *testing.T) {
 	}
 
 	logger.Info().
-		Str("task_name", "structured_task").
+		Str("taskId", "structured_task").
 		Interface("user", user).
 		Str("operation", "create").
 		Int("status_code", 201).
 		Msg("User created successfully")
 
 	logs := writer.GetLogs("structured_task")
-	assert.Len(t, logs, 1)
+	require.Len(t, logs, 1)
 
 	logData, ok := logs[0].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "User created successfully", logData["message"])
-	assert.Equal(t, "structured_task", logData["task_name"])
+	assert.Equal(t, "structured_task", logData["taskId"])
 	assert.Equal(t, "create", logData["operation"])
 	assert.Equal(t, float64(201), logData["status_code"])
 	assert.NotNil(t, logData["user"])
@@ -330,7 +330,7 @@ func BenchmarkStoringConsoleWriter_Write(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		logger.Info().
-			Str("task_name", "bench_task").
+			Str("taskId", "bench_task").
 			Int("iteration", i).
 			Msg("benchmark message")
 	}
@@ -345,7 +345,7 @@ func BenchmarkStoringConsoleWriter_ConcurrentWrite(b *testing.B) {
 		logger := zerolog.New(writer).With().Timestamp().Logger()
 		for pb.Next() {
 			logger.Info().
-				Str("task_name", "concurrent_bench").
+				Str("taskId", "concurrent_bench").
 				Msg("benchmark message")
 		}
 	})
