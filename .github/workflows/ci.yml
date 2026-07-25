@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & vet
+    name: Build, vet & test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,6 +27,9 @@ jobs:
 
       - name: Build
         run: go build ./...
+
+      - name: Test
+        run: go test ./...
 
   goreleaser-check:
     name: GoReleaser config check
