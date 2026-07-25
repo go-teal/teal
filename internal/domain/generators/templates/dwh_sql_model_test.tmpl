@@ -14,7 +14,7 @@ const COUNT_TEST_SQL_{{ NameUpperCase }} = `
 select count(*) as test_count from
 (
 {{ SqlByteBuffer|safe }}
-) having test_count > 0 limit 1
+) as teal_test_src having count(*) > 0 limit 1
 `
 
 

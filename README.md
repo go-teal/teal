@@ -1048,7 +1048,7 @@ Test names follow the pattern `<stage>.<test_name>`, where:
 - Tests in `assets/tests/` use `root` as the stage (e.g., `root.test_dim_addresses_unique`)
 - Tests in `assets/tests/<stage>/` use their stage name (e.g., `dds.test_fact_transactions_unique`)
 
-**Important**: Write your test SQL to return rows that violate constraints. The test framework automatically wraps your query with `SELECT COUNT(*) as test_count FROM (...) HAVING test_count > 0 LIMIT 1` during code generation for performance optimization.
+**Important**: Write your test SQL to return rows that violate constraints. The test framework automatically wraps your query with `SELECT COUNT(*) as test_count FROM (...) as teal_test_src HAVING COUNT(*) > 0 LIMIT 1` during code generation for performance optimization.
 
 **Test Execution Logic:**
 

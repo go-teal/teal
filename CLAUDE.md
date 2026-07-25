@@ -533,7 +533,8 @@ The corollary: if you ever add new driver methods, follow the same convention â€
 
 ### Testing
 - Write test SQL to return rows that violate constraints (test passes if 0 rows, fails if >0 rows)
-- Do NOT add `LIMIT 1` or `HAVING test_count > 0` - the code generator automatically wraps test queries with `SELECT COUNT(*) ... HAVING count > 0 LIMIT 1`
+- Do NOT add `LIMIT 1` or `HAVING COUNT(*) > 0` - the code generator automatically wraps test queries with `SELECT COUNT(*) ... HAVING COUNT(*) > 0 LIMIT 1`
+- The wrapper must stay portable across engines: alias the subquery (`) as teal_test_src`) and repeat the aggregate in `HAVING` instead of referencing the `test_count` output alias â€” PostgreSQL resolves neither
 - Test template: `internal/domain/generators/templates/dwh_sql_model_test.tmpl`
 - Generated tests create two SQL constants: `RAW_SQL_*` (user's query) and `COUNT_TEST_SQL_*` (wrapped version)
 
