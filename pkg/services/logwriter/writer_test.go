@@ -185,6 +185,101 @@ func TestStoringConsoleWriter_ConcurrentAccess(t *testing.T) {
 	assert.Len(t, logs, numGoroutines*numLogs)
 }
 
+// The Out passed to NewStoringConsoleWriter is an arbitrary io.Writer — here a
+// bytes.Buffer, which is not goroutine-safe. Every record must still reach it
+// whole, one line each, when the DAG logs from many asset goroutines at once.
+// Run with -race to catch the write itself escaping the lock.
+func TestStoringConsoleWriter_ConcurrentWriteOutputIntegrity(t *testing.T) {
+	ctx := context.Background()
+	buf := &bytes.Buffer{}
+	writer := NewStoringConsoleWriter(ctx, buf)
+	writer.SetNoColor(true)
+
+	var wg sync.WaitGroup
+	numGoroutines := 8
+	numLogs := 50
+
+	wg.Add(numGoroutines)
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			defer wg.Done()
+			logger := zerolog.New(writer).With().Timestamp().Logger()
+			for j := 0; j < numLogs; j++ {
+				logger.Info().Str("taskId", "integrity_task").Int("goroutine", id).Msg("line")
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	assert.Len(t, lines, numGoroutines*numLogs, "every record must land as exactly one intact line")
+	for _, line := range lines {
+		assert.Contains(t, line, "line")
+		assert.Equal(t, 1, strings.Count(line, "goroutine="), "two records interleaved into one line")
+	}
+
+	assert.Len(t, writer.GetLogs("integrity_task"), numGoroutines*numLogs)
+}
+
+// Writes race against the config setters and UpdateContext, which mutate state
+// Write reads. Meaningful under -race; the assertions only pin down that the
+// hammering does not lose or corrupt records.
+func TestStoringConsoleWriter_ConcurrentWriteAndMutators(t *testing.T) {
+	writer := NewStoringConsoleWriter(context.Background(), &bytes.Buffer{})
+
+	var wg sync.WaitGroup
+	const iterations = 200
+
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		logger := zerolog.New(writer).With().Timestamp().Logger()
+		for i := 0; i < iterations; i++ {
+			logger.Info().Str("taskId", "mutator_task").Msg("from log data")
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		logger := zerolog.New(writer).With().Timestamp().Logger()
+		for i := 0; i < iterations; i++ {
+			// No taskId field: extractTaskName falls through to w.ctx, which
+			// the goroutine below is swapping underneath it.
+			logger.Info().Msg("from context")
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			writer.SetNoColor(i%2 == 0)
+			writer.SetTimeFormat("15:04:05")
+			writer.SetFieldsOrder([]string{"level", "message", "taskId"})
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			writer.UpdateContext(WithTaskName(context.Background(), "ctx_task"))
+			writer.GetLogs("mutator_task")
+			writer.GetAllLogs()
+		}
+	}()
+
+	wg.Wait()
+
+	assert.Len(t, writer.GetLogs("mutator_task"), iterations)
+
+	// The context-only records land in whichever bucket UpdateContext had
+	// installed at the time — "default" before the first swap, "ctx_task"
+	// after — but none may be dropped.
+	assert.Equal(t, iterations,
+		len(writer.GetLogs("ctx_task"))+len(writer.GetLogs("default")))
+}
+
 func TestStoringConsoleWriter_UpdateContext(t *testing.T) {
 	ctx1 := WithTaskName(context.Background(), "task1")
 	buf := &bytes.Buffer{}

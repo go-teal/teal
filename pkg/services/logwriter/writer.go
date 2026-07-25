@@ -17,8 +17,15 @@ const TaskIdKey contextKey = "taskId"
 type StoringConsoleWriter struct {
 	consoleWriter zerolog.ConsoleWriter
 	storage       map[string][]interface{}
-	mu            sync.RWMutex
-	ctx           context.Context
+	// mu guards storage and ctx.
+	mu sync.RWMutex
+	// writeMu guards consoleWriter. zerolog's ConsoleWriter formats into a
+	// pooled buffer and then flushes it to Out, so concurrent Write calls are
+	// only as safe as the Out the caller handed us — a bytes.Buffer or any
+	// plain io.Writer is not safe at all. The DAG logs from every asset
+	// goroutine at once, so serialize here instead of trusting Out.
+	writeMu sync.Mutex
+	ctx     context.Context
 }
 
 func NewStoringConsoleWriter(ctx context.Context, output io.Writer) *StoringConsoleWriter {
@@ -34,7 +41,7 @@ func NewStoringConsoleWriter(ctx context.Context, output io.Writer) *StoringCons
 }
 
 func (w *StoringConsoleWriter) Write(p []byte) (n int, err error) {
-	n, err = w.consoleWriter.Write(p)
+	n, err = w.writeConsole(p)
 	if err != nil {
 		return n, err
 	}
@@ -45,6 +52,13 @@ func (w *StoringConsoleWriter) Write(p []byte) (n int, err error) {
 	}
 
 	return n, nil
+}
+
+func (w *StoringConsoleWriter) writeConsole(p []byte) (int, error) {
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+
+	return w.consoleWriter.Write(p)
 }
 
 func (w *StoringConsoleWriter) storeLog(logData map[string]interface{}) {
@@ -66,8 +80,12 @@ func (w *StoringConsoleWriter) extractTaskName(logData map[string]interface{}) s
 	}
 
 	// Fall back to context value
-	if w.ctx != nil {
-		if taskName, ok := w.ctx.Value(TaskIdKey).(string); ok {
+	w.mu.RLock()
+	ctx := w.ctx
+	w.mu.RUnlock()
+
+	if ctx != nil {
+		if taskName, ok := ctx.Value(TaskIdKey).(string); ok {
 			return taskName
 		}
 	}
@@ -117,14 +135,23 @@ func (w *StoringConsoleWriter) ClearAllLogs() {
 }
 
 func (w *StoringConsoleWriter) SetNoColor(noColor bool) {
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+
 	w.consoleWriter.NoColor = noColor
 }
 
 func (w *StoringConsoleWriter) SetTimeFormat(format string) {
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+
 	w.consoleWriter.TimeFormat = format
 }
 
 func (w *StoringConsoleWriter) SetFieldsOrder(order []string) {
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
+
 	w.consoleWriter.FieldsOrder = order
 }
 
