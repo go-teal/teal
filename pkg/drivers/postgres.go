@@ -2,10 +2,14 @@ package drivers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"hash/fnv"
 	"strings"
+	"sync"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/go-teal/teal/pkg/configs"
@@ -15,6 +19,7 @@ import (
 type PostgresDBEngine struct {
 	dbConnection *configs.DBConnectionConfig
 	db           *pgxpool.Pool
+	schemaMutex  sync.Mutex
 }
 
 type PostgresDBEngineFactory struct {
@@ -83,6 +88,66 @@ func (d *PostgresDBEngine) CheckSchemaExists(tx interface{}, tableName string) b
 		panic(err)
 	}
 	return count > 0
+}
+
+// CreateSchema implements DBEngine.
+//
+// CREATE SCHEMA IF NOT EXISTS is NOT race free in PostgreSQL: the catalog check
+// is not atomic, so two sessions creating the same schema still collide on the
+// pg_namespace unique index (see docs/issues/008). Since every asset gets its
+// own pooled connection, the DDL is serialized explicitly - by a mutex for the
+// goroutines of this process and by a transaction scoped advisory lock for
+// other teal processes working on the same database.
+func (d *PostgresDBEngine) CreateSchema(tx interface{}, schemaName string) error {
+	d.schemaMutex.Lock()
+	defer d.schemaMutex.Unlock()
+
+	pgTx := tx.(pgx.Tx)
+	ctx := context.Background()
+
+	_, err := pgTx.Exec(ctx, "SELECT pg_advisory_xact_lock($1);", schemaAdvisoryLockID(schemaName))
+	if err != nil {
+		log.Error().Caller().Str("schema", schemaName).Err(err).Msg("Failed to lock the schema")
+		return err
+	}
+
+	// The DDL runs inside a savepoint, so a lost race leaves the outer
+	// transaction usable instead of aborting it.
+	savepoint, err := pgTx.Begin(ctx)
+	if err != nil {
+		log.Error().Caller().Str("schema", schemaName).Err(err).Msg("Failed to open a savepoint")
+		return err
+	}
+
+	_, err = savepoint.Exec(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s;", schemaName))
+	if err != nil {
+		defer savepoint.Rollback(ctx)
+		if isDuplicateSchemaError(err) {
+			log.Debug().Str("schema", schemaName).Msg("Schema has been created by a concurrent session")
+			return nil
+		}
+		log.Error().Caller().Str("schema", schemaName).Err(err).Msg("Failed to create schema")
+		return err
+	}
+
+	return savepoint.Commit(ctx)
+}
+
+// schemaAdvisoryLockID maps a schema name to a stable advisory lock id shared by
+// every teal process.
+func schemaAdvisoryLockID(schemaName string) int64 {
+	hash := fnv.New64a()
+	hash.Write([]byte("teal.schema." + schemaName))
+	return int64(hash.Sum64())
+}
+
+func isDuplicateSchemaError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	// 42P06 - duplicate_schema, 23505 - unique_violation on pg_namespace
+	return pgErr.Code == "42P06" || pgErr.Code == "23505"
 }
 
 // Begin implements DBEngine.

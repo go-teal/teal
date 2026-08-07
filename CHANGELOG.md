@@ -1,5 +1,115 @@
 # Changelog
 
+## [1.3.0] 2026-08-07
+
+### Fixed
+
+- **Гонка при первом параллельном создании схемы стейджа окончательно закрыта**
+  ([#008](docs/issues/008-create-schema-race-on-parallel-first-creation.md), повторное
+  открытие). `CREATE SCHEMA IF NOT EXISTS` из v1.2.13 оказался недостаточен: PostgreSQL
+  проверяет каталог вне блокировки, поэтому две сессии проходят проверку и обе вставляют
+  в `pg_namespace` — 23505 на `pg_namespace_nspname_index` продолжал ронять ассет и весь
+  его downstream. С переходом на `pgxpool` (v1.2.x, [#001](docs/issues/001-pgx-conn-panic-on-parallel-asset-execution.md))
+  окно стало шире: ассеты действительно работают в разных сессиях
+  - DDL вынесен в драйвер — новый метод `DBDriver.CreateSchema(tx, schemaName)`
+  - PostgreSQL: `sync.Mutex` (горутины одного процесса) + `pg_advisory_xact_lock` по
+    имени схемы (разные процессы teal на одной БД); DDL выполняется в savepoint, а
+    `42P06`/`23505` трактуются как success, поэтому проигранная гонка больше не аборчит
+    транзакцию ассета
+  - DuckDB: отдельный `schemaMutex` (не тот, что держит `ConcurrencyLock()`)
+
+### Breaking
+
+- `DBDriver` пополнился методом `CreateSchema` — сторонние реализации драйверов надо
+  дописать
+
+### Changed
+
+- Зависимости: `quic-go` 0.59.1 → 0.61.0, `mongo-driver/v2` 2.5.0 → 2.8.0,
+  `go-toml/v2` 2.2.4 → 2.4.3, `validator/v10` 10.30.1 → 10.30.3, `protobuf` 1.36.10 →
+  1.36.11, `mimetype` 1.4.12 → 1.4.15, `gin-contrib/sse` 1.1.0 → 1.1.1, `go-urn` 1.4.0 →
+  1.5.0, `ugorji/go/codec` 1.3.1 → 1.3.2 (дерево gin за тегом `teal_ui` — `go get -u ./...`
+  его не видит). Прямые зависимости уже были на последних версиях
+
+## [1.2.20] 2026-07-25
+
+### Fixed
+
+- `StoringConsoleWriter.Write` писал в `consoleWriter` вне блокировки — гонка при
+  логировании из горутин ассетов, если writer сконструирован не над `os.Stderr`
+  (`bytes.Buffer`, `MultiWriter`, свой sink). Добавлен `writeMu`, сеттеры и чтение `ctx`
+  тоже под блокировкой
+
+### Changed
+
+- CI прогоняет тесты под race detector
+
+## [1.2.19] 2026-07-25
+
+### Changed
+
+- CI прогоняет `go test` рядом с `vet` и `build` — до этого сьют вообще не запускался
+- `writer_test.go` чинён: тест искал запись по полю `task_name`, тогда как
+  `extractTaskName` читает `taskId`; проверки длины подняты до `require`
+
+## [1.2.18] 2026-07-25
+
+### Fixed
+
+- Генерируемая обёртка `COUNT_TEST_SQL_*` использовала два DuckDB-only конструкта и
+  падала на PostgreSQL: `having test_count > 0` (PG не резолвит алиас выходной колонки
+  в `HAVING`) и подзапрос без алиаса. Теперь `having count(*) > 0` и `) as teal_test_src`
+- `PostgresDBEngine.SimpleTest` сравнивал `err == sql.ErrNoRows`, а pgx v5 возвращает
+  обёрнутый `pgx.ErrNoRows` — прошедший тест (0 строк) отдавался как ошибка выполнения.
+  Заменено на `errors.Is`
+- Существующим проектам нужен повторный `teal gen` — старая обёртка вшита в
+  `internal/model_tests/*.go`
+
+## [1.2.17] 2026-07-24
+
+### Fixed
+
+- `teal gen` падал с «negative Repeat count» на путях ассетов длиннее 70 символов —
+  счётчик точек в статус-строке ограничен `max(0, …)`
+
+## [1.2.16] 2026-07-24
+
+### Fixed
+
+- `teal version` печатал `dev` при установке через `go install …@vX.Y.Z` (ldflags
+  проставляются только на релизной сборке). Добавлен `ResolvedVersion()` с откатом на
+  версию модуля из `runtime/debug.ReadBuildInfo()`
+
+## [1.2.15] 2026-07-24
+
+### Fixed
+
+- Довершает v1.2.14: в тот тег из-за неудачного `git add` попало только удаление теста,
+  а сам `isSingleReadOnlySelect` остался в коде
+
+## [1.2.14] 2026-07-24
+
+### Fixed
+
+- «Run Select» безусловно исполняет отрендеренный SQL модели, «Data Preview» — безусловно
+  читает материализованное отношение. Гард `isSingleReadOnlySelect` (из #006) молча
+  подменял запрос на `SELECT * FROM <relation>` и ломал превью ещё не материализованных
+  или переименованных моделей
+
+## [1.2.13] 2026-07-19
+
+### Fixed
+
+- `CREATE SCHEMA IF NOT EXISTS` в `sql_asset.go` — гонка при первом параллельном создании
+  схемы стейджа (#008). Оказалось недостаточным, см. [Unreleased]
+
+## [1.2.12] 2026-07-19
+
+### Breaking
+
+- Опечатка `Rallback` исправлена на `Rollback` в интерфейсе `DBDriver` и обоих драйверах —
+  сторонние реализации надо переименовать
+
 ## [1.2.11] 2026-07-19
 
 ### Added

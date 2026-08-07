@@ -88,8 +88,7 @@ func (s *SQLModelAsset) Execute(ctx *TaskContext) (interface{}, error) {
 			Str("taskUUID", ctx.TaskUUID).
 			Str("assetName", s.descriptor.Name).
 			Msgf("Schema %s does not exist", splitted[0])
-		// TODO: Move this to the driver
-		err = dbConnection.Exec(tx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s;", splitted[0]))
+		err = dbConnection.CreateSchema(tx, splitted[0])
 		if err != nil {
 			defer dbConnection.Rollback(tx)
 			log.Error().Caller().

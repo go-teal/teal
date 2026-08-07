@@ -15,6 +15,10 @@ type DuckDBEngine struct {
 	dbConnection *configs.DBConnectionConfig
 	db           *sql.DB
 	Mutex        *sync.Mutex
+	// schemaMutex is deliberately separate from Mutex: Mutex is already held by
+	// ConcurrencyLock() for the whole asset execution and Go mutexes are not
+	// reentrant.
+	schemaMutex sync.Mutex
 }
 
 type DuckDBEngineFactory struct {
@@ -67,6 +71,24 @@ func (d *DuckDBEngine) CheckSchemaExists(tx interface{}, tableName string) bool 
 // Begin implements DBEngine.
 func (d *DuckDBEngine) Begin() (interface{}, error) {
 	return d.db.Begin()
+}
+
+// CreateSchema implements DBEngine. The DDL is serialized by its own mutex, so
+// two assets of the same stage can not create the schema at the same time.
+func (d *DuckDBEngine) CreateSchema(tx interface{}, schemaName string) error {
+	d.schemaMutex.Lock()
+	defer d.schemaMutex.Unlock()
+
+	_, err := tx.(*sql.Tx).Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s;", schemaName))
+	if err != nil {
+		if strings.Contains(err.Error(), "already exists") {
+			log.Debug().Str("schema", schemaName).Msg("Schema has been created by a concurrent session")
+			return nil
+		}
+		log.Error().Caller().Str("schema", schemaName).Err(err).Msg("Failed to create schema")
+		return err
+	}
+	return nil
 }
 
 // CheckTableExists implements DBEngine.
